@@ -17,6 +17,14 @@
     <!-- Modal para cambiar estado -->
     <div v-if="showStatusModal" class="status-modal-overlay" @click="showStatusModal = false">
       <div class="status-modal" @click.stop>
+        <!-- 🚨 DEBUG: Mostrar información de carga -->
+        <div v-if="availableStatuses.length === 0" class="alert alert-warning">
+          <strong>⚠️ Estados no cargados</strong><br>
+          Total: {{ availableStatuses.length }} | Categorías: {{ categories.length }}
+          <button @click="forceLoadStatuses" class="btn btn-sm btn-primary ms-2">
+            Cargar Estados
+          </button>
+        </div>
         <div class="modal-header">
           <h5>Cambiar Estado</h5>
           <button class="close-btn" @click="showStatusModal = false">
@@ -145,6 +153,14 @@ export default {
         }
       },
       immediate: true
+    },
+
+    // 🚨 WATCHER PARA CARGAR ESTADOS CUANDO SE ABRE EL MODAL
+    showStatusModal(newValue) {
+      if (newValue && this.availableStatuses.length === 0) {
+        console.log('🚨 Modal abierto sin estados - Cargando automáticamente...');
+        this.forceLoadStatuses();
+      }
     }
   },
   beforeUnmount() {
@@ -176,6 +192,7 @@ export default {
         
         // Inicializar el servicio de tipos de estado
         await statusTypesService.initialize();
+        console.log('✅ Servicio de estados inicializado');
         
         // Cargar todos los estados
         this.availableStatuses = await statusTypesService.loadStatuses();
@@ -253,6 +270,17 @@ export default {
       console.log('✅ Estados de fallback cargados');
       this.$forceUpdate();
     },
+
+    // 🚨 MÉTODO PARA FORZAR CARGA DE ESTADOS
+    async forceLoadStatuses() {
+      console.log('🚨 Forzando carga de estados...');
+      try {
+        await this.loadDynamicStatuses();
+        console.log('✅ Estados cargados forzadamente');
+      } catch (error) {
+        console.error('❌ Error forzando carga:', error);
+      }
+    },
     
     getCategoryLabel(category) {
       const labels = {
@@ -307,7 +335,7 @@ export default {
     
     selectStatus(status) {
       this.currentStatus = status;
-      console.log('📝 Estado seleccionado:', status);
+      console.log('🎯 MANUAL: Estado seleccionado por usuario:', status);
       
       // Actualizar store inmediatamente cuando se selecciona un estado
       this.$store.commit('setUserStatus', {
@@ -331,6 +359,15 @@ export default {
       }
       
       console.log('✅ Store actualizado al seleccionar estado:', status);
+      
+      // 🚨 NOTIFICAR CAMBIO MANUAL AL WEBSOCKET
+      console.log('🚨 Enviando cambio manual al WebSocket...');
+      if (websocketService.isConnected) {
+        websocketService.changeStatus(status, null);
+        console.log('✅ Cambio manual enviado al WebSocket');
+      } else {
+        console.log('⚠️ WebSocket no conectado para cambio manual');
+      }
     },
     
     async changeStatus(status, customStatus = null) {

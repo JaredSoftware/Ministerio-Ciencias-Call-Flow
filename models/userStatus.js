@@ -68,8 +68,10 @@ userStatusSchema.methods.changeStatus = async function(newStatus, customStatus =
     this.color = statusType.color;
     this.label = statusType.label;
     this.statusType = statusType._id;
+    console.log(`✅ Estado configurado: ${statusType.label} (${statusType.color})`);
   } else {
     // Fallback a valores por defecto si no se encuentra el estado
+    console.log(`⚠️ Estado '${newStatus}' no encontrado, usando valores por defecto`);
     this.color = '#28a745';
     this.label = 'Conectado';
   }
@@ -81,8 +83,15 @@ userStatusSchema.methods.changeStatus = async function(newStatus, customStatus =
 userStatusSchema.statics.getActiveUsers = function() {
   return this.find({ 
     isActive: true,
-    lastSeen: { $gte: new Date(Date.now() - 5 * 60 * 1000) } // Últimos 5 minutos
-  }).populate('userId', 'name correo').populate('statusType');
+    lastSeen: { $gte: new Date(Date.now() - 30 * 60 * 1000) } // Últimos 30 minutos
+  }).populate({
+    path: 'userId',
+    select: 'name correo role',
+    populate: {
+      path: 'role',
+      select: 'nombre'
+    }
+  }).populate('statusType');
 };
 
 // Método estático para obtener estado de un usuario
@@ -91,8 +100,8 @@ userStatusSchema.statics.getUserStatus = function(userId) {
 };
 
 // Método estático para crear o actualizar estado
-userStatusSchema.statics.upsertStatus = function(userId, statusData) {
-  return this.findOneAndUpdate(
+userStatusSchema.statics.upsertStatus = async function(userId, statusData) {
+  const userStatus = await this.findOneAndUpdate(
     { userId },
     { 
       ...statusData,
@@ -104,6 +113,13 @@ userStatusSchema.statics.upsertStatus = function(userId, statusData) {
       setDefaultsOnInsert: true
     }
   ).populate('userId', 'name correo').populate('statusType');
+  
+  // Si se especificó un estado, configurarlo correctamente
+  if (statusData.status) {
+    await userStatus.changeStatus(statusData.status, statusData.customStatus);
+  }
+  
+  return userStatus;
 };
 
 module.exports = mongoose.model('UserStatus', userStatusSchema); 

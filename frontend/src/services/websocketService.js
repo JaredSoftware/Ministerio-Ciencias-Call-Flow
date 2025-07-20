@@ -29,7 +29,7 @@ class WebSocketService {
       });
 
       this.socket.on('connect', () => {
-        console.log('✅ WebSocket conectado con ID:', this.socket.id);
+        console.log('✅ WebSocket conectado con ID:', this.socket?.id || 'Sin ID');
         this.isConnected = true;
         
         // Si tenemos información del usuario, inicializar estado
@@ -63,6 +63,18 @@ class WebSocketService {
         this.emit('activeUsersList', users);
       });
 
+      // 🚨 NUEVO EVENTO ESPECÍFICO PARA ACTUALIZACIONES EN TIEMPO REAL
+      this.socket.on('active_users_updated', (data) => {
+        console.log('🚨 Actualización específica de usuario activo:', data);
+        this.emit('activeUsersUpdated', data);
+      });
+
+      // 🚨 EVENTO DE DESCONEXIÓN DE USUARIO
+      this.socket.on('user_disconnected', (data) => {
+        console.log('🔌 Usuario desconectado (Pub/Sub):', data);
+        this.emit('userDisconnected', data);
+      });
+
       this.socket.on('status_change_error', (error) => {
         console.error('❌ Error cambiando estado:', error);
         this.emit('statusChangeError', error);
@@ -77,7 +89,11 @@ class WebSocketService {
   disconnect() {
     if (this.socket) {
       console.log('🔌 Desconectando WebSocket...');
-      this.socket.disconnect();
+      try {
+        this.socket.disconnect();
+      } catch (error) {
+        console.error('❌ Error desconectando WebSocket:', error);
+      }
       this.socket = null;
       this.isConnected = false;
     }
@@ -85,8 +101,13 @@ class WebSocketService {
 
   // Inicializar estado del usuario
   initializeUserStatus(userInfo) {
-    if (!this.isConnected || !this.socket) {
-      console.log('⚠️ WebSocket no conectado, no se puede inicializar estado');
+    if (!this.isReady()) {
+      console.log('⚠️ WebSocket no está listo, no se puede inicializar estado');
+      return;
+    }
+
+    if (!userInfo || !userInfo.name) {
+      console.log('⚠️ Información de usuario inválida:', userInfo);
       return;
     }
 
@@ -99,25 +120,39 @@ class WebSocketService {
 
   // Cambiar estado del usuario
   changeStatus(status, customStatus = null) {
-    if (!this.isConnected || !this.socket) {
-      console.log('⚠️ WebSocket no conectado, no se puede cambiar estado');
+    if (!this.isReady()) {
+      console.log('⚠️ WebSocket no está listo, no se puede cambiar estado');
       return;
     }
 
-    console.log('🔄 Cambiando estado a:', status, customStatus);
-    this.socket.emit('change_status', {
-      status,
-      customStatus
-    });
+    if (!status) {
+      console.log('⚠️ Estado requerido para cambiar');
+      return;
+    }
+
+    console.log('🚨 WEBSOCKET: Enviando cambio manual de estado:', status, customStatus);
+    try {
+      this.socket.emit('change_status', {
+        status,
+        customStatus
+      });
+      console.log('✅ WEBSOCKET: Evento change_status emitido correctamente');
+    } catch (error) {
+      console.error('❌ Error enviando cambio de estado:', error);
+    }
   }
 
   // Actualizar actividad del usuario
   updateActivity() {
-    if (!this.isConnected || !this.socket) {
+    if (!this.isReady()) {
       return;
     }
 
-    this.socket.emit('update_activity');
+    try {
+      this.socket.emit('update_activity');
+    } catch (error) {
+      console.error('❌ Error actualizando actividad:', error);
+    }
   }
 
   // Suscribirse a eventos
@@ -141,8 +176,13 @@ class WebSocketService {
   getConnectionStatus() {
     return {
       isConnected: this.isConnected,
-      socketId: this.socket?.id
+      socketId: this.socket?.id || null
     };
+  }
+
+  // Verificar si el WebSocket está listo para usar
+  isReady() {
+    return this.isConnected && this.socket && this.socket.connected;
   }
 }
 

@@ -238,14 +238,14 @@ router.beforeEach(async (to, from, next) => {
       store.dispatch("login", localStorage.getItem("token"));
     }
   }
-
+  
   // Verificar si la ruta requiere autenticación
-  if (to.matched.some((record) => record.meta.requiresAuth)) {
-    console.log('🔒 Ruta protegida detectada');
+    if (to.matched.some((record) => record.meta.requiresAuth)) {
+      console.log('🔒 Ruta protegida detectada');
     
     // Verificar si el usuario está logueado
-    const isLoggedInNow = sessionStorage.getItem("isLoggedIn");
-    
+        const isLoggedInNow = sessionStorage.getItem("isLoggedIn");
+        
     if (!store.getters.isLoggedIn && !isLoggedInNow) {
       console.log('❌ Usuario no autenticado, redirigiendo a login');
       next("/signin");
@@ -272,7 +272,7 @@ router.beforeEach(async (to, from, next) => {
       if (hasAccess) {
         console.log('✅ Usuario tiene permisos, permitiendo acceso');
         next();
-      } else {
+        } else {
         console.log('❌ Usuario sin permisos suficientes, redirigiendo');
         // Redirigir al dashboard o a una página de acceso denegado
         next('/dashboard');
@@ -282,8 +282,8 @@ router.beforeEach(async (to, from, next) => {
       // En caso de error, permitir acceso temporal
       console.log('⚠️ Error en verificación de permisos, permitiendo acceso temporal');
       next();
-    }
-  } else {
+      }
+    } else {
     // Ruta pública
     console.log('✅ Ruta pública, permitiendo acceso');
     next();

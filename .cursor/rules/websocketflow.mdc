@@ -1,0 +1,12 @@
+---
+description: project telefonia 
+globs:
+alwaysApply: false
+---
+- estamos creando servicios web siempre tener en cuenta la infrastructura que se busca crear, ejemplo docker contenedores
+
+- no reescribir el mismo codigo más validar los fallos a profundidad
+
+- para el proyecto actual tener el cuenta el flujo de eventos Pub/Sub (Publish–Subscribe) que busco crear con websockets si es necesario
+
+- si necesitas modificar el funcionamiento de la aquitectua para mejorar la logica hazlo

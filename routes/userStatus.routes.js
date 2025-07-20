@@ -31,17 +31,23 @@ router.get('/test-session', (req, res) => {
 // Obtener estado del usuario actual
 router.get('/my-status', requireAuth, async (req, res) => {
   try {
+    console.log('🔍 Obteniendo estado para usuario:', req.session.user.name);
+    
     const userStatus = await UserStatus.getUserStatus(req.session.user._id);
     
     if (!userStatus) {
+      console.log('⚠️ Usuario sin estado, creando estado por defecto...');
       // Crear estado por defecto si no existe
       const newStatus = await UserStatus.upsertStatus(req.session.user._id, {
-        status: 'online',
-        isActive: true
+        status: 'available',
+        isActive: true,
+        sessionId: req.sessionID
       });
+      console.log('✅ Estado creado:', newStatus.status);
       return res.json({ success: true, status: newStatus });
     }
 
+    console.log('✅ Estado encontrado:', userStatus.status);
     res.json({ success: true, status: userStatus });
   } catch (error) {
     console.error('Error obteniendo estado:', error);
@@ -96,15 +102,166 @@ router.post('/change-status', requireAuth, async (req, res) => {
   }
 });
 
+// Endpoint para inicializar estados por defecto
+router.post('/init-status-types', async (req, res) => {
+  try {
+    console.log('🔄 Inicializando tipos de estado por defecto...');
+    
+    const StatusType = require('../models/statusType');
+    await StatusType.initializeDefaultStatuses();
+    
+    const statuses = await StatusType.getActiveStatuses();
+    console.log(`✅ ${statuses.length} tipos de estado inicializados`);
+    
+    res.json({
+      success: true,
+      message: 'Tipos de estado inicializados correctamente',
+      statuses: statuses
+    });
+  } catch (error) {
+    console.error('Error inicializando tipos de estado:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor' 
+    });
+  }
+});
+
+// Endpoint para debug de roles
+router.get('/debug-roles', async (req, res) => {
+  try {
+    console.log('🔍 DEBUG: Verificando roles...');
+    
+    const User = require('../models/users');
+    const Role = require('../models/roles');
+    
+    // Obtener todos los roles
+    const allRoles = await Role.find({}, 'nombre _id');
+    console.log('✅ Roles en BD:', allRoles.length);
+    allRoles.forEach(role => {
+      console.log(`   - ${role.nombre} (${role._id})`);
+    });
+    
+    // Obtener usuarios con roles
+    const usersWithRoles = await User.find({}, 'name correo role').populate('role', 'nombre');
+    console.log('✅ Usuarios con roles:', usersWithRoles.length);
+    
+    usersWithRoles.forEach(user => {
+      console.log(`👤 ${user.name} (${user.correo})`);
+      console.log(`   - Rol ID: ${user.role}`);
+      console.log(`   - Rol objeto:`, user.role);
+      console.log(`   - Rol nombre: ${user.role?.nombre || 'Sin nombre'}`);
+    });
+    
+    res.json({
+      success: true,
+      roles: allRoles,
+      users: usersWithRoles,
+      roleCount: allRoles.length,
+      userCount: usersWithRoles.length
+    });
+  } catch (error) {
+    console.error('Error en debug de roles:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor' 
+    });
+  }
+});
+
+// Endpoint de debug para ver todos los usuarios
+router.get('/debug-all-users', async (req, res) => {
+  try {
+    console.log('🔍 DEBUG: Solicitando todos los usuarios...');
+    
+    const User = require('../models/users');
+    const allUsers = await User.find({}, 'name correo role active').populate('role', 'nombre');
+    const allUserStatuses = await UserStatus.find().populate({
+      path: 'userId',
+      select: 'name correo role',
+      populate: {
+        path: 'role',
+        select: 'nombre'
+      }
+    });
+    
+    console.log('✅ Usuarios en BD:', allUsers.length);
+    console.log('✅ Estados de usuario:', allUserStatuses.length);
+    
+    // Log detallado de usuarios
+    allUsers.forEach(user => {
+      console.log(`👤 Usuario: ${user.name}`);
+      console.log(`   - Email: ${user.correo}`);
+      console.log(`   - Rol: ${user.role}`);
+      console.log(`   - Rol nombre: ${user.role?.nombre}`);
+      console.log(`   - Activo: ${user.active}`);
+    });
+    
+    res.json({
+      success: true,
+      users: allUsers,
+      userStatuses: allUserStatuses,
+      userCount: allUsers.length,
+      statusCount: allUserStatuses.length
+    });
+  } catch (error) {
+    console.error('Error en debug:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor' 
+    });
+  }
+});
+
 // Obtener lista de usuarios activos
 router.get('/active-users', async (req, res) => {
   try {
+    console.log('🔍 Solicitando usuarios activos...');
+    console.log('   - Session:', !!req.session);
+    console.log('   - User:', !!req.session?.user);
+    
     const activeUsers = await UserStatus.getActiveUsers();
+    console.log('✅ Usuarios activos encontrados:', activeUsers.length);
+    
+    // Transformar los datos para el frontend
+    const transformedUsers = activeUsers.map(userStatus => {
+      console.log('🔍 Transformando usuario:', userStatus.userId.name);
+      console.log('   - Estado:', userStatus.status);
+      console.log('   - Label:', userStatus.label);
+      console.log('   - Color:', userStatus.color);
+      console.log('   - Rol completo:', userStatus.userId.role);
+      console.log('   - Rol nombre:', userStatus.userId.role?.nombre);
+      console.log('   - Rol ID:', userStatus.userId.role?._id);
+      console.log('   - Tipo de rol:', typeof userStatus.userId.role);
+      
+      let roleName = 'Sin rol';
+      if (userStatus.userId.role) {
+        if (typeof userStatus.userId.role === 'object' && userStatus.userId.role.nombre) {
+          roleName = userStatus.userId.role.nombre;
+        } else if (typeof userStatus.userId.role === 'string') {
+          roleName = userStatus.userId.role;
+        }
+      }
+      
+      return {
+        _id: userStatus.userId._id,
+        name: userStatus.userId.name,
+        email: userStatus.userId.correo,
+        status: userStatus.status,
+        customStatus: userStatus.customStatus,
+        isOnline: userStatus.isActive,
+        lastActivity: userStatus.lastSeen,
+        role: roleName,
+        sessionId: userStatus.sessionId,
+        color: userStatus.color,
+        label: userStatus.label
+      };
+    });
     
     res.json({ 
       success: true, 
-      users: activeUsers,
-      count: activeUsers.length
+      users: transformedUsers,
+      count: transformedUsers.length
     });
   } catch (error) {
     console.error('Error obteniendo usuarios activos:', error);
@@ -216,6 +373,54 @@ router.post('/update-activity', requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Error actualizando actividad:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor' 
+    });
+  }
+});
+
+// Endpoint para inicializar estado del usuario
+router.post('/init-status', requireAuth, async (req, res) => {
+  try {
+    console.log('🔄 Inicializando estado para usuario:', req.session.user.name);
+    console.log('   - Session ID:', req.sessionID);
+    
+    // Verificar si ya existe un estado
+    let userStatus = await UserStatus.getUserStatus(req.session.user._id);
+    
+    if (!userStatus) {
+      console.log('⚠️ Usuario sin estado, creando estado inicial...');
+      
+      // Obtener el estado por defecto
+      const StatusType = require('../models/statusType');
+      const defaultStatus = await StatusType.getDefaultStatus();
+      
+      if (!defaultStatus) {
+        console.log('⚠️ No hay estado por defecto, inicializando tipos de estado...');
+        await StatusType.initializeDefaultStatuses();
+      }
+      
+      userStatus = await UserStatus.upsertStatus(req.session.user._id, {
+        status: 'available',
+        isActive: true,
+        sessionId: req.sessionID
+      });
+      console.log('✅ Estado inicial creado');
+    } else {
+      console.log('✅ Estado existente encontrado, actualizando actividad...');
+      await userStatus.updateActivity();
+      userStatus.sessionId = req.sessionID;
+      await userStatus.save();
+    }
+    
+    res.json({
+      success: true,
+      status: userStatus,
+      message: 'Estado inicializado correctamente'
+    });
+  } catch (error) {
+    console.error('Error inicializando estado:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Error interno del servidor' 

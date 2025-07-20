@@ -37,7 +37,7 @@
                   <div class="d-flex flex-column justify-content-center">
                     <p class="text-xs text-secondary mb-0">{{ user.correo || 'Sin email' }}</p>
                   </div>
-                </div>
+                </div> 
               </td>
               <td>
                 <div class="d-flex px-2 py-1">
@@ -75,7 +75,7 @@
                       </span>
                     </label>
                   </div>
-                </div>
+                </div>  
               </td>
               <td>
                 <div class="d-flex px-2 py-1 gap-1">
@@ -495,7 +495,7 @@ export default {
         // Verificar si la respuesta es válida
         if (response && response.restart === true) {
           this.showWarning('Tu rol ha sido cambiado. Debes iniciar sesión nuevamente.');
-          localStorage.clear();
+        localStorage.clear();
           this.$router.push("/signin");
           return;
         }
@@ -531,7 +531,7 @@ export default {
         // Verificar si la respuesta es válida
         if (response && response.restart === true) {
           this.showWarning('Tu estado ha sido cambiado. Debes iniciar sesión nuevamente.');
-          localStorage.clear();
+        localStorage.clear();
           this.$router.push("/signin");
           return;
         }

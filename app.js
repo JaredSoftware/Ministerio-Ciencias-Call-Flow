@@ -334,14 +334,15 @@ io.on('connection', async (socket) => {
   
   // Manejar cambios de estado de usuario
   socket.on('change_status', async (data) => {
-    console.log('🔄 Cambio de estado solicitado:', data);
+    console.log('🚨 WEBSOCKET: Cambio manual de estado recibido:', data);
     
     if (session?.user?._id) {
       try {
         const user = session.user;
-        console.log(`   - Usuario: ${user.name}`);
-        console.log(`   - Nuevo estado: ${data.status}`);
+        console.log(`🚨 WEBSOCKET: Usuario ${user.name} cambió manualmente a: ${data.status}`);
         console.log(`   - Estado personalizado: ${data.customStatus || 'Ninguno'}`);
+        console.log(`   - Session ID: ${session.sessionID}`);
+        console.log(`   - Socket ID: ${socket.id}`);
         
         const UserStatus = require('./models/userStatus');
         const userStatus = await UserStatus.getUserStatus(user._id);
@@ -362,17 +363,32 @@ io.on('connection', async (socket) => {
         // Enviar estado actualizado al usuario
         socket.emit('own_status_changed', updatedStatus);
         
-        // Emitir cambio a todos los usuarios
+        // 🚨 SISTEMA PUB/SUB - Emitir a TODOS los usuarios conectados
         io.emit('user_status_changed', {
           userId: user._id,
           userName: user.name,
-          status: updatedStatus
+          status: updatedStatus,
+          timestamp: new Date().toISOString()
         });
         
-        // Enviar lista actualizada de usuarios activos
+        // 🚨 SISTEMA PUB/SUB - Emitir lista actualizada inmediatamente
         await emitActiveUsersList();
         
-        console.log(`✅ Estado cambiado exitosamente para ${user.name}`);
+        // 🚨 EVENTO ESPECÍFICO para tabla de usuarios activos
+        io.emit('active_users_updated', {
+          type: 'status_change',
+          userId: user._id,
+          userName: user.name,
+          newStatus: updatedStatus.status,
+          newLabel: updatedStatus.label,
+          newColor: updatedStatus.color,
+          timestamp: new Date().toISOString()
+        });
+        
+        console.log(`✅ WEBSOCKET: Estado cambiado exitosamente para ${user.name}`);
+        console.log(`   - Nuevo estado: ${updatedStatus.status} (${updatedStatus.label})`);
+        console.log(`   - Color: ${updatedStatus.color}`);
+        console.log(`   - Eventos emitidos: own_status_changed, user_status_changed, active_users_updated`);
       } catch (error) {
         console.error('❌ Error cambiando estado:', error);
         socket.emit('status_change_error', { error: error.message });
@@ -511,31 +527,59 @@ io.on('connection', async (socket) => {
     }
   });
   
-  // Manejar desconexión
-  socket.on('disconnect', async () => {
-    console.log('Usuario desconectado:', socket.id);
+  // 🚨 MANEJAR DESCONEXIÓN CON LIMPIEZA PUB/SUB
+  socket.on('disconnect', async (reason) => {
+    console.log('🔌 Usuario desconectado:', socket.id);
+    console.log('   - Razón:', reason);
     
     if (session && session.user) {
+      console.log(`🧹 Limpiando sesión de: ${session.user.name}`);
+      
       // Desregistrar usuario del StateManager
       stateManager.unregisterUser(session.user._id);
       
-      // Marcar usuario como desconectado
+      // 🚨 LIMPIEZA ROBUSTA DE SESIÓN
       try {
         const UserStatus = require('./models/userStatus');
         const userStatus = await UserStatus.getUserStatus(session.user._id);
         if (userStatus) {
           userStatus.isActive = false;
+          userStatus.status = 'offline';
           userStatus.socketId = null;
+          userStatus.lastActivity = new Date();
           await userStatus.save();
+          
+          console.log(`✅ Sesión limpiada para: ${session.user.name}`);
         }
+        
+        // 🚨 EMITIR EVENTOS PUB/SUB DE DESCONEXIÓN
+        io.emit('user_disconnected', {
+          userId: session.user._id,
+          userName: session.user.name,
+          timestamp: new Date().toISOString()
+        });
+        
+        // 🚨 EMITIR EVENTO ESPECÍFICO PARA TABLA
+        io.emit('active_users_updated', {
+          type: 'user_disconnected',
+          userId: session.user._id,
+          userName: session.user.name,
+          newStatus: 'offline',
+          newLabel: 'Desconectado',
+          newColor: '#6c757d',
+          timestamp: new Date().toISOString()
+        });
         
         // Emitir lista actualizada
         await emitActiveUsersList();
+        
       } catch (error) {
-        console.error('Error desconectando usuario:', error);
+        console.error('❌ Error limpiando sesión:', error);
       }
       
-      console.log(`Usuario ${session.user.name} desconectado`);
+      console.log(`🔌 Usuario ${session.user.name} completamente desconectado`);
+    } else {
+      console.log('⚠️ Desconexión sin sesión de usuario');
     }
   });
 });
@@ -559,6 +603,38 @@ stateManager.initialize(io);
 // Hacer Socket.IO y StateManager disponibles globalmente
 app.set('io', io);
 app.set('stateManager', stateManager);
+
+// 🚨 LIMPIEZA AUTOMÁTICA DE SESIONES FANTASMA CADA 2 MINUTOS
+setInterval(async () => {
+  try {
+    console.log('🧹 Ejecutando limpieza automática de sesiones fantasma...');
+    
+    const UserStatus = require('./models/userStatus');
+    
+    // Limpiar usuarios inactivos (más de 3 minutos sin heartbeat)
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
+    const result = await UserStatus.updateMany(
+      { 
+        isActive: true, 
+        lastActivity: { $lt: threeMinutesAgo } 
+      },
+      { 
+        isActive: false,
+        status: 'offline'
+      }
+    );
+    
+    if (result.modifiedCount > 0) {
+      console.log(`✅ Limpieza automática: ${result.modifiedCount} sesiones fantasma eliminadas`);
+      
+      // Emitir lista actualizada después de la limpieza
+      await emitActiveUsersList();
+    }
+    
+  } catch (error) {
+    console.error('❌ Error en limpieza automática:', error);
+  }
+}, 2 * 60 * 1000); // Cada 2 minutos
 
 const job = schedule.scheduleJob("0 0 23 * * *", async function () {
   let modeloKardex = mongoose.model(

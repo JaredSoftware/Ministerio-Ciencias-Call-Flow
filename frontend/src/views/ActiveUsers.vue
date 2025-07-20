@@ -433,8 +433,18 @@ export default {
     }
   },
   async mounted() {
+    // Inicializar estado del usuario actual
+    await this.initUserStatus();
+    
     await this.loadUsers();
     await this.loadStatusTypes();
+    
+    // 🚨 INICIALIZAR WEBSOCKET PARA ACTUALIZACIONES EN TIEMPO REAL
+    await this.initWebSocket();
+    
+    // 🚨 ESCUCHAR EVENTO DE ACTUALIZACIÓN FORZADA
+    window.addEventListener('forceActiveUsersUpdate', this.handleForceUpdate);
+    console.log('🚨 Listener de actualización forzada registrado');
     
     // Actualizar cada 30 segundos
     this.refreshInterval = setInterval(() => {
@@ -445,21 +455,46 @@ export default {
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
     }
+    
+    // Limpiar listener de actualización forzada
+    window.removeEventListener('forceActiveUsersUpdate', this.handleForceUpdate);
   },
   methods: {
+    async initUserStatus() {
+      try {
+        console.log('🔄 Inicializando estado del usuario...');
+        const response = await axios.post('/user-status/init-status', {}, {
+          withCredentials: true
+        });
+        
+        if (response.data.success) {
+          console.log('✅ Estado del usuario inicializado:', response.data.status.status);
+        } else {
+          console.log('⚠️ Error inicializando estado:', response.data.message);
+        }
+      } catch (error) {
+        console.error('❌ Error inicializando estado del usuario:', error);
+      }
+    },
+
     async loadUsers() {
       try {
         this.loading = true;
-        const response = await axios.get('/user-status/all-users', {
+        const response = await axios.get('/user-status/active-users', {
           withCredentials: true
         });
         
         if (response.data.success) {
           this.users = response.data.users;
-          console.log('✅ Usuarios cargados:', this.users.length);
+          console.log('✅ Usuarios activos cargados:', this.users.length);
+        } else {
+          console.log('⚠️ Respuesta sin éxito:', response.data);
         }
       } catch (error) {
-        console.error('❌ Error cargando usuarios:', error);
+        console.error('❌ Error cargando usuarios activos:', error);
+        console.error('   - URL:', error.config?.url);
+        console.error('   - Status:', error.response?.status);
+        console.error('   - Data:', error.response?.data);
       } finally {
         this.loading = false;
       }
@@ -467,15 +502,21 @@ export default {
     
     async loadStatusTypes() {
       try {
-        const response = await axios.get('/status-types', {
+        const response = await axios.get('/user-status/available-statuses', {
           withCredentials: true
         });
         
         if (response.data.success) {
           this.availableStatuses = response.data.statuses;
+          console.log('✅ Tipos de estado cargados:', this.availableStatuses.length);
+        } else {
+          console.log('⚠️ Respuesta sin éxito para tipos de estado:', response.data);
         }
       } catch (error) {
         console.error('❌ Error cargando tipos de estado:', error);
+        console.error('   - URL:', error.config?.url);
+        console.error('   - Status:', error.response?.status);
+        console.error('   - Data:', error.response?.data);
       }
     },
     
@@ -577,6 +618,147 @@ export default {
       a.download = `usuarios_activos_${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       window.URL.revokeObjectURL(url);
+    },
+
+    // 🚨 INICIALIZAR WEBSOCKET PARA TIEMPO REAL
+    async initWebSocket() {
+      try {
+        console.log('🔌 Inicializando WebSocket para ActiveUsers...');
+        
+        const websocketService = (await import('@/services/websocketService')).default;
+        
+        // Conectar si no está conectado
+        if (!websocketService.isConnected) {
+          await websocketService.connect();
+        }
+        
+        // Listener para lista completa de usuarios
+        websocketService.on('activeUsersList', (users) => {
+          console.log('👥 Lista completa actualizada (WebSocket):', users);
+          this.users = users;
+          this.$forceUpdate();
+        });
+        
+        // 🚨 LISTENER PARA ACTUALIZACIONES ESPECÍFICAS (PUB/SUB)
+        websocketService.on('activeUsersUpdated', (data) => {
+          console.log('🚨 Actualización específica (Pub/Sub):', data);
+          this.handleSpecificUserUpdate(data);
+        });
+
+        // 🚨 LISTENER PARA DESCONEXIONES (PUB/SUB)
+        websocketService.on('userDisconnected', (data) => {
+          console.log('🔌 Usuario desconectado (Pub/Sub):', data);
+          this.handleUserDisconnected(data);
+        });
+        
+        console.log('✅ WebSocket inicializado para ActiveUsers');
+      } catch (error) {
+        console.error('❌ Error inicializando WebSocket:', error);
+      }
+    },
+
+    // 🚨 MANEJAR ACTUALIZACIONES ESPECÍFICAS VIA PUB/SUB
+    handleSpecificUserUpdate(data) {
+      try {
+        const { userId, userName, newStatus, newLabel, newColor, timestamp, type } = data;
+        
+        // Si es una desconexión, remover de la lista
+        if (type === 'user_disconnected') {
+          const userIndex = this.users.findIndex(u => u._id === userId);
+          if (userIndex !== -1) {
+            console.log(`🔌 Removiendo usuario desconectado: ${userName}`);
+            this.users.splice(userIndex, 1);
+            this.$forceUpdate();
+          }
+          return;
+        }
+        
+        // Buscar el usuario en la lista
+        const userIndex = this.users.findIndex(u => u._id === userId);
+        
+        if (userIndex !== -1) {
+          const oldStatus = this.users[userIndex].status;
+          
+          // Actualizar los datos del usuario
+          this.users[userIndex].status = newStatus;
+          this.users[userIndex].label = newLabel;
+          this.users[userIndex].color = newColor;
+          this.users[userIndex].lastActivity = timestamp;
+          
+          console.log(`🚨 PUB/SUB: ${userName} ${oldStatus} → ${newStatus}`);
+          
+          // Forzar actualización visual
+          this.$forceUpdate();
+        } else {
+          console.log('⚠️ Usuario no encontrado para actualización específica');
+          // Recargar lista completa si el usuario no está
+          this.loadUsers();
+        }
+      } catch (error) {
+        console.error('❌ Error en actualización específica:', error);
+      }
+    },
+
+    // 🚨 MANEJAR DESCONEXIONES VIA PUB/SUB
+    handleUserDisconnected(data) {
+      try {
+        const { userId, userName } = data;
+        
+        // Remover el usuario de la lista de activos
+        const userIndex = this.users.findIndex(u => u._id === userId);
+        if (userIndex !== -1) {
+          console.log(`🔌 Usuario ${userName} desconectado, removiendo de lista activa`);
+          this.users.splice(userIndex, 1);
+          this.$forceUpdate();
+        }
+        
+        // También recargar desde servidor para confirmar
+        setTimeout(() => {
+          this.loadUsers();
+        }, 2000);
+        
+      } catch (error) {
+        console.error('❌ Error manejando desconexión:', error);
+      }
+    },
+
+    // 🚨 MÉTODO PARA MANEJAR ACTUALIZACIÓN FORZADA
+    handleForceUpdate(event) {
+      try {
+        console.log('🚨 ACTUALIZACIÓN FORZADA RECIBIDA:', event.detail);
+        
+        const { userId, newStatus, newLabel, newColor, timestamp } = event.detail;
+        
+        if (userId) {
+          // Buscar el usuario en la lista y actualizar
+          const userIndex = this.users.findIndex(u => u._id === userId);
+          if (userIndex !== -1) {
+            const oldStatus = this.users[userIndex].status;
+            
+            // Actualizar el usuario en la lista
+            this.users[userIndex].status = newStatus;
+            this.users[userIndex].label = newLabel;
+            this.users[userIndex].color = newColor;
+            this.users[userIndex].lastActivity = timestamp;
+            
+            console.log(`🚨 Usuario actualizado FORZADAMENTE: ${this.users[userIndex].name} ${oldStatus} → ${newStatus}`);
+            
+            // Forzar re-renderizado
+            this.$forceUpdate();
+          } else {
+            console.log('⚠️ Usuario no encontrado en lista para actualización forzada');
+          }
+        }
+        
+        // También recargar desde servidor para estar seguros
+        setTimeout(() => {
+          console.log('🔄 Recargando desde servidor tras actualización forzada...');
+          this.loadUsers();
+        }, 1000);
+        
+      } catch (error) {
+        console.error('❌ Error en actualización forzada:', error);
+      }
     }
   }
 };

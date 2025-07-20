@@ -5,8 +5,11 @@ const users = new mongoose.Schema(
     correo: { type: String },
     password: { type: String },
     name: { type: String },
-    role:{type:  mongoose.Schema.Types.ObjectId},
-    active:{type:Boolean}
+    role: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'roles'
+    },
+    active: { type: Boolean }
   },
   {
     versionKey: false,
