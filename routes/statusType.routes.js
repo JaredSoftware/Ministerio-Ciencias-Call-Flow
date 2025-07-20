@@ -240,4 +240,84 @@ router.get('/categories', async (req, res) => {
   }
 });
 
+// Endpoint de validación - comparar estados del backend con los esperados
+router.get('/validate', async (req, res) => {
+  console.log('🔍 GET /status-types/validate - Validando estados...');
+  try {
+    // Estados esperados según el modelo
+    const expectedStatuses = [
+      { value: 'available', label: 'Disponible', category: 'work' },
+      { value: 'busy', label: 'Ocupado', category: 'work' },
+      { value: 'on_call', label: 'En llamada', category: 'work' },
+      { value: 'focus', label: 'Enfoque', category: 'work' },
+      { value: 'break', label: 'Descanso', category: 'break' },
+      { value: 'lunch', label: 'Almuerzo', category: 'break' },
+      { value: 'meeting', label: 'En reunión', category: 'break' },
+      { value: 'training', label: 'En capacitación', category: 'break' },
+      { value: 'do_not_disturb', label: 'No molestar', category: 'break' },
+      { value: 'away', label: 'Ausente', category: 'out' },
+      { value: 'out_of_office', label: 'Fuera de oficina', category: 'out' },
+      { value: 'offline', label: 'Desconectado', category: 'out' }
+    ];
+    
+    // Estados actuales en la base de datos
+    const actualStatuses = await StatusType.getActiveStatuses();
+    
+    // Comparar estados
+    const missingStatuses = [];
+    const extraStatuses = [];
+    const matchingStatuses = [];
+    
+    // Buscar estados faltantes
+    expectedStatuses.forEach(expected => {
+      const found = actualStatuses.find(actual => actual.value === expected.value);
+      if (!found) {
+        missingStatuses.push(expected);
+      } else {
+        matchingStatuses.push({
+          expected,
+          actual: found,
+          matches: found.label === expected.label && found.category === expected.category
+        });
+      }
+    });
+    
+    // Buscar estados extra
+    actualStatuses.forEach(actual => {
+      const found = expectedStatuses.find(expected => expected.value === actual.value);
+      if (!found) {
+        extraStatuses.push(actual);
+      }
+    });
+    
+    const validation = {
+      expected: expectedStatuses.length,
+      actual: actualStatuses.length,
+      missing: missingStatuses,
+      extra: extraStatuses,
+      matching: matchingStatuses.length,
+      mismatched: matchingStatuses.filter(m => !m.matches),
+      allPresent: missingStatuses.length === 0,
+      allMatch: matchingStatuses.filter(m => !m.matches).length === 0
+    };
+    
+    console.log('📊 Validación completada:', validation);
+    
+    res.json({
+      success: true,
+      validation,
+      message: validation.allPresent && validation.allMatch 
+        ? 'Todos los estados están sincronizados' 
+        : 'Hay diferencias entre estados esperados y actuales'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error validando estados:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor' 
+    });
+  }
+});
+
 module.exports = router; 

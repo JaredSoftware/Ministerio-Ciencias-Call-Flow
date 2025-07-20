@@ -77,6 +77,7 @@ import websocketService from '@/services/websocketService';
 import axios from '@/services/axios';
 import { mapMutations } from 'vuex';
 import statusTypesService from '@/services/statusTypes';
+import statusSyncService from '@/services/statusSync';
 
 export default {
   name: 'UserStatusConfigurator',
@@ -98,6 +99,9 @@ export default {
   mounted() {
     // No inicializar nada aquí, el watcher se encargará cuando el usuario esté logueado
     console.log('🎯 UserStatusConfigurator montado - Esperando autenticación...');
+    
+    // Escuchar eventos de sincronización de estado
+    window.addEventListener('status-updated', this.handleStatusUpdate);
   },
   watch: {
     currentStatus(newStatus) {
@@ -127,10 +131,13 @@ export default {
             if (!this.currentStatus || this.currentStatus === 'online') {
               await this.assignDefaultStatus();
             }
+            // Inicializar sincronización continua
+            await statusSyncService.initialize();
           }, 100);
         } else {
           console.log('🚪 Usuario deslogueado - Limpiando sistema de estados...');
           websocketService.disconnect();
+          statusSyncService.stop();
           // Limpiar estados
           this.availableStatuses = [];
           this.statusesByCategory = {};
@@ -145,6 +152,10 @@ export default {
     websocketService.emit('own_status_changed', null);
     websocketService.emit('user_status_changed', null);
     websocketService.emit('active_users_list', null);
+    // Detener sincronización
+    statusSyncService.stop();
+    // Remover listener de eventos
+    window.removeEventListener('status-updated', this.handleStatusUpdate);
   },
   methods: {
     ...mapMutations(['setUserStatus', 'updateUserStatus']),
@@ -339,7 +350,10 @@ export default {
           console.log('⚠️ WebSocket no conectado, solo usando API REST');
         }
         
-        // También cambiar a través de API REST
+        // Cambiar estado a través del servicio de sincronización
+        await statusSyncService.sendStatusToBackend(status, customStatus);
+        
+        // También cambiar a través de API REST como respaldo
         const response = await axios.post('/user-status/change-status', {
           status,
           customStatus
@@ -490,6 +504,16 @@ export default {
         } catch (fallbackError) {
           console.error('❌ Error en fallback:', fallbackError);
         }
+      }
+    },
+    
+    // Manejar actualizaciones de estado desde el servicio de sincronización
+    handleStatusUpdate(event) {
+      console.log('📡 Evento de actualización de estado recibido:', event.detail);
+      
+      const { status } = event.detail;
+      if (status) {
+        this.updateOwnStatus(status);
       }
     }
   }

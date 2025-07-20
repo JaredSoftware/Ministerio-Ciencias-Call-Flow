@@ -167,6 +167,103 @@ router.get('/available-statuses', requireAuth, async (req, res) => {
   }
 });
 
+// Endpoint para heartbeat - mantener conexión activa
+router.post('/heartbeat', requireAuth, async (req, res) => {
+  try {
+    console.log('💓 Heartbeat recibido de:', req.session.user.name);
+    console.log('   - Timestamp:', req.body.timestamp);
+    console.log('   - Last Sync:', req.body.lastSync);
+    
+    // Actualizar lastSeen del usuario
+    const userStatus = await UserStatus.getUserStatus(req.session.user._id);
+    if (userStatus) {
+      await userStatus.updateActivity();
+      console.log('✅ Actividad actualizada para heartbeat');
+    }
+    
+    res.json({
+      success: true,
+      message: 'Heartbeat recibido',
+      timestamp: new Date().toISOString(),
+      sessionId: req.sessionID
+    });
+  } catch (error) {
+    console.error('Error procesando heartbeat:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor' 
+    });
+  }
+});
+
+// Endpoint para actualizar actividad del usuario
+router.post('/update-activity', requireAuth, async (req, res) => {
+  try {
+    console.log('🔄 Actualizando actividad de:', req.session.user.name);
+    console.log('   - Timestamp:', req.body.timestamp);
+    
+    // Actualizar lastSeen del usuario
+    const userStatus = await UserStatus.getUserStatus(req.session.user._id);
+    if (userStatus) {
+      await userStatus.updateActivity();
+      console.log('✅ Actividad actualizada');
+    }
+    
+    res.json({
+      success: true,
+      message: 'Actividad actualizada',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error actualizando actividad:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor' 
+    });
+  }
+});
+
+// Endpoint para sincronización de estado
+router.post('/sync-status', requireAuth, async (req, res) => {
+  try {
+    console.log('🔄 Sincronización de estado solicitada por:', req.session.user.name);
+    console.log('   - Estado actual:', req.body.status);
+    console.log('   - Session ID:', req.sessionID);
+    
+    const { status, customStatus } = req.body;
+    
+    // Actualizar estado del usuario
+    const userStatus = await UserStatus.getUserStatus(req.session.user._id);
+    if (userStatus) {
+      await userStatus.changeStatus(status, customStatus);
+    } else {
+      await UserStatus.upsertStatus(req.session.user._id, {
+        status,
+        customStatus,
+        isActive: true
+      });
+    }
+    
+    // Obtener estado actualizado
+    const updatedStatus = await UserStatus.getUserStatus(req.session.user._id);
+    
+    console.log('✅ Estado sincronizado exitosamente');
+    
+    res.json({
+      success: true,
+      status: updatedStatus,
+      message: 'Estado sincronizado correctamente',
+      syncTime: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error sincronizando estado:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor' 
+    });
+  }
+});
+
 // Actualizar actividad del usuario
 router.post('/update-activity', requireAuth, async (req, res) => {
   try {

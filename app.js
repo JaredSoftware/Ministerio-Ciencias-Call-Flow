@@ -391,6 +391,111 @@ io.on('connection', async (socket) => {
     }
   });
   
+  // Sincronización de estado desde el frontend
+  socket.on('status_sync', async (data) => {
+    console.log('🔄 Sincronización de estado recibida:', data);
+    
+    if (session?.user?._id) {
+      try {
+        const user = session.user;
+        const { status } = data;
+        
+        console.log(`   - Usuario: ${user.name}`);
+        console.log(`   - Estado: ${status.status}`);
+        console.log(`   - Session ID: ${session.sessionID}`);
+        
+        // Actualizar estado en la base de datos
+        const UserStatus = require('./models/userStatus');
+        const userStatus = await UserStatus.getUserStatus(user._id);
+        
+        if (userStatus) {
+          await userStatus.changeStatus(status.status, status.customStatus);
+        } else {
+          await UserStatus.upsertStatus(user._id, {
+            status: status.status,
+            customStatus: status.customStatus,
+            isActive: true
+          });
+        }
+        
+        // Obtener estado actualizado
+        const updatedStatus = await UserStatus.getUserStatus(user._id);
+        
+        // Confirmar sincronización al cliente
+        socket.emit('status_sync_confirmed', {
+          success: true,
+          status: updatedStatus,
+          syncTime: new Date().toISOString()
+        });
+        
+        // Notificar a otros usuarios del cambio
+        socket.broadcast.emit('user_status_changed', {
+          userId: user._id,
+          userName: user.name,
+          status: updatedStatus
+        });
+        
+        console.log(`✅ Estado sincronizado para ${user.name}`);
+        
+      } catch (error) {
+        console.error('❌ Error sincronizando estado:', error);
+        socket.emit('status_sync_error', { error: error.message });
+      }
+    }
+  });
+  
+  // Heartbeat desde Socket.IO
+  socket.on('heartbeat', async (data) => {
+    if (session?.user?._id) {
+      try {
+        const user = session.user;
+        console.log(`💓 Heartbeat recibido de ${user.name} via Socket.IO`);
+        
+        // Actualizar actividad del usuario
+        const UserStatus = require('./models/userStatus');
+        const userStatus = await UserStatus.getUserStatus(user._id);
+        if (userStatus) {
+          await userStatus.updateActivity();
+        }
+        
+        // Confirmar heartbeat
+        socket.emit('heartbeat_confirmed', {
+          success: true,
+          timestamp: new Date().toISOString()
+        });
+        
+      } catch (error) {
+        console.error('❌ Error procesando heartbeat:', error);
+      }
+    }
+  });
+  
+  // Actualizar actividad del usuario
+  socket.on('update_activity', async (data) => {
+    if (session?.user?._id) {
+      try {
+        const user = session.user;
+        console.log(`🔄 Actualizando actividad de ${user.name}`);
+        
+        // Actualizar lastSeen
+        const UserStatus = require('./models/userStatus');
+        const userStatus = await UserStatus.getUserStatus(user._id);
+        if (userStatus) {
+          await userStatus.updateActivity();
+        }
+        
+        // Confirmar actualización
+        socket.emit('activity_updated', {
+          success: true,
+          timestamp: new Date().toISOString()
+        });
+        
+      } catch (error) {
+        console.error('❌ Error actualizando actividad:', error);
+      }
+    }
+  });
+  
   // Actualizar actividad del usuario
   socket.on('update_activity', async () => {
     if (session?.user?._id) {

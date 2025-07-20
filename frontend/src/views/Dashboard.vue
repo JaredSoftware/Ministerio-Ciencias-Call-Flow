@@ -112,6 +112,13 @@
           </div>
         </div>
         
+        <!-- Validación de Estados -->
+        <div class="row mt-4">
+          <div class="col-12">
+            <StatusValidation />
+          </div>
+        </div>
+        
 
 
       </div>
@@ -126,6 +133,8 @@ import Carousel from "./components/Carousel.vue";
 import CategoriesCard from "./components/CategoriesCard.vue";
 import websocketService from "@/services/websocketService";
 import sessionSync from "@/services/sessionSync";
+import statusSyncService from "@/services/statusSync";
+import StatusValidation from "@/components/StatusValidation.vue";
 
 import US from "@/assets/img/icons/flags/US.png";
 import DE from "@/assets/img/icons/flags/DE.png";
@@ -134,6 +143,13 @@ import BR from "@/assets/img/icons/flags/BR.png";
 
 export default {
   name: "dashboard-default",
+  components: {
+    Card,
+    GradientLineChart,
+    Carousel,
+    CategoriesCard,
+    StatusValidation
+  },
   data() {
     return {
       stats: {
@@ -203,12 +219,6 @@ export default {
       },
     };
   },
-  components: {
-    Card,
-    GradientLineChart,
-    Carousel,
-    CategoriesCard
-  },
   async mounted() {
     console.log('🚀 Dashboard mounted - Iniciando proceso automático...');
     
@@ -241,6 +251,11 @@ export default {
         console.log('🔄 PASO 2: Conectando WebSocket con usuario autenticado...');
         await websocketService.connect(syncResult.user);
         console.log('✅ WebSocket conectado con usuario:', syncResult.user.name);
+        
+        // Inicializar sincronización continua de estados
+        console.log('🔄 PASO 3: Inicializando sincronización continua de estados...');
+        await statusSyncService.initialize();
+        console.log('✅ Sincronización continua inicializada');
         
       } else {
         console.log('❌ No se pudo establecer sesión:', syncResult.message);

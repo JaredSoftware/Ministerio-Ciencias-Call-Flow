@@ -2,6 +2,8 @@
   <div id="app">
     <!-- Indicador de estado del usuario - Línea superior -->
     <status-indicator-bar v-if="this.$store.state.isLoggedIn" />
+    <!-- Monitor de sincronización de estados -->
+    <status-sync-monitor v-if="this.$store.state.isLoggedIn" />
     
     <div
       v-show="this.$store.state.layout === 'landing'"
@@ -47,6 +49,7 @@ import Configurator from "@/examples/Configurator.vue";
 import Navbar from "@/examples/Navbars/Navbar.vue";
 import AppFooter from "@/examples/Footer.vue";
 import StatusIndicatorBar from "@/components/StatusIndicatorBar.vue";
+import StatusSyncMonitor from "@/components/StatusSyncMonitor.vue";
 import { mapMutations } from "vuex";
 
 export default {
@@ -56,10 +59,8 @@ export default {
     Configurator,
     Navbar,
     AppFooter,
-    StatusIndicatorBar
-  },
-  methods: {
-    ...mapMutations(["toggleConfigurator", "navbarMinimize"])
+    StatusIndicatorBar,
+    StatusSyncMonitor
   },
   computed: {
     navClasses() {
