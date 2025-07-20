@@ -237,14 +237,22 @@ io.on('connection', async (socket) => {
     // Inicializar estado de usuario en la base de datos
     try {
       const UserStatus = require('./models/userStatus');
+      const StatusType = require('./models/statusType');
+      
+      // Obtener el estado por defecto
+      const defaultStatus = await StatusType.getDefaultStatus();
+      const statusToAssign = defaultStatus ? defaultStatus.value : 'available';
+      
+      console.log(`🔄 Asignando estado por defecto '${statusToAssign}' a ${user.name} en Socket.IO`);
+      
       await UserStatus.upsertStatus(user._id, {
-        status: 'online',
+        status: statusToAssign,
         isActive: true,
         socketId: socket.id,
         sessionId: session.sessionID
       });
       
-      console.log(`✅ Usuario ${user.name} inicializado correctamente`);
+      console.log(`✅ Usuario ${user.name} inicializado correctamente con estado por defecto`);
       
       // Enviar estado actual al usuario
       const userStatus = await UserStatus.getUserStatus(user._id);

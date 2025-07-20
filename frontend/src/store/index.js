@@ -24,7 +24,7 @@ export default createStore({
     token: sessionStorage.getItem('token') || '',
     // User status
     userStatus: {
-      status: 'online', // 'online' pero se muestra como 'Conectado'
+      status: 'available', // Estado por defecto: 'available' (Disponible)
       customStatus: null,
       lastActivity: null
     },

@@ -10,7 +10,7 @@ const userStatusSchema = new mongoose.Schema({
   status: {
     type: String,
     required: true,
-    default: 'online'
+    default: 'available'
   },
   customStatus: {
     type: String,
@@ -35,11 +35,11 @@ const userStatusSchema = new mongoose.Schema({
   },
   color: {
     type: String,
-    default: '#28a745'
+    default: '#00d25b'
   },
   label: {
     type: String,
-    default: 'Conectado'
+    default: 'Disponible'
   },
   statusType: {
     type: mongoose.Schema.Types.ObjectId,

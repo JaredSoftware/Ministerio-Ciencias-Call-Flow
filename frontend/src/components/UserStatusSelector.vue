@@ -32,24 +32,7 @@
             </div>
           </div>
           
-          <!-- Estado personalizado -->
-          <div class="custom-status-section">
-            <label>Estado personalizado:</label>
-            <input
-              v-model="customStatus"
-              type="text"
-              placeholder="Escribe tu estado personalizado..."
-              maxlength="100"
-              class="form-control"
-            />
-            <button
-              @click="changeStatus(currentStatus, customStatus)"
-              class="btn btn-primary btn-sm mt-2"
-              :disabled="!customStatus.trim()"
-            >
-              Aplicar Estado Personalizado
-            </button>
-          </div>
+
         </div>
       </div>
     </div>
@@ -136,6 +119,13 @@ export default {
     // Solo cargar datos si están disponibles
     this.loadCurrentStatus();
     this.loadActiveUsers();
+    
+    // Asignar estado por defecto si el usuario está logueado
+    if (this.$store.getters.isLoggedIn) {
+      setTimeout(async () => {
+        await this.assignDefaultStatus();
+      }, 500);
+    }
   },
   beforeUnmount() {
     // El servicio se encarga de la desconexión
@@ -270,6 +260,20 @@ export default {
     
     getUserAvatar(user) {
       return `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random&size=40`;
+    },
+    
+    // Método para asignar estado por defecto
+    async assignDefaultStatus() {
+      try {
+        console.log('🔄 Asignando estado por defecto en UserStatusSelector...');
+        
+        // Cambiar al estado por defecto (available)
+        await this.changeStatus('available');
+        
+        console.log('✅ Estado por defecto asignado exitosamente en UserStatusSelector');
+      } catch (error) {
+        console.error('❌ Error asignando estado por defecto en UserStatusSelector:', error);
+      }
     }
   }
 };

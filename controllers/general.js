@@ -107,6 +107,29 @@ module.exports = {
                   });
                 }
 
+                // Asignar estado por defecto al usuario
+                try {
+                  const UserStatus = require('../models/userStatus');
+                  const StatusType = require('../models/statusType');
+                  
+                  // Obtener el estado por defecto
+                  const defaultStatus = await StatusType.getDefaultStatus();
+                  const statusToAssign = defaultStatus ? defaultStatus.value : 'available';
+                  
+                  console.log(`🔄 Asignando estado por defecto '${statusToAssign}' a ${FindUser.name}`);
+                  
+                  // Crear o actualizar el estado del usuario
+                  await UserStatus.upsertStatus(FindUser._id, {
+                    status: statusToAssign,
+                    isActive: true,
+                    sessionId: req.sessionID
+                  });
+                  
+                  console.log(`✅ Estado por defecto asignado exitosamente a ${FindUser.name}`);
+                } catch (statusError) {
+                  console.error('❌ Error asignando estado por defecto:', statusError);
+                }
+
                 console.log('✅✅✅ LOGIN COMPLETADO - SESIÓN ESTABLECIDA ✅✅✅');
                 console.log('   - Usuario:', FindUser.name);
                 console.log('   - Session ID:', req.sessionID);

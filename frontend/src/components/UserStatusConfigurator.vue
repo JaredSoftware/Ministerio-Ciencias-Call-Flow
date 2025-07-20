@@ -52,24 +52,7 @@
             </div>
           </div>
           
-          <!-- Estado personalizado -->
-          <div class="custom-status-section">
-            <label>Estado personalizado:</label>
-            <input
-              v-model="customStatus"
-              type="text"
-              placeholder="Escribe tu estado personalizado..."
-              maxlength="100"
-              class="form-control"
-            />
-            <button
-              @click="changeStatus(currentStatus, customStatus)"
-              class="btn btn-primary btn-sm mt-2"
-              :disabled="!customStatus.trim()"
-            >
-              Aplicar Estado Personalizado
-            </button>
-          </div>
+
           
           <!-- Botones de acción -->
           <div class="modal-actions mt-3 d-flex gap-2">
@@ -79,15 +62,6 @@
               :disabled="isChangingStatus"
             >
               Cancelar
-            </button>
-            <button
-              @click="changeStatus(currentStatus, customStatus)"
-              class="btn btn-success flex-fill"
-              :disabled="isChangingStatus"
-            >
-              <i v-if="!isChangingStatus" class="fas fa-check me-2"></i>
-              <i v-else class="fas fa-spinner fa-spin me-2"></i>
-              {{ isChangingStatus ? 'Cambiando...' : 'Aplicar' }}
             </button>
           </div>
         </div>
@@ -147,8 +121,12 @@ export default {
         if (newValue) {
           console.log('🔐 Usuario logueado detectado - Inicializando sistema de estados...');
           // Usar setTimeout para asegurar que el store esté completamente actualizado
-          setTimeout(() => {
-            this.loadCurrentStatus();
+          setTimeout(async () => {
+            await this.loadCurrentStatus();
+            // Asignar estado por defecto si no hay estado actual
+            if (!this.currentStatus || this.currentStatus === 'online') {
+              await this.assignDefaultStatus();
+            }
           }, 100);
         } else {
           console.log('🚪 Usuario deslogueado - Limpiando sistema de estados...');
@@ -486,6 +464,33 @@ export default {
       this.$emit('status-changed', { status });
       
       console.log('✅ Estado forzado actualizado');
+    },
+    
+    // Método para asignar estado por defecto
+    async assignDefaultStatus() {
+      try {
+        console.log('🔄 Asignando estado por defecto...');
+        
+        // Obtener estado por defecto del servicio
+        const defaultStatus = await statusTypesService.getDefaultStatus();
+        const statusToAssign = defaultStatus ? defaultStatus.value : 'available';
+        
+        console.log(`   - Estado por defecto encontrado: ${statusToAssign}`);
+        
+        // Cambiar al estado por defecto
+        await this.changeStatus(statusToAssign);
+        
+        console.log('✅ Estado por defecto asignado exitosamente');
+      } catch (error) {
+        console.error('❌ Error asignando estado por defecto:', error);
+        // Fallback a 'available' si hay error
+        try {
+          await this.changeStatus('available');
+          console.log('✅ Estado por defecto asignado con fallback');
+        } catch (fallbackError) {
+          console.error('❌ Error en fallback:', fallbackError);
+        }
+      }
     }
   }
 };
