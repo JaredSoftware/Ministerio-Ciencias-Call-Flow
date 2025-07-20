@@ -1,0 +1,22 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+	  // Otras configuraciones si las tienes...
+	  {
+	    "type": "node",
+	    "request": "launch",
+	    "name": "Bakend",
+	    "skipFiles": ["<node_internals>/**"],
+	    "program": "${workspaceFolder}/index.js", // Ruta correcta al archivo index.js del backend
+	  },
+	  {
+	    "type": "node",
+	    "request": "launch",
+	    "name": "Frontend",
+	    "runtimeExecutable": "npm",
+	    "runtimeArgs": ["run", "serve"],
+	    "cwd": "${workspaceFolder}/frontend", // Carpeta de trabajo: la ubicación de la aplicación Vue.js
+	  }
+	]
+      }
+      

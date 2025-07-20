@@ -1,0 +1,194 @@
+<head>
+  <%- include("partials/head.html") %>
+  <title>Page Title</title>
+</head>
+<ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button
+      class="nav-link active"
+      id="pills-home-tab"
+      data-bs-toggle="pill"
+      data-bs-target="#pills-home"
+      type="button"
+      role="tab"
+      aria-controls="pills-home"
+      aria-selected="true"
+    >
+      Deuda
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button
+      class="nav-link"
+      id="pills-profile-tab"
+      data-bs-toggle="pill"
+      data-bs-target="#pills-profile"
+      type="button"
+      role="tab"
+      aria-controls="pills-profile"
+      aria-selected="false"
+    >
+      Partida
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button
+      class="nav-link"
+      id="pills-contact-tab"
+      data-bs-toggle="pill"
+      data-bs-target="#pills-contact"
+      type="button"
+      role="tab"
+      aria-controls="pills-contact"
+      aria-selected="false"
+    >
+      abonos
+    </button>
+  </li>
+</ul>
+<div class="tab-content" id="pills-tabContent">
+  <div
+    class="tab-pane fade show active"
+    id="pills-home"
+    role="tabpanel"
+    aria-labelledby="pills-home-tab"
+    tabindex="0"
+  >
+    <div class="card">
+      <div class="card-header">Clientes Deudas</div>
+      <div class="card-body">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Cliente</th>
+              <th scope="col">Deuda</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% for (let i = 0; i < kardex.length; i++) { %>
+            <tr>
+              <td><%= kardex[i].nombreClienteFinal %></td>
+              <td>
+                <%=
+                simpleMoneyMask.formatToCurrency(simpleMoneyMask.formatToNumber(kardex[i].deuda)
+                - simpleMoneyMask.formatToNumber(kardex[i].aFavor) ) %>
+              </td>
+            </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div
+    class="tab-pane fade"
+    id="pills-profile"
+    role="tabpanel"
+    aria-labelledby="pills-profile-tab"
+    tabindex="0"
+  >
+    <% for (let i = 0; i < viajesEchos.length; i++) { %>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-body">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col">Cliente</th>
+                <th scope="col">Grueso</th>
+                <th scope="col">Precio Grueso</th>
+                <th scope="col">Segunda</th>
+                <th scope="col">Precio Segunda</th>
+                <th scope="col">Pica</th>
+                <th scope="col">Precio Pica</th>
+                <th scope="col">Pago</th>
+                <th scope="col">valor de la partida</th>
+                <th scope="col">fecha</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% for (let o = 0; o < viajesEchos[i].viajes.length; o++) { %>
+              <tr>
+                <td><%= viajesEchos[i].viajes[o].clienteFinal %></td>
+                <td><%= viajesEchos[i].viajes[o].grueso %></td>
+                <td><%= viajesEchos[i].viajes[o].precioGrueso %></td>
+                <td><%= viajesEchos[i].viajes[o].segunda %></td>
+                <td><%= viajesEchos[i].viajes[o].precioSegunda %></td>
+                <td><%= viajesEchos[i].viajes[o].pica %></td>
+                <td><%= viajesEchos[i].viajes[o].precioPica %></td>
+                <%if(viajesEchos[i].viajes[o].pago){%>
+                <td>Pago realizado</td>
+                <%}else{%>
+                <td></td>
+                <%}%> <%if(viajesEchos[i].viajes[o].sumaPartida > 0){%> <%=
+                simpleMoneyMask.formatToCurrency(viajesEchos[i].viajes[o].sumaPartida)
+                %> <%}else{%>
+                <td></td>
+                <%}%>
+              </tr>
+              <tr>
+                <% let fecha = new
+                Date(viajesEchos[i].viajes[o].createdAtAdjusted) %> viaje <%=
+                fecha.getDate()+ "/" + (fecha.getMonth() + 1) + "/"
+                +fecha.getFullYear()%>
+              </tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <% } %>
+  </div>
+  <div
+    class="tab-pane fade"
+    id="pills-contact"
+    role="tabpanel"
+    aria-labelledby="pills-contact-tab"
+    tabindex="0"
+  >
+    <div class="card">
+      <div class="card-header">abonos</div>
+      <div class="card-body">
+        <table class="table">
+          <thead>
+            <tr>
+              <th scope="col">Cliente</th>
+              <th scope="col">Cantidad Abonada</th>
+              <th scope="col">fecha</th>
+              <th scope="col">historico anterior en cartera</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% for (let i = 0; i < abonosEchos.length; i++) { %>
+            <tr>
+              <td><%= abonosEchos[i].clienteFinal %></td>
+              <td>
+                <%=
+                simpleMoneyMask.formatToCurrency(abonosEchos[i].cantidadAbonada)
+                %>
+              </td>
+              <% let fecha = new Date(abonosEchos[i].createdAtAdjusted) %>
+              <td>
+                <%= fecha.getDate() + "/" + (fecha.getMonth() + 1) + "/" +
+                fecha.getFullYear() %>
+              </td>
+              <%if(abonosEchos[i].cartera){%>
+              <td>
+                <%=
+                simpleMoneyMask.formatToCurrency(simpleMoneyMask.formatToNumber(abonosEchos[i].cartera)
+                -
+                simpleMoneyMask.formatToNumber(abonosEchos[i].cantidadAbonada))
+                %>
+              </td>
+              <%}else{%>
+              <td></td>
+              <%}%>
+            </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
