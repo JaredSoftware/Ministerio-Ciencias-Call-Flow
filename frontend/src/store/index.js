@@ -18,13 +18,13 @@ export default createStore({
     showMain: true,
     layout: "default",
     //login
-    isLoggedIn: false,
+    isLoggedIn: sessionStorage.getItem('isLoggedIn') === 'true' || false,
     //remember me
     rememberMe: false,
     token: sessionStorage.getItem('token') || '',
     // User status
     userStatus: {
-      status: 'online',
+      status: 'online', // 'online' pero se muestra como 'Conectado'
       customStatus: null,
       lastActivity: null
     },
@@ -103,28 +103,26 @@ export default createStore({
     },
     //loggin
     // En el action de login
-    login({ commit, state },tokenInfo) {
-      // Simulación de inicio de sesión
-      return new Promise(() => {
-        setTimeout(() => {
-          const token = tokenInfo;
-          commit('setToken', token);
-          if (state.rememberMe) {
-            // Establecer una cookie para recordar la sesión
-            const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días desde ahora
-            document.cookie = `remember_token=${token};expires=${expires.toUTCString()}`;
-          }
-        }, 1000);
-        commit("makelogin")
+    login({ commit, state }, tokenInfo) {
+      // Login inmediato sin delay
+      return new Promise((resolve) => {
+        const token = tokenInfo;
+        commit('setToken', token);
+        if (state.rememberMe) {
+          // Establecer una cookie para recordar la sesión
+          const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días desde ahora
+          document.cookie = `remember_token=${token};expires=${expires.toUTCString()}`;
+        }
+        commit("makelogin");
+        resolve();
       });
     },
     logout({ commit }) {
-      // Simulación de cierre de sesión
+      // Logout inmediato sin delay
       return new Promise((resolve) => {
-        setTimeout(() => {
-          commit('clearToken');
-          resolve();
-        }, 500);
+        commit('clearToken');
+        commit('logout');
+        resolve();
       });
     },
     checkToken({ commit }) {

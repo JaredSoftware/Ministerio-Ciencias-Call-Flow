@@ -25,17 +25,30 @@
         </div>
         
         <div class="modal-body">
-          <!-- Estados predefinidos -->
-          <div class="status-options">
-            <div
-              v-for="status in availableStatuses"
-              :key="status.value"
-              class="status-option"
-              :class="{ active: currentStatus === status.value }"
-              @click="selectStatus(status.value)"
+          <!-- Estados agrupados por categorías -->
+          <div class="status-categories">
+            <div 
+              v-for="category in categories" 
+              :key="category" 
+              class="status-category"
             >
-              <div class="status-color" :style="{ backgroundColor: status.color }"></div>
-              <span class="status-text">{{ status.label }}</span>
+              <h6 class="category-title">
+                {{ getCategoryLabel(category) }}
+                <small class="text-muted">{{ getCategoryDescription(category) }}</small>
+              </h6>
+              <div class="status-options">
+                <div
+                  v-for="status in statusesByCategory[category]"
+                  :key="status.value"
+                  class="status-option"
+                  :class="{ active: currentStatus === status.value }"
+                  @click="selectStatus(status.value)"
+                >
+                  <div class="status-color" :style="{ backgroundColor: status.color }"></div>
+                  <span class="status-text">{{ status.label }}</span>
+                  <i :class="status.icon" class="status-icon"></i>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -81,28 +94,7 @@
       </div>
     </div>
 
-    <!-- Lista de usuarios activos - Versión compacta -->
-    <div class="active-users-compact">
-      <div class="users-count">
-        <i class="fas fa-users"></i>
-        <span>{{ activeUsers.length }} usuarios activos</span>
-      </div>
-      
-      <div class="users-list-compact">
-        <div
-          v-for="user in activeUsers.slice(0, 3)"
-          :key="user._id"
-          class="user-item-compact"
-          :class="{ 'current-user': user.userId === currentUserId }"
-        >
-          <div class="status-dot-small" :style="{ backgroundColor: user.color }"></div>
-          <span class="user-name">{{ user.userId?.name || 'Usuario' }}</span>
-        </div>
-        <div v-if="activeUsers.length > 3" class="more-users">
-          +{{ activeUsers.length - 3 }} más
-        </div>
-      </div>
-    </div>
+
   </div>
 </template>
 
@@ -110,47 +102,64 @@
 import websocketService from '@/services/websocketService';
 import axios from '@/services/axios';
 import { mapMutations } from 'vuex';
+import statusTypesService from '@/services/statusTypes';
 
 export default {
   name: 'UserStatusConfigurator',
   data() {
     return {
       showStatusModal: false,
-      currentStatus: 'online',
+      currentStatus: 'available',
       customStatus: '',
-      currentStatusColor: '#28a745',
-      currentStatusLabel: 'En línea',
+      currentStatusColor: '#00d25b',
+      currentStatusLabel: 'Disponible',
       lastSeen: new Date(),
-      activeUsers: [],
-      currentUserId: null,
       isChangingStatus: false,
       showStatusAnimation: false,
-      availableStatuses: [
-        { value: 'online', label: 'En línea', color: '#28a745' },
-        { value: 'busy', label: 'Ocupado', color: '#dc3545' },
-        { value: 'away', label: 'Ausente', color: '#ffc107' },
-        { value: 'break', label: 'En descanso', color: '#fd7e14' },
-        { value: 'meeting', label: 'En reunión', color: '#6f42c1' },
-        { value: 'lunch', label: 'Almuerzo', color: '#e83e8c' },
-        { value: 'vacation', label: 'Vacaciones', color: '#17a2b8' },
-        { value: 'sick', label: 'Enfermo', color: '#6c757d' }
-      ]
+      availableStatuses: [],
+      statusesByCategory: {},
+      categories: []
     };
   },
   mounted() {
-    this.initializeWebSocket();
-    this.loadCurrentStatus();
-    this.loadActiveUsers();
+    // No inicializar nada aquí, el watcher se encargará cuando el usuario esté logueado
+    console.log('🎯 UserStatusConfigurator montado - Esperando autenticación...');
   },
   watch: {
     currentStatus(newStatus) {
       console.log('👀 Estado cambiado a:', newStatus);
       // Actualizar colores y labels cuando cambie el estado
-      const selectedStatus = this.availableStatuses.find(s => s.value === newStatus);
+      let selectedStatus = statusTypesService.getStatusByValue(newStatus);
+      
+      // Si no se encuentra en el servicio, buscar en los estados locales
+      if (!selectedStatus) {
+        selectedStatus = this.availableStatuses.find(s => s.value === newStatus);
+      }
+      
       if (selectedStatus) {
         this.currentStatusColor = selectedStatus.color;
         this.currentStatusLabel = selectedStatus.label;
       }
+    },
+    // Watcher para detectar cuando el usuario se loguee
+    '$store.state.isLoggedIn': {
+      handler(newValue) {
+        if (newValue) {
+          console.log('🔐 Usuario logueado detectado - Inicializando sistema de estados...');
+          // Usar setTimeout para asegurar que el store esté completamente actualizado
+          setTimeout(() => {
+            this.loadCurrentStatus();
+          }, 100);
+        } else {
+          console.log('🚪 Usuario deslogueado - Limpiando sistema de estados...');
+          websocketService.disconnect();
+          // Limpiar estados
+          this.availableStatuses = [];
+          this.statusesByCategory = {};
+          this.categories = [];
+        }
+      },
+      immediate: true
     }
   },
   beforeUnmount() {
@@ -170,33 +179,142 @@ export default {
         this.updateOwnStatus(data);
       });
       websocketService.on('user_status_changed', this.updateUserStatus);
-      websocketService.on('active_users_list', this.updateActiveUsersList);
+    },
+    
+    async loadDynamicStatuses() {
+      try {
+        console.log('🔄 Cargando estados dinámicos...');
+        
+        // Inicializar el servicio de tipos de estado
+        await statusTypesService.initialize();
+        
+        // Cargar todos los estados
+        this.availableStatuses = await statusTypesService.loadStatuses();
+        console.log('📊 Estados cargados:', this.availableStatuses);
+        
+        // Cargar categorías
+        this.categories = await statusTypesService.loadCategories();
+        console.log('📊 Categorías cargadas:', this.categories);
+        
+        // Agrupar estados por categoría
+        this.statusesByCategory = statusTypesService.getStatusesGroupedByCategory();
+        console.log('📊 Estados agrupados:', this.statusesByCategory);
+        
+        console.log('✅ Estados dinámicos cargados:', {
+          total: this.availableStatuses.length,
+          categories: this.categories,
+          grouped: this.statusesByCategory
+        });
+        
+        // Forzar actualización del componente
+        this.$forceUpdate();
+        
+      } catch (error) {
+        console.error('❌ Error cargando estados dinámicos:', error);
+        
+        // Estados de fallback si no se pueden cargar desde el servidor
+        console.log('🔄 Usando estados de fallback...');
+        this.availableStatuses = [
+          { value: 'available', label: 'Disponible', color: '#00d25b', category: 'work', icon: 'fas fa-circle' },
+          { value: 'busy', label: 'Ocupado', color: '#2196f3', category: 'work', icon: 'fas fa-clock' },
+          { value: 'on_call', label: 'En llamada', color: '#1976d2', category: 'work', icon: 'fas fa-phone' },
+          { value: 'break', label: 'Descanso', color: '#ff9800', category: 'break', icon: 'fas fa-coffee' },
+          { value: 'lunch', label: 'Almuerzo', color: '#ff5722', category: 'break', icon: 'fas fa-utensils' },
+          { value: 'meeting', label: 'En reunión', color: '#ffa726', category: 'break', icon: 'fas fa-users' },
+          { value: 'away', label: 'Ausente', color: '#f44336', category: 'out', icon: 'fas fa-user-clock' },
+          { value: 'offline', label: 'Desconectado', color: '#6c757d', category: 'out', icon: 'fas fa-times-circle' }
+        ];
+        
+        this.categories = ['work', 'break', 'out'];
+        
+        // Agrupar estados por categoría
+        this.statusesByCategory = {
+          work: this.availableStatuses.filter(s => s.category === 'work'),
+          break: this.availableStatuses.filter(s => s.category === 'break'),
+          out: this.availableStatuses.filter(s => s.category === 'out')
+        };
+        
+        console.log('✅ Estados de fallback cargados');
+        this.$forceUpdate();
+      }
+    },
+    
+    loadFallbackStatuses() {
+      console.log('🔄 Cargando estados de fallback...');
+      this.availableStatuses = [
+        { value: 'available', label: 'Disponible', color: '#00d25b', category: 'work', icon: 'fas fa-circle' },
+        { value: 'busy', label: 'Ocupado', color: '#2196f3', category: 'work', icon: 'fas fa-clock' },
+        { value: 'on_call', label: 'En llamada', color: '#1976d2', category: 'work', icon: 'fas fa-phone' },
+        { value: 'break', label: 'Descanso', color: '#ff9800', category: 'break', icon: 'fas fa-coffee' },
+        { value: 'lunch', label: 'Almuerzo', color: '#ff5722', category: 'break', icon: 'fas fa-utensils' },
+        { value: 'meeting', label: 'En reunión', color: '#ffa726', category: 'break', icon: 'fas fa-users' },
+        { value: 'away', label: 'Ausente', color: '#f44336', category: 'out', icon: 'fas fa-user-clock' },
+        { value: 'offline', label: 'Desconectado', color: '#6c757d', category: 'out', icon: 'fas fa-times-circle' }
+      ];
       
-      // Solicitar lista de usuarios activos
-      websocketService.socket?.emit('get_active_users');
+      this.categories = ['work', 'break', 'out'];
+      
+      // Agrupar estados por categoría
+      this.statusesByCategory = {
+        work: this.availableStatuses.filter(s => s.category === 'work'),
+        break: this.availableStatuses.filter(s => s.category === 'break'),
+        out: this.availableStatuses.filter(s => s.category === 'out')
+      };
+      
+      console.log('✅ Estados de fallback cargados');
+      this.$forceUpdate();
+    },
+    
+    getCategoryLabel(category) {
+      const labels = {
+        'work': 'Trabajo',
+        'break': 'Descanso',
+        'out': 'Fuera'
+      };
+      return labels[category] || category;
+    },
+    
+    getCategoryDescription(category) {
+      const descriptions = {
+        'work': 'Sí se puede asignar trabajo',
+        'break': 'No se debe asignar trabajo',
+        'out': 'Conectado pero no trabajando'
+      };
+      return descriptions[category] || '';
     },
     
     async loadCurrentStatus() {
       try {
-        const response = await axios.get('/user-status/my-status');
+        // Verificar que el usuario esté logueado en el store
+        if (!this.$store.state.isLoggedIn) {
+          console.log('🚪 Usuario no logueado en store, esperando...');
+          return;
+        }
+        
+        console.log('✅ Usuario logueado en store - Inicializando...');
+        
+        // Cargar estados dinámicos primero
+        await this.loadDynamicStatuses();
+        
+        // Luego inicializar WebSocket
+        this.initializeWebSocket();
+        
+        // Finalmente cargar estado actual
+        const response = await axios.get('/user-status/my-status', {
+          withCredentials: true
+        });
         if (response.data.success && response.data.status) {
           this.updateOwnStatus(response.data.status);
         }
       } catch (error) {
         console.error('Error cargando estado:', error);
+        // Si hay error, usar estados de fallback
+        console.log('🔄 Usando estados de fallback debido a error...');
+        this.loadFallbackStatuses();
       }
     },
     
-    async loadActiveUsers() {
-      try {
-        const response = await axios.get('/user-status/active-users');
-        if (response.data.success) {
-          this.activeUsers = response.data.users;
-        }
-      } catch (error) {
-        console.error('Error cargando usuarios activos:', error);
-      }
-    },
+
     
     selectStatus(status) {
       this.currentStatus = status;
@@ -233,13 +351,25 @@ export default {
       try {
         console.log('🔄 Cambiando estado a:', status, customStatus);
         
-        // Cambiar estado a través de WebSocket
-        websocketService.changeStatus(status, customStatus);
+        // Pequeño delay para asegurar que la sesión esté sincronizada
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Cambiar estado a través de WebSocket solo si está conectado
+        if (websocketService.isConnected) {
+          websocketService.changeStatus(status, customStatus);
+        } else {
+          console.log('⚠️ WebSocket no conectado, solo usando API REST');
+        }
         
         // También cambiar a través de API REST
         const response = await axios.post('/user-status/change-status', {
           status,
           customStatus
+        }, {
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          withCredentials: true
         });
         
         if (response.data.success) {
@@ -295,25 +425,38 @@ export default {
     
     updateOwnStatus(data) {
       console.log('🔄 Actualizando estado propio:', data);
-      this.currentStatus = data.status;
-      this.currentStatusColor = data.color;
-      this.currentStatusLabel = data.label;
-      this.lastSeen = new Date(data.lastSeen);
-      this.currentUserId = data.userId;
       
-      // Actualizar el store de Vuex
-      this.setUserStatus({
-        status: data.status,
-        customStatus: data.customStatus,
-        lastActivity: data.lastSeen
-      });
-      
-      // Activar animación
-      this.triggerStatusAnimation();
-      
-      // Forzar actualización del componente
-      this.$forceUpdate();
-      console.log('✅ Estado actualizado visualmente:', this.currentStatusLabel);
+      if (data && data.status) {
+        this.currentStatus = data.status;
+        
+        // Usar el servicio de tipos de estado para obtener información
+        const selectedStatus = statusTypesService.getStatusByValue(data.status);
+        if (selectedStatus) {
+          this.currentStatusColor = selectedStatus.color;
+          this.currentStatusLabel = selectedStatus.label;
+        } else {
+          // Si no se encuentra, usar valores por defecto
+          this.currentStatusColor = data.color || '#28a745';
+          this.currentStatusLabel = data.label || 'Conectado';
+        }
+        
+        this.lastSeen = new Date(data.lastSeen);
+        this.currentUserId = data.userId;
+        
+        // Actualizar el store de Vuex
+        this.setUserStatus({
+          status: data.status,
+          customStatus: data.customStatus,
+          lastActivity: data.lastSeen
+        });
+        
+        // Activar animación
+        this.triggerStatusAnimation();
+        
+        // Forzar actualización del componente
+        this.$forceUpdate();
+        console.log('✅ Estado actualizado visualmente:', this.currentStatusLabel);
+      }
     },
     
     triggerStatusAnimation() {
@@ -323,24 +466,7 @@ export default {
       }, 500);
     },
     
-    updateUserStatus(data) {
-      const userIndex = this.activeUsers.findIndex(user => user.userId === data.userId);
-      
-      if (userIndex !== -1) {
-        this.activeUsers[userIndex] = {
-          ...this.activeUsers[userIndex],
-          status: data.status,
-          customStatus: data.customStatus,
-          color: data.color,
-          label: data.label,
-          lastSeen: data.lastSeen
-        };
-      }
-    },
-    
-    updateActiveUsersList(users) {
-      this.activeUsers = users;
-    },
+
     
     // Método para forzar actualización del estado en otros componentes
     forceStatusUpdate(status) {
@@ -410,60 +536,7 @@ export default {
   font-size: 0.8rem;
 }
 
-/* Usuarios activos compactos */
-.active-users-compact {
-  margin-top: 0.75rem;
-}
 
-.users-count {
-  display: flex;
-  align-items: center;
-  font-size: 0.75rem;
-  color: #666;
-  margin-bottom: 0.5rem;
-}
-
-.users-count i {
-  margin-right: 0.5rem;
-  color: #28a745;
-}
-
-.users-list-compact {
-  max-height: 120px;
-  overflow-y: auto;
-}
-
-.user-item-compact {
-  display: flex;
-  align-items: center;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  margin-bottom: 0.25rem;
-  background: rgba(0, 0, 0, 0.02);
-  transition: all 0.3s ease;
-}
-
-.user-item-compact:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.user-item-compact.current-user {
-  background: rgba(40, 167, 69, 0.1);
-  border: 1px solid rgba(40, 167, 69, 0.2);
-}
-
-.status-dot-small {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  margin-right: 0.5rem;
-}
-
-.user-name {
-  font-size: 0.75rem;
-  color: #333;
-  font-weight: 500;
-}
 
 @keyframes statusPulse {
   0% { transform: scale(1); }
@@ -527,8 +600,29 @@ export default {
   padding: 1rem;
 }
 
-.status-options {
+.status-categories {
   margin-bottom: 1.5rem;
+}
+
+.status-category {
+  margin-bottom: 1.5rem;
+}
+
+.category-title {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid #eee;
+}
+
+.category-title small {
+  font-weight: 400;
+  margin-left: 0.5rem;
+}
+
+.status-options {
+  margin-bottom: 1rem;
 }
 
 .status-option {
@@ -557,6 +651,12 @@ export default {
   border-radius: 50%;
   margin-right: 0.75rem;
   flex-shrink: 0;
+}
+
+.status-icon {
+  margin-left: auto;
+  font-size: 0.9rem;
+  color: #666;
 }
 
 .custom-status-section {

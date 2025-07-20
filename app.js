@@ -88,14 +88,8 @@ io.use((socket, next) => {
   });
 });
 
-app.use(function (req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*"); // Permitir solicitudes desde cualquier origen
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept"
-  );
-  next();
-});
+// Removido el middleware que establecía Access-Control-Allow-Origin: "*"
+// ya que interfiere con las credenciales de CORS
 
 // Configurar CORS para permitir credenciales
 app.use(cors({

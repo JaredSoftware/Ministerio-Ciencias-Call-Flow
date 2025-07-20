@@ -4,10 +4,12 @@ const axios = require("axios");
 
 const login = require("../controllers/general")
 const userStatusRoutes = require("./userStatus.routes");
+const statusTypeRoutes = require("./statusType.routes");
 const User = require("../models/users");
 
 // Rutas de estado de usuario
-router.use("/user-status", userStatusRoutes);
+router.use("/api/user-status", userStatusRoutes);
+router.use("/api/status-types", statusTypeRoutes);
 
 // login and users
 router.post("/api/login", login.form);
@@ -216,7 +218,6 @@ router.post("/api/websocket/init", (req, res) => {
   }
 });
 
-// User status routes
-router.use("/api/user-status", userStatusRoutes);
+
 
 module.exports = router;

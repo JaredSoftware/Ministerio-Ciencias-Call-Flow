@@ -8,6 +8,8 @@ router.get('/test-session', (req, res) => {
   console.log('🔍 Probando sesión...');
   console.log('   - Session existe:', !!req.session);
   console.log('   - User existe:', !!req.session?.user);
+  console.log('   - Session ID:', req.sessionID);
+  console.log('   - Headers:', req.headers);
   
   if (req.session?.user) {
     console.log('   - Usuario:', req.session.user.name);
@@ -17,6 +19,7 @@ router.get('/test-session', (req, res) => {
   res.json({
     sessionExists: !!req.session,
     userExists: !!req.session?.user,
+    sessionId: req.sessionID,
     user: req.session?.user ? {
       name: req.session.user.name,
       id: req.session.user._id,
@@ -26,15 +29,8 @@ router.get('/test-session', (req, res) => {
 });
 
 // Obtener estado del usuario actual
-router.get('/my-status', async (req, res) => {
+router.get('/my-status', requireAuth, async (req, res) => {
   try {
-    if (!req.session?.user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Usuario no autenticado' 
-      });
-    }
-
     const userStatus = await UserStatus.getUserStatus(req.session.user._id);
     
     if (!userStatus) {
@@ -57,14 +53,10 @@ router.get('/my-status', async (req, res) => {
 });
 
 // Cambiar estado del usuario
-router.post('/change-status', async (req, res) => {
+router.post('/change-status', requireAuth, async (req, res) => {
   try {
-    if (!req.session?.user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Usuario no autenticado' 
-      });
-    }
+    console.log('🔄 Cambio de estado solicitado:', req.body);
+    console.log('✅ Usuario autenticado:', req.session.user.name);
 
     const { status, customStatus } = req.body;
     
@@ -157,31 +149,27 @@ router.get('/stats', requireAuth, async (req, res) => {
 });
 
 // Obtener estados disponibles
-router.get('/available-statuses', requireAuth, (req, res) => {
-  const userStatusService = req.app.get('userStatusService');
-  
-  const statuses = Object.keys(userStatusService.statusLabels).map(status => ({
-    value: status,
-    label: userStatusService.statusLabels[status],
-    color: userStatusService.statusColors[status]
-  }));
-  
-  res.json({
-    success: true,
-    statuses: statuses
-  });
+router.get('/available-statuses', requireAuth, async (req, res) => {
+  try {
+    const StatusType = require('../models/statusType');
+    const statuses = await StatusType.getActiveStatuses();
+    
+    res.json({
+      success: true,
+      statuses: statuses
+    });
+  } catch (error) {
+    console.error('Error obteniendo estados disponibles:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor' 
+    });
+  }
 });
 
 // Actualizar actividad del usuario
-router.post('/update-activity', async (req, res) => {
+router.post('/update-activity', requireAuth, async (req, res) => {
   try {
-    if (!req.session?.user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'Usuario no autenticado' 
-      });
-    }
-
     const userStatus = await UserStatus.getUserStatus(req.session.user._id);
     
     if (userStatus) {

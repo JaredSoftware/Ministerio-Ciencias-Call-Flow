@@ -26,7 +26,7 @@ export default {
     return {
       currentStatus: 'online',
       statusColor: '#28a745',
-      statusLabel: 'En línea',
+      statusLabel: 'Conectado',
       showAnimation: false,
       showTooltip: false,
       statusColors: {
@@ -40,7 +40,7 @@ export default {
         sick: '#6c757d'
       },
       statusLabels: {
-        online: 'En línea',
+        online: 'Conectado',
         busy: 'Ocupado',
         away: 'Ausente',
         break: 'En descanso',
@@ -74,15 +74,38 @@ export default {
         }
       },
       immediate: true
+    },
+    // Observar cambios en el estado de login
+    '$store.state.isLoggedIn': {
+      handler(newValue) {
+        if (newValue) {
+          console.log('🔐 Usuario logueado detectado en StatusIndicatorBar - Inicializando...');
+          this.initializeWebSocket();
+          this.loadCurrentStatus();
+        } else {
+          console.log('🚪 Usuario deslogueado detectado en StatusIndicatorBar');
+          // Limpiar estado
+          this.currentStatus = 'available';
+          this.statusColor = '#00d25b';
+          this.statusLabel = 'Disponible';
+        }
+      },
+      immediate: true
     }
   },
   mounted() {
-    this.initializeWebSocket();
-    this.loadCurrentStatus();
-    
-    // Forzar actualización inicial desde el store
-    if (this.userStatus && this.userStatus.status) {
-      this.updateStatus(this.userStatus);
+    // Solo inicializar si el usuario está logueado
+    if (this.$store.state.isLoggedIn) {
+      console.log('🔐 Usuario logueado, inicializando StatusIndicatorBar...');
+      this.initializeWebSocket();
+      this.loadCurrentStatus();
+      
+      // Forzar actualización inicial desde el store
+      if (this.userStatus && this.userStatus.status) {
+        this.updateStatus(this.userStatus);
+      }
+    } else {
+      console.log('🚪 Usuario no logueado, no inicializando StatusIndicatorBar');
     }
   },
   beforeUnmount() {
@@ -90,6 +113,12 @@ export default {
   },
   methods: {
     initializeWebSocket() {
+      // Solo inicializar si el usuario está logueado
+      if (!this.$store.state.isLoggedIn) {
+        console.log('🚪 Usuario no logueado, saltando inicialización de WebSocket');
+        return;
+      }
+      
       console.log('🔌 Inicializando WebSocket en StatusIndicatorBar...');
       
       // Suscribirse a eventos de WebSocket
@@ -110,13 +139,31 @@ export default {
     },
     
     async loadCurrentStatus() {
+      // Solo cargar si el usuario está logueado
+      if (!this.$store.state.isLoggedIn) {
+        console.log('🚪 Usuario no logueado, saltando carga de estado');
+        return;
+      }
+      
       try {
-        const response = await axios.get('/user-status/my-status');
+        console.log('🔄 Cargando estado actual del usuario...');
+        const response = await axios.get('/user-status/my-status', {
+          withCredentials: true
+        });
+        
         if (response.data.success && response.data.status) {
           this.updateStatus(response.data.status);
         }
       } catch (error) {
         console.error('Error cargando estado para indicador:', error);
+        
+        // Si hay error de autenticación, limpiar estado
+        if (error.response && error.response.status === 401) {
+          console.log('⚠️ Usuario no autenticado, limpiando estado del indicador');
+          this.currentStatus = 'available';
+          this.statusColor = '#00d25b';
+          this.statusLabel = 'Disponible';
+        }
       }
     },
     

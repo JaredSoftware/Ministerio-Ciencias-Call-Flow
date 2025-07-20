@@ -38,9 +38,16 @@ const userStateMiddleware = (req, res, next) => {
 
 // Middleware para verificar si el usuario está autenticado
 const requireAuth = (req, res, next) => {
+  console.log('🔍 requireAuth middleware ejecutándose...');
+  console.log('   - Session existe:', !!req.session);
+  console.log('   - User en session:', !!req.session?.user);
+  console.log('   - Session ID:', req.sessionID);
+  
   if (req.session && req.session.user) {
+    console.log('✅ Usuario autenticado en requireAuth:', req.session.user.name);
     next();
   } else {
+    console.log('❌ Usuario no autenticado en requireAuth');
     res.status(401).json({ error: 'No autorizado' });
   }
 };

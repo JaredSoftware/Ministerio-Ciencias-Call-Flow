@@ -9,7 +9,7 @@ const userStatusSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['online', 'busy', 'away', 'break', 'meeting', 'lunch', 'vacation', 'sick', 'offline'],
+    required: true,
     default: 'online'
   },
   customStatus: {
@@ -35,11 +35,15 @@ const userStatusSchema = new mongoose.Schema({
   },
   color: {
     type: String,
-    default: '#28a745' // Verde por defecto (online)
+    default: '#28a745'
   },
   label: {
     type: String,
-    default: 'En Línea'
+    default: 'Conectado'
+  },
+  statusType: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'StatusType'
   }
 }, {
   timestamps: true
@@ -52,26 +56,23 @@ userStatusSchema.methods.updateActivity = function() {
 };
 
 // Método para cambiar estado
-userStatusSchema.methods.changeStatus = function(newStatus, customStatus = null) {
+userStatusSchema.methods.changeStatus = async function(newStatus, customStatus = null) {
   this.status = newStatus;
   this.customStatus = customStatus;
   
-  // Definir colores y labels según el estado
-  const statusConfig = {
-    online: { color: '#28a745', label: 'En Línea' },
-    busy: { color: '#dc3545', label: 'Ocupado' },
-    away: { color: '#ffc107', label: 'Ausente' },
-    break: { color: '#fd7e14', label: 'En Descanso' },
-    meeting: { color: '#6f42c1', label: 'En Reunión' },
-    lunch: { color: '#e83e8c', label: 'Almuerzo' },
-    vacation: { color: '#17a2b8', label: 'Vacaciones' },
-    sick: { color: '#6c757d', label: 'Enfermo' },
-    offline: { color: '#6c757d', label: 'Desconectado' }
-  };
+  // Obtener configuración del estado desde la base de datos
+  const StatusType = mongoose.model('StatusType');
+  const statusType = await StatusType.findOne({ value: newStatus, isActive: true });
   
-  const config = statusConfig[newStatus] || statusConfig.online;
-  this.color = config.color;
-  this.label = config.label;
+  if (statusType) {
+    this.color = statusType.color;
+    this.label = statusType.label;
+    this.statusType = statusType._id;
+  } else {
+    // Fallback a valores por defecto si no se encuentra el estado
+    this.color = '#28a745';
+    this.label = 'Conectado';
+  }
   
   return this.save();
 };
@@ -81,12 +82,12 @@ userStatusSchema.statics.getActiveUsers = function() {
   return this.find({ 
     isActive: true,
     lastSeen: { $gte: new Date(Date.now() - 5 * 60 * 1000) } // Últimos 5 minutos
-  }).populate('userId', 'name correo');
+  }).populate('userId', 'name correo').populate('statusType');
 };
 
 // Método estático para obtener estado de un usuario
 userStatusSchema.statics.getUserStatus = function(userId) {
-  return this.findOne({ userId }).populate('userId', 'name correo');
+  return this.findOne({ userId }).populate('userId', 'name correo').populate('statusType');
 };
 
 // Método estático para crear o actualizar estado
@@ -102,7 +103,7 @@ userStatusSchema.statics.upsertStatus = function(userId, statusData) {
       new: true,
       setDefaultsOnInsert: true
     }
-  ).populate('userId', 'name correo');
+  ).populate('userId', 'name correo').populate('statusType');
 };
 
 module.exports = mongoose.model('UserStatus', userStatusSchema); 

@@ -97,13 +97,13 @@ export default {
       currentStatus: 'online',
       customStatus: '',
       currentStatusColor: '#28a745',
-      currentStatusLabel: 'En línea',
+      currentStatusLabel: 'Conectado',
       lastSeen: new Date(),
       activeUsers: [],
       currentUserId: null,
       debug: true, // Habilitar debug
       availableStatuses: [
-        { value: 'online', label: 'En línea', color: '#28a745' },
+        { value: 'online', label: 'Conectado', color: '#28a745' },
         { value: 'busy', label: 'Ocupado', color: '#dc3545' },
         { value: 'away', label: 'Ausente', color: '#ffc107' },
         { value: 'break', label: 'En descanso', color: '#fd7e14' },
