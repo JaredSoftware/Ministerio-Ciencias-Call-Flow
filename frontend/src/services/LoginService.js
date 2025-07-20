@@ -18,7 +18,7 @@ export default {
 	validateUser: async (task) => {
 		let data = task;
 
-		const info = await axios.request("/exists",data)
+		const info = await axios.post("/exists",data)
 
 		return info.data;
 	},

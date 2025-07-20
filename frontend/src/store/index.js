@@ -120,6 +120,22 @@ export default createStore({
     logout({ commit }) {
       // Logout inmediato sin delay
       return new Promise((resolve) => {
+        // Limpiar cache de roles y permisos
+        localStorage.removeItem('cachedRole');
+        localStorage.removeItem('cachedRolePermissions');
+        localStorage.removeItem('cachedRoleToken');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('userPermissions');
+        localStorage.removeItem('userRoleName');
+        localStorage.removeItem('lastRoleAttempt');
+        
+        // Limpiar cache de permisos
+        import('@/services/permissions').then(module => {
+          module.default.clearCache();
+        }).catch(() => {
+          // Si falla la importación, continuar con el logout
+        });
+        
         commit('clearToken');
         commit('logout');
         resolve();

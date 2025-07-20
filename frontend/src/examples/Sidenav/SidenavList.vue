@@ -16,16 +16,41 @@
           </template>
         </sidenav-item>
       </li>
-      <li class="nav-item">
+      <!-- Opción de gestión de usuarios -->
+      <li v-if="canViewUsers" class="nav-item">
         <sidenav-item
           url="/Users"
-          :class="getRoute() === 'profile' ? 'active' : ''"
-          :navText="this.$store.state.isRTL ? 'حساب تعريفي' : 'Users'"
+          :class="getRoute() === 'Users' ? 'active' : ''"
+          :navText="this.$store.state.isRTL ? 'المستخدمين' : 'Users'"
         >
           <template v-slot:icon>
             <i class="ni ni-single-02 text-dark text-sm opacity-10"></i>
           </template>
         </sidenav-item>
+      </li>
+      
+      <!-- Opción de usuarios activos - solo con permisos -->
+      <li v-if="canViewActiveUsers" class="nav-item">
+        <sidenav-item
+          url="/active-users"
+          :class="getRoute() === 'active-users' ? 'active' : ''"
+          :navText="this.$store.state.isRTL ? 'المستخدمين النشطين' : 'Usuarios Activos'"
+        >
+          <template v-slot:icon>
+            <i class="ni ni-chart-bar-32 text-info text-sm opacity-10"></i>
+          </template>
+        </sidenav-item>
+      </li>
+      
+
+      
+
+      
+      <!-- Debug: Mostrar rol actual (temporal) -->
+      <li v-if="userRole" class="nav-item">
+        <div class="px-3 py-2 text-xs text-muted">
+          <small>Rol: {{ userRole }}</small>
+        </div>
       </li>
       <!--<li class="nav-item">
         <sidenav-item
@@ -138,6 +163,7 @@
 </template>
 <script>
 import SidenavItem from "./SidenavItem.vue";
+import permissionsService from "@/services/permissions";
 //import UserStatusSelector from "@/components/UserStatusSelector.vue";
 //import SidenavCard from "./SidenavCard.vue";
 
@@ -151,6 +177,9 @@ export default {
       title: "App",
       controls: "dashboardsExamples",
       isActive: "active",
+      canViewUsers: false,
+      canViewActiveUsers: false,
+      permissionsLoaded: false,
     };
   },
   components: {
@@ -158,7 +187,46 @@ export default {
     //UserStatusSelector,
     //SidenavCard
   },
+  computed: {
+    // Los permisos ya están cargados en las propiedades data
+  },
+  async mounted() {
+    // Cargar permisos al montar el componente
+    if (!this.permissionsLoaded) {
+      await this.loadUserPermissions();
+    }
+  },
+
   methods: {
+    async loadUserPermissions() {
+      // Evitar cargar múltiples veces
+      if (this.permissionsLoaded || this._loadingPermissions) {
+        return;
+      }
+      
+      this._loadingPermissions = true;
+      
+      try {
+        console.log('🔄 Cargando permisos del usuario...');
+        
+        // Verificar permisos específicos para cada elemento del sidebar
+        this.canViewUsers = await permissionsService.canShowUIElement('sidebar-users');
+        this.canViewActiveUsers = await permissionsService.canShowUIElement('sidebar-active-users');
+        
+        this.permissionsLoaded = true;
+        console.log('✅ Permisos del usuario cargados');
+        console.log('   - Users:', this.canViewUsers);
+        console.log('   - Active Users:', this.canViewActiveUsers);
+        
+      } catch (error) {
+        console.error('❌ Error cargando permisos del usuario:', error);
+        // En caso de error, denegar todos los permisos
+        this.canViewUsers = false;
+        this.canViewActiveUsers = false;
+      } finally {
+        this._loadingPermissions = false;
+      }
+    },
     getRoute() {
       const routeArr = this.$route.path.split("/");
       return routeArr[1];

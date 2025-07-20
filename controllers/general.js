@@ -170,6 +170,16 @@ module.exports = {
         return;
       }
       
+      // Verificar si el correo ya existe
+      const existingUser = await users.findOne({ correo: req.body.email });
+      if (existingUser) {
+        res.send({
+          success: false,
+          error: "El correo electrónico ya está registrado",
+        });
+        return;
+      }
+      
       // Buscar rol "asesor" o crear uno por defecto
       let role = await rol.findOne({ nombre: "asesor" });
       if (!role) {
@@ -198,54 +208,103 @@ module.exports = {
       await makeUser.save();
       res.send({ success: true, user: makeUser });
     } catch (error) {
-      console.log(error);
+      console.error('Error creando usuario:', error);
       res.status(500).send({ success: false, error: "Error al crear usuario" });
     }
   },
   updateUser: async (req, res) => {
     try {
       if (!req.body.id) {
-        res.send({
-          login: false,
+        return res.send({
+          success: false,
           error: "por favor ingrese el id del usuario",
         });
+      }
+      
+      // Si se está actualizando el email, verificar que no exista
+      if (req.body.email) {
+        const existingUser = await users.findOne({ 
+          correo: req.body.email,
+          _id: { $ne: req.body.id } // Excluir el usuario actual
+        });
+        
+        if (existingUser) {
+          res.send({
+            success: false,
+            error: "El correo electrónico ya está registrado por otro usuario",
+          });
+          return;
+        }
+      }
+      
+      var dataForUpdate = {};
+      if (req.body.email) {
+        dataForUpdate.correo = req.body.email;
+      }
+      if (req.body.name) {
+        dataForUpdate.name = req.body.name;
+      }
+      if (req.body.password) {
+        // Cifrar la nueva contraseña antes de actualizar
+        const saltRounds = 12;
+        const hashedPassword = await bcrypt.hash(req.body.password, saltRounds);
+        dataForUpdate.password = hashedPassword;
+      }
+
+      const update = await users.updateOne(
+        { _id: req.body.id },
+        dataForUpdate
+      );
+
+      if (update.modifiedCount > 0) {
+        res.send({ 
+          success: true, 
+          update,
+          message: "Usuario actualizado correctamente"
+        });
       } else {
-        var dataForUpdate = {};
-        if (req.body.email) {
-          dataForUpdate.correo = req.body.email;
-        }
-        if (req.body.password) {
-          // Cifrar la nueva contraseña antes de actualizar
-          const saltRounds = 12;
-          const hashedPassword = await bcrypt.hash(req.body.password, saltRounds);
-          dataForUpdate.password = hashedPassword;
-        }
-
-        const update = await users.updateOne(
-          { _id: req.body.id },
-          dataForUpdate
-        );
-
-        res.send({ update });
+        res.send({ 
+          success: false, 
+          error: "Usuario no encontrado o no se realizaron cambios"
+        });
       }
     } catch (error) {
-      console.log(error);
+      console.error('Error actualizando usuario:', error);
+      res.send({ 
+        success: false, 
+        error: "Error interno del servidor al actualizar usuario"
+      });
     }
   },
   deletUser: async (req, res) => {
     try {
       if (!req.body.id) {
-        res.send({
-          login: false,
+        return res.send({
+          success: false,
           error: "por favor ingrese el id del usuario",
         });
-      } else {
-        const deleteOneUser = await users.deleteOne({ _id: req.body.id });
+      }
+      
+      const deleteOneUser = await users.deleteOne({ _id: req.body.id });
 
-        res.send({ deleteOneUser });
+      if (deleteOneUser.deletedCount > 0) {
+        res.send({ 
+          success: true, 
+          deleteOneUser,
+          message: "Usuario eliminado correctamente"
+        });
+      } else {
+        res.send({ 
+          success: false, 
+          error: "Usuario no encontrado o ya eliminado"
+        });
       }
     } catch (error) {
-      console.log(error);
+      console.error('Error eliminando usuario:', error);
+      res.send({ 
+        success: false, 
+        error: "Error interno del servidor al eliminar usuario"
+      });
     }
   },
   userToken: async (req, res) => {
@@ -304,9 +363,22 @@ module.exports = {
       const token = req.body.token;
       const getDecodeInfo = await jwt.decode(token, "g8SlhhpH6O");
 
-      if (getDecodeInfo) {
-        const addRole = await rol.findOne({ _id: getDecodeInfo.role });
-        res.send(addRole);
+      if (getDecodeInfo && getDecodeInfo.userId) {
+        // Buscar el usuario primero
+        const user = await users.findOne({ _id: getDecodeInfo.userId });
+        if (user && user.role) {
+          // Ahora buscar el rol del usuario
+          const addRole = await rol.findOne({ _id: user.role });
+          res.send(addRole);
+        } else {
+          res.send({
+            login: false,
+            error: {
+              role: null,
+              message: "Usuario sin rol asignado",
+            },
+          });
+        }
       } else {
         res.send({
           login: false,

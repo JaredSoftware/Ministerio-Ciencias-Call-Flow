@@ -340,4 +340,56 @@ router.get('/my-history', requireAuth, async (req, res) => {
   }
 });
 
+// Obtener todos los usuarios con sus estados (solo administradores)
+router.get('/all-users', requireAuth, async (req, res) => {
+  try {
+    // Verificar que sea administrador
+    if (req.session.user.role !== 'administrador') {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acceso denegado. Solo administradores pueden ver esta información.' 
+      });
+    }
+
+    console.log('👥 Administrador solicitando lista de usuarios activos...');
+
+    // Obtener todos los usuarios con sus estados
+    const userStatuses = await UserStatus.find({})
+      .populate('userId', 'name email role avatar')
+      .sort({ lastActivity: -1 });
+
+    // Formatear la respuesta
+    const users = userStatuses.map(userStatus => {
+      const user = userStatus.userId;
+      return {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        avatar: user.avatar,
+        status: userStatus.status,
+        customStatus: userStatus.customStatus,
+        lastActivity: userStatus.lastActivity,
+        lastHeartbeat: userStatus.lastHeartbeat,
+        isOnline: userStatus.isOnline,
+        ipAddress: userStatus.ipAddress,
+        sessionId: userStatus.sessionId
+      };
+    });
+
+    console.log(`✅ ${users.length} usuarios encontrados`);
+
+    res.json({ 
+      success: true, 
+      users: users 
+    });
+  } catch (error) {
+    console.error('❌ Error obteniendo usuarios:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor' 
+    });
+  }
+});
+
 module.exports = router; 

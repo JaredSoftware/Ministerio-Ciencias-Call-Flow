@@ -11,11 +11,13 @@ import Profile from "../views/Profile.vue";
 import Signup from "../views/Signup.vue";
 import Signin from "../views/Signin.vue";
 import users from "../views/users.vue";
+import ActiveUsers from "../views/ActiveUsers.vue";
 
 import store from "../store/index"; // Importa tu store de Vuex
 
 import tokens from "../services/tokens";
 import sessionSync from "../services/sessionSync";
+import permissionsService from "../services/permissions";
 
 const routes = [
   {
@@ -29,19 +31,19 @@ const routes = [
     component: Dashboard,
     meta: {
       requiresAuth: true,
-      roles: [
-        "administrador",
-        "contac center manager",
-        "supervisor",
-        "asesor",
-        "usuario",
-      ], // Agregamos esta propiedad para indicar que la ruta es protegida
+      permissions: [] // Acceso libre para usuarios autenticados
     },
   },
   {
     path: "/signout",
     name: "Signout",
     beforeEnter: async (to, from, next) => {
+      console.log('🚪 Procesando signout...');
+      
+      // Limpiar store de Vuex
+      store.dispatch("logout");
+      
+      // Limpiar localStorage y sessionStorage
       localStorage.clear();
       sessionStorage.clear();
 
@@ -50,7 +52,10 @@ const routes = [
       }
 
       deleteCookie("rememberMe");
-      next("/");
+      deleteCookie("remember_token");
+      
+      console.log('✅ Signout completado, redirigiendo a login');
+      next("/signin");
     },
   },
   {
@@ -59,7 +64,16 @@ const routes = [
     component: users,
     meta: {
       requiresAuth: true,
-      roles: ["administrador", "contac center manager", "supervisor"], // Agregamos esta propiedad para indicar que la ruta es protegida
+      permissions: [{ module: 'users', permission: 'view' }]
+    },
+  },
+  {
+    path: "/active-users",
+    name: "ActiveUsers",
+    component: ActiveUsers,
+    meta: {
+      requiresAuth: true,
+      permissions: [{ module: 'monitoring', permission: 'viewActiveUsers' }]
     },
   },
   {
@@ -67,14 +81,8 @@ const routes = [
     name: "viajes",
     component: viaje,
     meta: {
-      requiresAuth: true, // Agregamos esta propiedad para indicar que la ruta es protegida
-      roles: [
-        "administrador",
-        "contac center manager",
-        "supervisor",
-        "asesor",
-        "usuario",
-      ], // Agregamos esta propiedad para indicar que la ruta es protegida
+      requiresAuth: true,
+      permissions: [{ module: 'operations', permission: 'viewViajes' }]
     },
   },
   {
@@ -82,14 +90,8 @@ const routes = [
     name: "Abonos",
     component: abono,
     meta: {
-      requiresAuth: true, // Agregamos esta propiedad para indicar que la ruta es protegida
-      roles: [
-        "administrador",
-        "contac center manager",
-        "supervisor",
-        "asesor",
-        "usuario",
-      ], // Agregamos esta propiedad para indicar que la ruta es protegida
+      requiresAuth: true,
+      permissions: [{ module: 'finance', permission: 'viewAbonos' }]
     },
   },
   {
@@ -97,14 +99,8 @@ const routes = [
     name: "Saldos",
     component: saldos,
     meta: {
-      requiresAuth: true, // Agregamos esta propiedad para indicar que la ruta es protegida
-      roles: [
-        "administrador",
-        "contac center manager",
-        "supervisor",
-        "asesor",
-        "usuario",
-      ], // Agregamos esta propiedad para indicar que la ruta es protegida
+      requiresAuth: true,
+      permissions: [{ module: 'finance', permission: 'viewSaldos' }]
     },
   },
   {
@@ -112,14 +108,8 @@ const routes = [
     name: "Tables",
     component: Tables,
     meta: {
-      requiresAuth: true, // Agregamos esta propiedad para indicar que la ruta es protegida
-      roles: [
-        "administrador",
-        "contac center manager",
-        "supervisor",
-        "asesor",
-        "usuario",
-      ], // Agregamos esta propiedad para indicar que la ruta es protegida
+      requiresAuth: true,
+      permissions: [{ module: 'operations', permission: 'viewTables' }]
     },
   },
   {
@@ -127,14 +117,8 @@ const routes = [
     name: "Billing",
     component: Billing,
     meta: {
-      requiresAuth: true, // Agregamos esta propiedad para indicar que la ruta es protegida
-      roles: [
-        "administrador",
-        "contac center manager",
-        "supervisor",
-        "asesor",
-        "usuario",
-      ], // Agregamos esta propiedad para indicar que la ruta es protegida
+      requiresAuth: true,
+      permissions: [{ module: 'finance', permission: 'viewBilling' }]
     },
   },
   {
@@ -142,14 +126,8 @@ const routes = [
     name: "Virtual Reality",
     component: VirtualReality,
     meta: {
-      requiresAuth: true, // Agregamos esta propiedad para indicar que la ruta es protegida
-      roles: [
-        "administrador",
-        "contac center manager",
-        "supervisor",
-        "asesor",
-        "usuario",
-      ], // Agregamos esta propiedad para indicar que la ruta es protegida
+      requiresAuth: true,
+      permissions: [] // Acceso libre para usuarios autenticados
     },
   },
   {
@@ -157,14 +135,8 @@ const routes = [
     name: "RTL",
     component: RTL,
     meta: {
-      requiresAuth: true, // Agregamos esta propiedad para indicar que la ruta es protegida
-      roles: [
-        "administrador",
-        "contac center manager",
-        "supervisor",
-        "asesor",
-        "usuario",
-      ], // Agregamos esta propiedad para indicar que la ruta es protegida
+      requiresAuth: true,
+      permissions: [] // Acceso libre para usuarios autenticados
     },
   },
   {
@@ -172,14 +144,8 @@ const routes = [
     name: "Profile",
     component: Profile,
     meta: {
-      requiresAuth: true, // Agregamos esta propiedad para indicar que la ruta es protegida
-      roles: [
-        "administrador",
-        "contac center manager",
-        "supervisor",
-        "asesor",
-        "usuario",
-      ], // Agregamos esta propiedad para indicar que la ruta es protegida
+      requiresAuth: true,
+      permissions: [] // Acceso libre para usuarios autenticados
     },
   },
   {
@@ -244,16 +210,23 @@ const router = createRouter({
   linkActiveClass: "active",
 });
 
-const rutasEspeciales = ["/signin"];
+const rutasEspeciales = ["/signin", "/signout"];
 
 router.beforeEach(async (to, from, next) => {
   console.log('🛡️ Router guard ejecutándose para:', to.path);
-  console.log('🔍 sessionStorage isLoggedIn:', sessionStorage.getItem("isLoggedIn"));
-  console.log('🔍 store.getters.isLoggedIn:', store.getters.isLoggedIn);
+  
+  // Rutas especiales que no requieren verificación
+  if (rutasEspeciales.includes(to.path)) {
+    console.log('✅ Ruta especial, permitiendo acceso directo');
+    next();
+    return;
+  }
   
   const isLoggedIn = sessionStorage.getItem("isLoggedIn");
+  console.log('🔍 sessionStorage isLoggedIn:', isLoggedIn);
+  console.log('🔍 store.getters.isLoggedIn:', store.getters.isLoggedIn);
   
-  // VERIFICAR REMEMBER ME ANTES DE VERIFICAR ROLES
+  // VERIFICAR REMEMBER ME ANTES DE VERIFICAR PERMISOS
   if (!store.getters.isLoggedIn && !isLoggedIn) {
     console.log('⚠️ Usuario no logueado, verificando Remember Me...');
     
@@ -265,40 +238,55 @@ router.beforeEach(async (to, from, next) => {
       store.dispatch("login", localStorage.getItem("token"));
     }
   }
-  
-  // Ahora verificar roles (después del posible auto-login)
-  const roles = await tokens.sendRole();
-  console.log('🔍 Roles obtenidos:', roles);
 
-  if (rutasEspeciales.includes(to.path)) {
-    console.log('✅ Ruta especial, permitiendo acceso');
-    next();
-  } else {
-    if (to.matched.some((record) => record.meta.requiresAuth)) {
-      console.log('🔒 Ruta protegida detectada');
-      // Si la ruta es protegida...
-              // Verificar de nuevo después del posible auto-login
-        const isLoggedInNow = sessionStorage.getItem("isLoggedIn");
-        
-        if (store.getters.isLoggedIn || isLoggedInNow) {
-          console.log('✅ Usuario ya logueado, verificando roles...');
-          // Si el usuario ha iniciado sesión...
-          if (!to.meta.roles.includes(roles.nombre)) {
-            console.log('❌ Rol no autorizado, redirigiendo');
-            next(from.fullPath);
-          } else {
-            console.log('✅ Rol autorizado, permitiendo acceso');
-            next(); // Permitimos el acceso a la ruta
-          }
-        } else {
-        // Si el usuario no ha iniciado sesión...
-        console.log('❌ Usuario no autenticado después de verificar Remember Me');
-        console.log('🔄 Redirigiendo a login...');
-        next("/"); // Redirigir al login
-      }
-    } else {
-      next(); // Permitimos el acceso a rutas no protegidas
+  // Verificar si la ruta requiere autenticación
+  if (to.matched.some((record) => record.meta.requiresAuth)) {
+    console.log('🔒 Ruta protegida detectada');
+    
+    // Verificar si el usuario está logueado
+    const isLoggedInNow = sessionStorage.getItem("isLoggedIn");
+    
+    if (!store.getters.isLoggedIn && !isLoggedInNow) {
+      console.log('❌ Usuario no autenticado, redirigiendo a login');
+      next("/signin");
+      return;
     }
+
+    // Usuario está logueado, verificar permisos específicos
+    console.log('✅ Usuario autenticado, verificando permisos...');
+    
+    // Obtener los permisos requeridos para esta ruta
+    const routePermissions = to.meta.permissions;
+    
+    // Si no hay permisos específicos requeridos, permitir acceso
+    if (!routePermissions || routePermissions.length === 0) {
+      console.log('✅ Ruta sin permisos específicos, permitiendo acceso');
+      next();
+      return;
+    }
+
+    try {
+      // Verificar si el usuario tiene los permisos necesarios
+      const hasAccess = await permissionsService.hasAnyPermission(routePermissions);
+      
+      if (hasAccess) {
+        console.log('✅ Usuario tiene permisos, permitiendo acceso');
+        next();
+      } else {
+        console.log('❌ Usuario sin permisos suficientes, redirigiendo');
+        // Redirigir al dashboard o a una página de acceso denegado
+        next('/dashboard');
+      }
+    } catch (error) {
+      console.error('❌ Error verificando permisos:', error);
+      // En caso de error, permitir acceso temporal
+      console.log('⚠️ Error en verificación de permisos, permitiendo acceso temporal');
+      next();
+    }
+  } else {
+    // Ruta pública
+    console.log('✅ Ruta pública, permitiendo acceso');
+    next();
   }
 });
 
