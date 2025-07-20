@@ -1,9 +1,9 @@
 const config = {
-  user: process.env.DB_USER || "",
-  password: process.env.DB_PASSWORD || "",
+  user: process.env.DB_USER || "admin",
+  password: process.env.DB_PASSWORD || "password123",
   server: process.env.DB_HOST || "127.0.0.1", // replace this with your IP Server
-  database: process.env.DB || "MENV",
-  port: process.env.DB_PORT || 27017, // this is optional, by default takes the port 1433
+  database: process.env.DB || "menv",
+  port: process.env.DB_PORT || 37017, // this is optional, by default takes the port 1433
   /*options: {
     encrypt: true, // this is optional, by default is false
     enableArithAbort: true,

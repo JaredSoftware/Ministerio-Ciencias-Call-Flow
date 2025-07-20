@@ -19,45 +19,27 @@
 import websocketService from '@/services/websocketService';
 import axios from '@/services/axios';
 import { mapState } from 'vuex';
+import statusTypesService from '@/services/statusTypes';
 
 export default {
   name: 'StatusIndicatorBar',
   data() {
     return {
-      currentStatus: 'online',
-      statusColor: '#28a745',
-      statusLabel: 'Conectado',
+      currentStatus: 'available',
+      statusColor: '#00d25b',
+      statusLabel: 'Disponible',
       showAnimation: false,
-      showTooltip: false,
-      statusColors: {
-        online: '#28a745',
-        busy: '#dc3545',
-        away: '#ffc107',
-        break: '#fd7e14',
-        meeting: '#6f42c1',
-        lunch: '#e83e8c',
-        vacation: '#17a2b8',
-        sick: '#6c757d'
-      },
-      statusLabels: {
-        online: 'Conectado',
-        busy: 'Ocupado',
-        away: 'Ausente',
-        break: 'En descanso',
-        meeting: 'En reunión',
-        lunch: 'Almuerzo',
-        vacation: 'Vacaciones',
-        sick: 'Enfermo'
-      }
+      showTooltip: false
     };
   },
   computed: {
     ...mapState(['userStatus']),
   },
   watch: {
-    userStatus: {
+    // Observar cambios en el store directamente
+    '$store.state.userStatus': {
       handler(newStatus) {
-        console.log('🔄 Estado detectado desde Vuex:', newStatus);
+        console.log('🔄 Estado detectado desde store directo:', newStatus);
         if (newStatus && newStatus.status) {
           this.updateStatus(newStatus);
         }
@@ -65,21 +47,12 @@ export default {
       immediate: true,
       deep: true
     },
-    // Observar cambios específicos en el status
-    'userStatus.status': {
-      handler(newStatus) {
-        console.log('🔄 Status específico detectado:', newStatus);
-        if (newStatus) {
-          this.updateStatus({ status: newStatus });
-        }
-      },
-      immediate: true
-    },
     // Observar cambios en el estado de login
     '$store.state.isLoggedIn': {
       handler(newValue) {
         if (newValue) {
           console.log('🔐 Usuario logueado detectado en StatusIndicatorBar - Inicializando...');
+          this.initializeStatusService();
           this.initializeWebSocket();
           this.loadCurrentStatus();
         } else {
@@ -97,6 +70,7 @@ export default {
     // Solo inicializar si el usuario está logueado
     if (this.$store.state.isLoggedIn) {
       console.log('🔐 Usuario logueado, inicializando StatusIndicatorBar...');
+      this.initializeStatusService();
       this.initializeWebSocket();
       this.loadCurrentStatus();
       
@@ -112,6 +86,18 @@ export default {
     console.log('🧹 Limpiando suscripciones de StatusIndicatorBar');
   },
   methods: {
+    async initializeStatusService() {
+      try {
+        console.log('🔄 Inicializando servicio de tipos de estado en StatusIndicatorBar...');
+        await statusTypesService.initialize();
+        console.log('✅ Servicio de tipos de estado inicializado');
+        console.log('📊 Estados cargados:', statusTypesService.statuses.length);
+        console.log('📊 Estados disponibles:', statusTypesService.statuses.map(s => `${s.value}:${s.color}`));
+      } catch (error) {
+        console.error('❌ Error inicializando servicio de tipos de estado:', error);
+      }
+    },
+    
     initializeWebSocket() {
       // Solo inicializar si el usuario está logueado
       if (!this.$store.state.isLoggedIn) {
@@ -173,15 +159,34 @@ export default {
       // Verificar que data no sea null o undefined
       if (!data || !data.status) {
         console.log('⚠️ Datos inválidos, usando estado por defecto');
-        data = { status: 'online' };
+        data = { status: 'available' };
       }
       
       console.log('   - Estado actual:', this.currentStatus);
       console.log('   - Color actual:', this.statusColor);
       console.log('   - Nuevo estado:', data.status);
       
-      const newColor = this.statusColors[data.status] || this.statusColors.online;
-      const newLabel = this.statusLabels[data.status] || this.statusLabels.online;
+      // Verificar que el servicio esté inicializado
+      console.log('   - Estados en servicio:', statusTypesService.statuses.length);
+      console.log('   - Estados disponibles:', statusTypesService.statuses.map(s => `${s.value}:${s.color}`));
+      
+      // Usar el servicio de tipos de estado para obtener información
+      let selectedStatus = statusTypesService.getStatusByValue(data.status);
+      
+      console.log('   - Estado encontrado en servicio:', selectedStatus);
+      
+      // Si no se encuentra en el servicio, usar valores por defecto
+      if (!selectedStatus) {
+        console.log('⚠️ Estado no encontrado en servicio, usando valores por defecto');
+        selectedStatus = {
+          color: '#00d25b',
+          label: 'Disponible',
+          icon: 'fas fa-circle'
+        };
+      }
+      
+      const newColor = selectedStatus.color;
+      const newLabel = selectedStatus.label;
       
       console.log('   - Nuevo color:', newColor);
       console.log('   - Nuevo label:', newLabel);

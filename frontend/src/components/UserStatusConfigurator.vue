@@ -400,6 +400,9 @@ export default {
             lastActivity: new Date().toISOString()
           });
           
+          // Emitir evento personalizado para que otros componentes lo detecten
+          this.$root.$emit('status-changed', { status: status });
+          
           console.log('✅ Store actualizado con nuevo estado:', status);
           
           // Notificar cambio a otros componentes
