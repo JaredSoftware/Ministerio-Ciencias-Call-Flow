@@ -194,7 +194,7 @@
                     </td>
                     <td>
                       <span class="badge badge-sm bg-gradient-secondary">
-                        {{ user.role }}
+                        {{ roleMap[user.userId?.role?._id] || user.userId?.role?.nombre || 'N/A' }}
                       </span>
                     </td>
                     <td>
@@ -294,6 +294,7 @@
                     <th>Timestamp</th>
                     <th>Usuario</th>
                     <th>Evento</th>
+                    <th>Rol</th>
                     <th>Estado Anterior</th>
                     <th>Estado Nuevo</th>
                     <th>Color</th>
@@ -308,6 +309,7 @@
                         {{ getEventLabel(event.type) }}
                       </span>
                     </td>
+                    <td>{{ roleMap[event.role] || event.role || 'N/A' }}</td>
                     <td>{{ event.previousStatus || 'N/A' }}</td>
                     <td>{{ event.newStatus || 'N/A' }}</td>
                     <td>
@@ -339,7 +341,7 @@
                 <h6>Información Personal</h6>
                 <p><strong>Nombre:</strong> {{ selectedUser.name }}</p>
                 <p><strong>Email:</strong> {{ selectedUser.email }}</p>
-                <p><strong>Rol:</strong> {{ selectedUser.role }}</p>
+                <p><strong>Rol:</strong> {{ roleMap[selectedUser.userId?.role?._id] || selectedUser.userId?.role?.nombre || 'N/A' }}</p>
                 <p><strong>Estado:</strong> {{ getStatusLabel(selectedUser.status) }}</p>
               </div>
               <div class="col-md-6">
@@ -415,6 +417,7 @@ export default {
       activeUsers: [],
       mqttReady: false,
       mqttConnected: false,
+      roleMap: {}, // Mapeo de ID de rol a nombre legible
     };
   },
   computed: {
@@ -509,6 +512,10 @@ export default {
     // 1. Cargar datos iniciales
     await this.loadStatusTypes();
     await this.loadUsers();
+    console.log('🔄 Antes de cargar roles...');
+    await this.loadRoles();
+    console.log('🟢 Mapeo de roles (roleMap):', this.roleMap);
+    console.log('🟢 Lista de usuarios (users):', this.users);
     
     // 2. Inicializar MQTT para monitoreo visual
     await this.initMQTT();
@@ -616,6 +623,26 @@ export default {
         }
       } catch (error) {
         console.error('❌ Error cargando tipos de estado:', error);
+        console.error('   - URL:', error.config?.url);
+        console.error('   - Status:', error.response?.status);
+        console.error('   - Data:', error.response?.data);
+      }
+    },
+    
+    async loadRoles() {
+      console.log('🔄 Iniciando carga de roles...');
+      try {
+        const response = await axios.get('user-status/roles');
+        console.log('🟢 Respuesta del API de roles:', response.data);
+        if (response.data.success) {
+          this.roleMap = {};
+          response.data.roles.forEach(role => {
+            this.roleMap[role._id] = role.nombre;
+          });
+          console.log('🟢 Mapeo de roles creado:', this.roleMap);
+        }
+      } catch (error) {
+        console.error('❌ Error cargando roles:', error);
         console.error('   - URL:', error.config?.url);
         console.error('   - Status:', error.response?.status);
         console.error('   - Data:', error.response?.data);
@@ -868,11 +895,35 @@ export default {
 
     // 🚨 MANEJAR LISTA DE USUARIOS ACTIVOS VIA MQTT
     handleActiveUsersList(data) {
+      console.log('🚀 INICIO handleActiveUsersList - Método ejecutándose');
       try {
         console.log('👥 MQTT - Lista de usuarios activos recibida:', data.users?.length || 0);
+        console.log('🔍 Debug roleMap:', this.roleMap);
+        console.log('🔍 roleMap keys:', Object.keys(this.roleMap));
+        console.log('🔍 roleMap length:', Object.keys(this.roleMap).length);
         
         if (data.users && Array.isArray(data.users)) {
+          // Cargar roles si no se han cargado aún
+          if (Object.keys(this.roleMap).length === 0) {
+            console.log('🔄 roleMap está vacío, cargando roles...');
+            this.loadRoles();
+          } else {
+            console.log('⚠️ roleMap ya tiene contenido, no cargando roles');
+          }
           this.users = data.users;
+          // Debug: Verificar el rol del primer usuario
+          if (this.users.length > 0) {
+            const firstUser = this.users[0];
+            console.log('🔍 Debug primer usuario:', firstUser);
+            console.log('🔍 Todos los campos del usuario:', Object.keys(firstUser));
+            console.log('�� userId completo:', JSON.stringify(firstUser.userId));
+            console.log('🔍 user completo:', JSON.stringify(firstUser, null, 2));
+            console.log('🔍 user.role:', firstUser.role);
+            console.log('🔍 user.roleId:', firstUser.roleId);
+            console.log('🔍 user.userRole:', firstUser.userRole);
+            console.log('🔍 roleMap[user.role]:', this.roleMap[firstUser.role]);
+            console.log('🔍 Resultado final:', this.roleMap[firstUser.role] || firstUser.role);
+          }
           this.$forceUpdate();
           console.log('✅ Lista de usuarios actualizada via MQTT');
         }
@@ -884,13 +935,14 @@ export default {
     // 🚨 MANEJAR CONEXIÓN DE USUARIO VIA MQTT
     handleUserConnected(data) {
       try {
-        const { userName } = data;
-        console.log(`🔗 MQTT - Usuario conectado: ${userName}`);
+        const { userName, role } = data;
+        console.log(`🔗 MQTT - Usuario conectado: ${userName} (${role})`);
         
         // Agregar evento a la lista
         this.addRealTimeEvent({
           type: 'user_connected',
           userName,
+          role,
           timestamp: new Date().toISOString()
         });
         

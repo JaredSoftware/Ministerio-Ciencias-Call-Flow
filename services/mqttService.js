@@ -104,10 +104,11 @@ class MQTTService {
   }
 
   // Publicar conexión de usuario
-  publishUserConnected(userId, userName) {
+  publishUserConnected(userId, userName, role) {
     const data = {
       userId,
       userName,
+      role,
       timestamp: new Date().toISOString(),
       type: 'user_connected'
     };

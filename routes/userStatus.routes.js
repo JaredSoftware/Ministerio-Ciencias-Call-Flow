@@ -665,4 +665,15 @@ router.post('/disconnect', requireAuth, async (req, res) => {
   }
 });
 
+// Obtener todos los roles (público)
+router.get('/roles', async (req, res) => {
+  try {
+    const Role = require('../models/roles');
+    const roles = await Role.find({}, 'nombre _id');
+    res.json({ success: true, roles });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+});
+
 module.exports = router; 

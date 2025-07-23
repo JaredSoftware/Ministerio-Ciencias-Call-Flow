@@ -283,7 +283,7 @@ io.on('connection', async (socket) => {
         const mqttService = app.get('mqttService');
         if (mqttService && mqttService.isConnected) {
           console.log(`📤 Publicando conexión de ${user.name} via MQTT`);
-          mqttService.publishUserConnected(user._id, user.name);
+          mqttService.publishUserConnected(user._id, user.name, user.role);
         }
       } catch (mqttError) {
         console.error('❌ Error publicando evento MQTT de conexión:', mqttError);
