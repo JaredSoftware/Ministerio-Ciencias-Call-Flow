@@ -42,6 +42,18 @@
         </sidenav-item>
       </li>
       
+      <!-- Opción WORK: solo si el estado actual es de categoría 'work' -->
+      <li v-if="showWorkFunction" class="nav-item">
+        <sidenav-item
+          url="/work"
+          :class="getRoute() === 'work' ? 'active' : ''"
+          :navText="this.$store.state.isRTL ? 'عمل' : 'Work'"
+        >
+          <template v-slot:icon>
+            <i class="ni ni-briefcase-24 text-warning text-sm opacity-10"></i>
+          </template>
+        </sidenav-item>
+      </li>
 
       
 
@@ -164,6 +176,7 @@
 <script>
 import SidenavItem from "./SidenavItem.vue";
 import permissionsService from "@/services/permissions";
+import statusTypesService from '@/services/statusTypes';
 //import UserStatusSelector from "@/components/UserStatusSelector.vue";
 //import SidenavCard from "./SidenavCard.vue";
 
@@ -189,6 +202,16 @@ export default {
   },
   computed: {
     // Los permisos ya están cargados en las propiedades data
+    showWorkFunction() {
+      // Obtener el estado actual del usuario desde el store
+      const userStatus = this.$store.state.userStatus || {};
+      if (!userStatus.status) return false;
+      // Buscar la categoría del estado actual
+      const statusObj = statusTypesService.getStatusByValue
+        ? statusTypesService.getStatusByValue(userStatus.status)
+        : null;
+      return statusObj && statusObj.category === 'work';
+    }
   },
   async mounted() {
     // Cargar permisos al montar el componente

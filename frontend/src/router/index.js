@@ -12,6 +12,7 @@ import Signup from "../views/Signup.vue";
 import Signin from "../views/Signin.vue";
 import users from "../views/users.vue";
 import ActiveUsers from "../views/ActiveUsers.vue";
+import Work from "../views/Work.vue";
 
 import store from "../store/index"; // Importa tu store de Vuex
 
@@ -201,6 +202,15 @@ const routes = [
     path: "/signup",
     name: "Signup",
     component: Signup,
+  },
+  {
+    path: "/work",
+    name: "Work",
+    component: Work,
+    meta: {
+      requiresAuth: true,
+      permissions: [] // Acceso libre para usuarios autenticados
+    },
   },
 ];
 
