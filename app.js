@@ -17,6 +17,11 @@ const simpleMoneyMask = require("simple-mask-money");
 const http = require("http");
 const socketIo = require("socket.io");
 const stateManager = require("./services/stateManager");
+const MQTTService = require("./services/mqttService");
+const net = require('net');
+const ws = require('ws');
+const aedes = require('aedes')();
+const websocketStream = require('websocket-stream');
 
 app.set("port", process.env.PORT || 9035);
 app.set("views", path.join(__dirname, "views"));
@@ -25,6 +30,27 @@ app.set("view engine", "ejs");
 app.use(expressLayouts);
 app.use(morgan("dev"));
 require("dotenv").config();
+
+// --- MQTT Broker embebido ---
+
+// Puerto TCP estándar MQTT
+const MQTT_PORT = 1883;
+const mqttServer = net.createServer(aedes.handle);
+mqttServer.listen(MQTT_PORT, function () {
+  console.log('🚀 Broker MQTT TCP escuchando en puerto', MQTT_PORT);
+});
+
+// Puerto WebSocket para MQTT (para el frontend)
+const WS_PORT = 9001;
+const mqttHttpServer = http.createServer();
+const wsServer = new ws.Server({ server: mqttHttpServer });
+wsServer.on('connection', function (socket, request) {
+  const stream = websocketStream(socket, { objectMode: true });
+  aedes.handle(stream, request);
+});
+mqttHttpServer.listen(WS_PORT, function () {
+  console.log('🚀 Broker MQTT WebSocket escuchando en puerto', WS_PORT);
+});
 
 // Crear servidor HTTP
 const server = http.createServer(app);
@@ -237,26 +263,31 @@ io.on('connection', async (socket) => {
     // Inicializar estado de usuario en la base de datos
     try {
       const UserStatus = require('./models/userStatus');
-      const StatusType = require('./models/statusType');
       
-      // Obtener el estado por defecto
-      const defaultStatus = await StatusType.getDefaultStatus();
-      const statusToAssign = defaultStatus ? defaultStatus.value : 'available';
-      
-      console.log(`🔄 Asignando estado por defecto '${statusToAssign}' a ${user.name} en Socket.IO`);
+      console.log(`🔄 Inicializando estado para ${user.name} en Socket.IO`);
       
       await UserStatus.upsertStatus(user._id, {
-        status: statusToAssign,
         isActive: true,
         socketId: socket.id,
         sessionId: session.sessionID
       });
       
-      console.log(`✅ Usuario ${user.name} inicializado correctamente con estado por defecto`);
+      console.log(`✅ Usuario ${user.name} inicializado correctamente con estado dinámico`);
       
       // Enviar estado actual al usuario
       const userStatus = await UserStatus.getUserStatus(user._id);
       socket.emit('own_status_changed', userStatus);
+      
+      // 🚨 PUBLICAR EVENTO MQTT DE CONEXIÓN
+      try {
+        const mqttService = app.get('mqttService');
+        if (mqttService && mqttService.isConnected) {
+          console.log(`📤 Publicando conexión de ${user.name} via MQTT`);
+          mqttService.publishUserConnected(user._id, user.name);
+        }
+      } catch (mqttError) {
+        console.error('❌ Error publicando evento MQTT de conexión:', mqttError);
+      }
       
       // Enviar lista de usuarios activos
       await emitActiveUsersList();
@@ -552,6 +583,17 @@ io.on('connection', async (socket) => {
           console.log(`✅ Sesión limpiada para: ${session.user.name}`);
         }
         
+        // 🚨 PUBLICAR EVENTO MQTT DE DESCONEXIÓN
+        try {
+          const mqttService = app.get('mqttService');
+          if (mqttService && mqttService.isConnected) {
+            console.log(`📤 Publicando desconexión de ${session.user.name} via MQTT`);
+            mqttService.publishUserDisconnected(session.user._id, session.user.name);
+          }
+        } catch (mqttError) {
+          console.error('❌ Error publicando evento MQTT de desconexión:', mqttError);
+        }
+        
         // 🚨 EMITIR EVENTOS PUB/SUB DE DESCONEXIÓN
         io.emit('user_disconnected', {
           userId: session.user._id,
@@ -590,7 +632,20 @@ async function emitActiveUsersList() {
     const UserStatus = require('./models/userStatus');
     const activeUsers = await UserStatus.getActiveUsers();
     
+    // Emitir via Socket.IO
     io.emit('active_users_list', activeUsers);
+    
+    // 🚨 PUBLICAR VIA MQTT
+    try {
+      const mqttService = app.get('mqttService');
+      if (mqttService && mqttService.isConnected) {
+        mqttService.publishActiveUsersList(activeUsers);
+        console.log(`📤 Lista de usuarios activos publicada via MQTT: ${activeUsers.length} usuarios`);
+      }
+    } catch (mqttError) {
+      console.error('❌ Error publicando lista via MQTT:', mqttError);
+    }
+    
     console.log(`📊 Lista de usuarios activos emitida: ${activeUsers.length} usuarios`);
   } catch (error) {
     console.error('❌ Error emitiendo lista de usuarios activos:', error);
@@ -600,9 +655,20 @@ async function emitActiveUsersList() {
 // Inicializar StateManager
 stateManager.initialize(io);
 
-// Hacer Socket.IO y StateManager disponibles globalmente
+// 🚨 INICIALIZAR MQTT PARA COMUNICACIÓN PUB/SUB
+const mqttService = new MQTTService();
+mqttService.connect('mqtt://localhost:1883')
+  .then(() => {
+    console.log('✅ Servicio MQTT inicializado correctamente');
+  })
+  .catch((error) => {
+    console.error('❌ Error inicializando servicio MQTT:', error);
+  });
+
+// Hacer Socket.IO, StateManager y MQTT disponibles globalmente
 app.set('io', io);
 app.set('stateManager', stateManager);
+app.set('mqttService', mqttService);
 
 // 🚨 LIMPIEZA AUTOMÁTICA DE SESIONES FANTASMA CADA 2 MINUTOS
 setInterval(async () => {
@@ -673,3 +739,47 @@ app.use((req, res, next) => {
 });
 
 module.exports = { app, server, io };
+
+aedes.on('client', function (client) {
+  console.log('🔗 Cliente MQTT conectado:', client ? client.id : client, 'username:', client?.connDetails?.username || client?.username);
+  aedes.publish({
+    topic: 'activeUsers/connected',
+    payload: JSON.stringify({ clientId: client.id, username: client?.connDetails?.username || client?.username }),
+    qos: 0,
+    retain: false
+  });
+});
+
+aedes.on('clientDisconnect', function (client) {
+  console.log('❌ Cliente MQTT desconectado:', client ? client.id : client, 'username:', client?.connDetails?.username || client?.username);
+  aedes.publish({
+    topic: 'activeUsers/disconnected',
+    payload: JSON.stringify({ clientId: client.id, username: client?.connDetails?.username || client?.username }),
+    qos: 0,
+    retain: false
+  });
+});
+
+aedes.authenticate = function (client, username, password, callback) {
+  console.log('Autenticando MQTT:', {
+    clientId: client && client.id,
+    username,
+    password: password && password.toString()
+  });
+  
+  // Permitir conexiones sin autenticación para el backend interno
+  if (client && client.id && client.id.startsWith('backend_')) {
+    console.log('✅ Autenticación MQTT permitida para backend interno');
+    callback(null, true);
+    return;
+  }
+  
+  // Para otros clientes, permitir si tienen username o si no lo requieren
+  if (username || !username) {
+    console.log('✅ Autenticación MQTT permitida');
+    callback(null, true);
+  } else {
+    console.log('❌ Autenticación MQTT rechazada');
+    callback(null, false);
+  }
+};

@@ -88,9 +88,23 @@ class StatusTypesService {
     }
   }
 
-  // Obtener estado por valor
+  // Obtener estado por valor - COMPLETAMENTE DINÁMICO
   getStatusByValue(value) {
-    return this.statuses.find(status => status.value === value);
+    // Primero buscar en los estados predefinidos
+    const predefinedStatus = this.statuses.find(status => status.value === value);
+    if (predefinedStatus) {
+      return predefinedStatus;
+    }
+    
+    // Si no se encuentra, crear un estado dinámico con el valor tal como viene
+    console.log(`✅ Estado dinámico creado: ${value}`);
+    return {
+      value: value,
+      label: value, // Usar el valor como label
+      color: '#00d25b', // Color por defecto
+      icon: 'fas fa-circle',
+      category: 'custom'
+    };
   }
 
   // Obtener estados por categoría
@@ -121,13 +135,13 @@ class StatusTypesService {
   // Obtener color por valor
   getColorByValue(value) {
     const status = this.getStatusByValue(value);
-    return status ? status.color : '#28a745';
+    return status ? status.color : '#00d25b';
   }
 
   // Obtener label por valor
   getLabelByValue(value) {
     const status = this.getStatusByValue(value);
-    return status ? status.label : 'Conectado';
+    return status ? status.label : value || 'Disponible';
   }
 
   // Obtener icono por valor

@@ -65,6 +65,14 @@
           <!-- Botones de acción -->
           <div class="modal-actions mt-3 d-flex gap-2">
             <button
+              @click="forceDefaultStatus"
+              class="btn btn-warning"
+              :disabled="isChangingStatus"
+              title="Forzar estado por defecto"
+            >
+              🔄 Forzar Default
+            </button>
+            <button
               @click="showStatusModal = false"
               class="btn btn-secondary flex-fill"
               :disabled="isChangingStatus"
@@ -85,7 +93,6 @@ import websocketService from '@/services/websocketService';
 import axios from '@/services/axios';
 import { mapMutations } from 'vuex';
 import statusTypesService from '@/services/statusTypes';
-import statusSyncService from '@/services/statusSync';
 
 export default {
   name: 'UserStatusConfigurator',
@@ -140,12 +147,12 @@ export default {
               await this.assignDefaultStatus();
             }
             // Inicializar sincronización continua
-            await statusSyncService.initialize();
+            // Eliminar importación y uso de statusSyncService
           }, 100);
         } else {
           console.log('🚪 Usuario deslogueado - Limpiando sistema de estados...');
           websocketService.disconnect();
-          statusSyncService.stop();
+          // Eliminar importación y uso de statusSyncService
           // Limpiar estados
           this.availableStatuses = [];
           this.statusesByCategory = {};
@@ -169,7 +176,7 @@ export default {
     websocketService.emit('user_status_changed', null);
     websocketService.emit('active_users_list', null);
     // Detener sincronización
-    statusSyncService.stop();
+    // Eliminar importación y uso de statusSyncService
     // Remover listener de eventos
     window.removeEventListener('status-updated', this.handleStatusUpdate);
   },
@@ -388,7 +395,7 @@ export default {
         }
         
         // Cambiar estado a través del servicio de sincronización
-        await statusSyncService.sendStatusToBackend(status, customStatus);
+        // Eliminar importación y uso de statusSyncService
         
         // También cambiar a través de API REST como respaldo
         const response = await axios.post('/user-status/change-status', {
@@ -551,6 +558,37 @@ export default {
       const { status } = event.detail;
       if (status) {
         this.updateOwnStatus(status);
+      }
+    },
+    
+    // Método para forzar estado por defecto
+    async forceDefaultStatus() {
+      try {
+        console.log('🔄 Forzando estado por defecto...');
+        
+        const response = await axios.post('/user-status/force-default-status', {}, {
+          withCredentials: true
+        });
+        
+        if (response.data.success) {
+          console.log('✅ Estado por defecto forzado:', response.data.status);
+          
+          // Actualizar estado local
+          this.currentStatus = response.data.status.status;
+          this.currentStatusColor = response.data.status.color;
+          this.currentStatusLabel = response.data.status.label;
+          
+          // Actualizar store
+          this.$store.commit('setUserStatus', {
+            status: response.data.status.status,
+            customStatus: response.data.status.customStatus,
+            lastActivity: new Date().toISOString()
+          });
+          
+          console.log('✅ Estado actualizado en frontend');
+        }
+      } catch (error) {
+        console.error('❌ Error forzando estado por defecto:', error);
       }
     }
   }

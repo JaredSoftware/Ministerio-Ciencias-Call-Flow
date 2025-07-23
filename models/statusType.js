@@ -81,6 +81,16 @@ statusTypeSchema.statics.initializeDefaultStatuses = async function() {
   const defaultStatuses = [
     // Estados de trabajo (SÍ se puede asignar trabajo)
     {
+      value: 'conectado',
+      label: 'Conectado',
+      color: '#28a745',
+      category: 'work',
+      isDefault: false,
+      order: 0,
+      description: 'Usuario conectado al sistema',
+      icon: 'fas fa-circle'
+    },
+    {
       value: 'available',
       label: 'Disponible',
       color: '#00d25b',

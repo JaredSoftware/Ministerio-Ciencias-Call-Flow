@@ -23,7 +23,7 @@
 </template>
 
 <script>
-import statusSyncService from '@/services/statusSync';
+// Eliminar importación y uso de statusSyncService
 
 export default {
   name: 'StatusSyncMonitor',
@@ -83,9 +83,9 @@ export default {
     
     updateSyncStatus() {
       // Obtener estado del servicio de sincronización
-      this.isSyncing = statusSyncService.isCurrentlySyncing();
-      this.lastSyncTime = statusSyncService.getLastSyncTime();
-      this.currentStatus = statusSyncService.getCurrentStatus();
+      this.isSyncing = false; // No hay heartbeat, asumimos que si está sincronizando, está en proceso
+      this.lastSyncTime = null; // No hay heartbeat, no podemos obtener el tiempo de la última sincronización
+      this.currentStatus = null; // No hay heartbeat, no podemos obtener el estado actual
       
       // Determinar si está conectado basado en la última sincronización
       if (this.lastSyncTime) {

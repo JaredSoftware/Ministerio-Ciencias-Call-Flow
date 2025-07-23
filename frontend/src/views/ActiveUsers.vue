@@ -5,7 +5,23 @@
         <div class="card mb-4">
           <div class="card-header pb-0">
             <div class="d-flex justify-content-between align-items-center">
+              <div class="d-flex align-items-center gap-3">
               <h6>👥 Usuarios Activos y Estados</h6>
+                <div class="d-flex align-items-center gap-2">
+                  <span 
+                    class="badge"
+                    :class="usingMQTT ? 'bg-success' : 'bg-warning'"
+                    title="Estado de MQTT"
+                  >
+                    <i :class="usingMQTT ? 'fas fa-wifi' : 'fas fa-exclamation-triangle'"></i>
+                    {{ usingMQTT ? 'MQTT Activo' : 'MQTT Inactivo' }}
+                  </span>
+                  <span class="badge bg-info">
+                    <i class="fas fa-users"></i>
+                    {{ users.length }} usuarios
+                  </span>
+                </div>
+              </div>
               <div class="d-flex gap-2">
                 <button @click="refreshUsers" class="btn btn-sm btn-primary">
                   <i class="fas fa-sync-alt"></i> Actualizar
@@ -263,6 +279,52 @@
       </div>
     </div>
 
+    <!-- 🚨 SECCIÓN DE EVENTOS EN TIEMPO REAL -->
+    <div class="row mt-4" v-if="usingMQTT">
+      <div class="col-12">
+        <div class="card">
+          <div class="card-header pb-0">
+            <h6>🚨 Eventos en Tiempo Real (MQTT)</h6>
+          </div>
+          <div class="card-body">
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Usuario</th>
+                    <th>Evento</th>
+                    <th>Estado Anterior</th>
+                    <th>Estado Nuevo</th>
+                    <th>Color</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="event in realTimeEvents" :key="event.id">
+                    <td>{{ formatTime(event.timestamp) }}</td>
+                    <td>{{ event.userName }}</td>
+                    <td>
+                      <span class="badge" :class="getEventBadgeClass(event.type)">
+                        {{ getEventLabel(event.type) }}
+                      </span>
+                    </td>
+                    <td>{{ event.previousStatus || 'N/A' }}</td>
+                    <td>{{ event.newStatus || 'N/A' }}</td>
+                    <td>
+                      <div 
+                        class="status-dot-sm" 
+                        :style="{ backgroundColor: event.newColor || '#6c757d' }"
+                      ></div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Modal de Detalles del Usuario -->
     <div class="modal fade" id="userDetailsModal" tabindex="-1">
       <div class="modal-dialog modal-lg">
@@ -328,6 +390,7 @@
 <script>
 import axios from '@/services/axios';
 import { Modal } from 'bootstrap';
+import { connectMQTT } from '@/services/mqttService';
 
 export default {
   name: 'ActiveUsers',
@@ -343,7 +406,15 @@ export default {
       currentPage: 1,
       itemsPerPage: 10,
       selectedUser: null,
-      refreshInterval: null
+      refreshInterval: null,
+      usingMQTT: false,
+      realTimeEvents: [],
+      eventCounter: 0,
+      mqttClient: null,
+      mqttService: null,
+      activeUsers: [],
+      mqttReady: false,
+      mqttConnected: false,
     };
   },
   computed: {
@@ -433,31 +504,62 @@ export default {
     }
   },
   async mounted() {
-    // Inicializar estado del usuario actual
-    await this.initUserStatus();
+    console.log('🚀 ActiveUsers mounted - Iniciando sistema de monitoreo en tiempo real...');
     
-    await this.loadUsers();
+    // 1. Cargar datos iniciales
     await this.loadStatusTypes();
+    await this.loadUsers();
     
-    // 🚨 INICIALIZAR WEBSOCKET PARA ACTUALIZACIONES EN TIEMPO REAL
-    await this.initWebSocket();
+    // 2. Inicializar MQTT para monitoreo visual
+    await this.initMQTT();
     
-    // 🚨 ESCUCHAR EVENTO DE ACTUALIZACIÓN FORZADA
-    window.addEventListener('forceActiveUsersUpdate', this.handleForceUpdate);
-    console.log('🚨 Listener de actualización forzada registrado');
-    
-    // Actualizar cada 30 segundos
+    // 3. Configurar actualización automática cada 30 segundos
     this.refreshInterval = setInterval(() => {
+      console.log('🔄 Actualización automática de usuarios activos...');
       this.loadUsers();
-    }, 30000);
+    }, 30000); // 30 segundos
+    
+    // 4. Configurar event listener para actualizaciones forzadas
+    window.addEventListener('forceUpdate', this.handleForceUpdate);
+    
+    // 5. Si el usuario ya está disponible, conecta inmediatamente
+    if (this.$store.state.user && this.$store.state.user._id && this.$store.state.user.name) {
+      this.initMQTTConnection();
+    } else {
+      // Si no, espera a que esté disponible
+      this.$watch(
+        () => this.$store.state.user,
+        (user) => {
+          if (user && user._id && user.name && !this.mqttReady) {
+            this.initMQTTConnection();
+          }
+        },
+        { immediate: true }
+      );
+    }
+    
+    console.log('✅ Sistema de monitoreo en tiempo real inicializado');
   },
   beforeUnmount() {
+    // Limpiar conexión MQTT
+    if (this.mqttService) {
+      console.log('🧹 Limpiando conexión MQTT...');
+      this.mqttService.disconnect();
+    }
+    
+    // Limpiar intervalo de actualización
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
     }
     
     // Limpiar listener de actualización forzada
     window.removeEventListener('forceActiveUsersUpdate', this.handleForceUpdate);
+    window.removeEventListener('forceUpdate', this.handleForceUpdate);
+    
+    // Limpiar cliente MQTT antiguo
+    if (this.mqttClient) {
+      this.mqttClient.end();
+    }
   },
   methods: {
     async initUserStatus() {
@@ -620,58 +722,110 @@ export default {
       window.URL.revokeObjectURL(url);
     },
 
-    // 🚨 INICIALIZAR WEBSOCKET PARA TIEMPO REAL
-    async initWebSocket() {
+    // 🚨 INICIALIZAR MQTT PARA TIEMPO REAL
+    async initMQTT() {
       try {
-        console.log('🔌 Inicializando WebSocket para ActiveUsers...');
+        console.log('🔌 Inicializando MQTT para ActiveUsers...');
+        const MQTTService = (await import('@/services/mqttService')).default;
         
-        const websocketService = (await import('@/services/websocketService')).default;
+        // Crear nueva instancia del servicio MQTT
+        this.mqttService = new MQTTService();
         
-        // Conectar si no está conectado
-        if (!websocketService.isConnected) {
-          await websocketService.connect();
+        // Intentar conectar MQTT
+        const connected = await this.mqttService.connect();
+        
+        if (connected && this.mqttService.isConnected) {
+          console.log('✅ MQTT conectado, configurando listeners...');
+          this.usingMQTT = true;
+          
+          // 🚨 LISTENER PARA CAMBIOS DE ESTADO EN TIEMPO REAL
+          this.mqttService.on(this.mqttService.topics.statusChanged, (data) => {
+            console.log('🚨 MQTT TIEMPO REAL:', `${data.userName} ${data.previousStatus || 'N/A'} → ${data.newStatus}`);
+            this.showNotification(`${data.userName} cambió de ${data.previousStatus || 'N/A'} a ${data.newStatus}`);
+            this.handleUserStatusChange(data);
+          });
+          
+          // 🚨 LISTENER PARA LISTA DE USUARIOS ACTIVOS
+          this.mqttService.on(this.mqttService.topics.activeUsers, (data) => {
+            console.log('👥 Lista de usuarios activos MQTT:', data.users?.length || 0, 'usuarios');
+            this.handleActiveUsersList(data);
+          });
+          
+          // 🚨 LISTENER PARA CONEXIONES
+          this.mqttService.on(this.mqttService.topics.userConnected, (data) => {
+            console.log('🔗 Usuario conectado MQTT:', data.userName);
+            this.showNotification(`${data.userName} se conectó`, 'success');
+            this.handleUserConnected(data);
+          });
+          
+          // 🚨 LISTENER PARA DESCONEXIONES
+          this.mqttService.on(this.mqttService.topics.userDisconnected, (data) => {
+            console.log('🔌 Usuario desconectado MQTT:', data.userName);
+            this.showNotification(`${data.userName} se desconectó`, 'warning');
+            this.handleUserDisconnected(data);
+          });
+          
+          console.log('✅ MQTT inicializado correctamente para ActiveUsers');
+        } else {
+          console.log('⚠️ MQTT no se pudo conectar');
+          this.usingMQTT = false;
         }
-        
-        // Listener para lista completa de usuarios
-        websocketService.on('activeUsersList', (users) => {
-          console.log('👥 Lista completa actualizada (WebSocket):', users);
-          this.users = users;
-          this.$forceUpdate();
-        });
-        
-        // 🚨 LISTENER PARA ACTUALIZACIONES ESPECÍFICAS (PUB/SUB)
-        websocketService.on('activeUsersUpdated', (data) => {
-          console.log('🚨 Actualización específica (Pub/Sub):', data);
-          this.handleSpecificUserUpdate(data);
-        });
-
-        // 🚨 LISTENER PARA DESCONEXIONES (PUB/SUB)
-        websocketService.on('userDisconnected', (data) => {
-          console.log('🔌 Usuario desconectado (Pub/Sub):', data);
-          this.handleUserDisconnected(data);
-        });
-        
-        console.log('✅ WebSocket inicializado para ActiveUsers');
       } catch (error) {
-        console.error('❌ Error inicializando WebSocket:', error);
+        console.error('❌ Error inicializando MQTT:', error);
+        this.usingMQTT = false;
       }
     },
 
-    // 🚨 MANEJAR ACTUALIZACIONES ESPECÍFICAS VIA PUB/SUB
-    handleSpecificUserUpdate(data) {
-      try {
-        const { userId, userName, newStatus, newLabel, newColor, timestamp, type } = data;
-        
-        // Si es una desconexión, remover de la lista
-        if (type === 'user_disconnected') {
-          const userIndex = this.users.findIndex(u => u._id === userId);
-          if (userIndex !== -1) {
-            console.log(`🔌 Removiendo usuario desconectado: ${userName}`);
-            this.users.splice(userIndex, 1);
-            this.$forceUpdate();
+    initMQTTConnection() {
+      const userId = this.$store.state.user && this.$store.state.user._id;
+      const userName = this.$store.state.user && this.$store.state.user.name;
+      if (!userId || !userName) {
+        console.warn('No se conecta a MQTT: usuario no disponible', userId, userName);
+        return;
+      }
+      console.log('Conectando MQTT con:', userId, userName);
+      this.mqttClient = connectMQTT(userId, userName);
+      this.mqttReady = true;
+      this.mqttClient.on('connect', () => {
+        this.mqttConnected = true;
+        this.mqttClient.subscribe('activeUsers/connected');
+        this.mqttClient.subscribe('activeUsers/disconnected');
+      });
+      this.mqttClient.on('close', () => {
+        this.mqttConnected = false;
+      });
+      this.mqttClient.on('error', () => {
+        this.mqttConnected = false;
+      });
+      this.mqttClient.on('message', (topic, message) => {
+        const data = JSON.parse(message.toString());
+        if (topic === 'activeUsers/connected') {
+          if (!this.activeUsers.find(u => u.clientId === data.clientId)) {
+            this.activeUsers.push(data);
           }
-          return;
         }
+        if (topic === 'activeUsers/disconnected') {
+          this.activeUsers = this.activeUsers.filter(u => u.clientId !== data.clientId);
+        }
+      });
+    },
+
+    // 🔔 MOSTRAR NOTIFICACIONES
+    showNotification(message, type = 'info') {
+      console.log(`🔔 Notificación: ${message}`);
+      // Aquí puedes integrar con tu sistema de notificaciones
+      // Por ejemplo, mostrar un toast o alert
+      if (window.showToast) {
+        window.showToast(message, type);
+      }
+    },
+
+    // 🚨 MANEJAR CAMBIOS DE ESTADO EN TIEMPO REAL VIA MQTT
+    handleUserStatusChange(data) {
+      try {
+        const { userId, userName, newStatus, newLabel, newColor, timestamp } = data;
+        
+        console.log(`🚨 MQTT - Cambio de estado detectado: ${userName} → ${newStatus}`);
         
         // Buscar el usuario en la lista
         const userIndex = this.users.findIndex(u => u._id === userId);
@@ -685,24 +839,80 @@ export default {
           this.users[userIndex].color = newColor;
           this.users[userIndex].lastActivity = timestamp;
           
-          console.log(`🚨 PUB/SUB: ${userName} ${oldStatus} → ${newStatus}`);
+          console.log(`🚨 MQTT TIEMPO REAL: ${userName} ${oldStatus} → ${newStatus}`);
+          
+          // Agregar evento a la lista de eventos en tiempo real
+          this.addRealTimeEvent({
+            type: 'status_change',
+            userName,
+            previousStatus: oldStatus,
+            newStatus,
+            newColor,
+            timestamp
+          });
           
           // Forzar actualización visual
           this.$forceUpdate();
+          
+          // Mostrar notificación visual
+          this.showStatusChangeNotification(userName, oldStatus, newStatus);
         } else {
-          console.log('⚠️ Usuario no encontrado para actualización específica');
+          console.log('⚠️ Usuario no encontrado para cambio de estado, recargando lista...');
           // Recargar lista completa si el usuario no está
           this.loadUsers();
         }
       } catch (error) {
-        console.error('❌ Error en actualización específica:', error);
+        console.error('❌ Error en cambio de estado MQTT:', error);
       }
     },
 
-    // 🚨 MANEJAR DESCONEXIONES VIA PUB/SUB
+    // 🚨 MANEJAR LISTA DE USUARIOS ACTIVOS VIA MQTT
+    handleActiveUsersList(data) {
+      try {
+        console.log('👥 MQTT - Lista de usuarios activos recibida:', data.users?.length || 0);
+        
+        if (data.users && Array.isArray(data.users)) {
+          this.users = data.users;
+          this.$forceUpdate();
+          console.log('✅ Lista de usuarios actualizada via MQTT');
+        }
+      } catch (error) {
+        console.error('❌ Error procesando lista de usuarios MQTT:', error);
+      }
+    },
+
+    // 🚨 MANEJAR CONEXIÓN DE USUARIO VIA MQTT
+    handleUserConnected(data) {
+      try {
+        const { userName } = data;
+        console.log(`🔗 MQTT - Usuario conectado: ${userName}`);
+        
+        // Agregar evento a la lista
+        this.addRealTimeEvent({
+          type: 'user_connected',
+          userName,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Recargar lista para incluir el nuevo usuario
+        this.loadUsers();
+      } catch (error) {
+        console.error('❌ Error en conexión de usuario MQTT:', error);
+      }
+    },
+
+    // 🚨 MANEJAR DESCONEXIONES VIA MQTT
     handleUserDisconnected(data) {
       try {
         const { userId, userName } = data;
+        console.log(`🔌 MQTT - Usuario desconectado: ${userName}`);
+        
+        // Agregar evento a la lista
+        this.addRealTimeEvent({
+          type: 'user_disconnected',
+          userName,
+          timestamp: new Date().toISOString()
+        });
         
         // Remover el usuario de la lista de activos
         const userIndex = this.users.findIndex(u => u._id === userId);
@@ -718,7 +928,59 @@ export default {
         }, 2000);
         
       } catch (error) {
-        console.error('❌ Error manejando desconexión:', error);
+        console.error('❌ Error manejando desconexión MQTT:', error);
+      }
+    },
+
+    // 🚨 MOSTRAR NOTIFICACIÓN VISUAL DE CAMBIO DE ESTADO
+    showStatusChangeNotification(userName, oldStatus, newStatus) {
+      try {
+        // Crear notificación simple en consola por ahora
+        console.log(`🔔 Notificación: ${userName} cambió de ${oldStatus} a ${newStatus}`);
+        
+        // TODO: Implementar notificación visual en UI si se requiere
+      } catch (error) {
+        console.error('❌ Error mostrando notificación:', error);
+      }
+    },
+
+    // 🚨 MÉTODOS PARA EVENTOS EN TIEMPO REAL
+    formatTime(timestamp) {
+      if (!timestamp) return 'N/A';
+      return new Date(timestamp).toLocaleTimeString('es-ES');
+    },
+
+    getEventBadgeClass(type) {
+      const classes = {
+        'status_change': 'bg-primary',
+        'user_connected': 'bg-success',
+        'user_disconnected': 'bg-warning'
+      };
+      return classes[type] || 'bg-secondary';
+    },
+
+    getEventLabel(type) {
+      const labels = {
+        'status_change': 'Cambio Estado',
+        'user_connected': 'Conectado',
+        'user_disconnected': 'Desconectado'
+      };
+      return labels[type] || type;
+    },
+
+    addRealTimeEvent(eventData) {
+      this.eventCounter++;
+      const event = {
+        id: this.eventCounter,
+        timestamp: new Date().toISOString(),
+        ...eventData
+      };
+      
+      this.realTimeEvents.unshift(event);
+      
+      // Mantener solo los últimos 50 eventos
+      if (this.realTimeEvents.length > 50) {
+        this.realTimeEvents = this.realTimeEvents.slice(0, 50);
       }
     },
 
@@ -800,5 +1062,21 @@ export default {
 .table td {
   vertical-align: middle;
   font-size: 0.875rem;
+}
+
+.status-dot-sm {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.badge {
+  font-size: 0.75rem;
+}
+
+.real-time-events {
+  max-height: 400px;
+  overflow-y: auto;
 }
 </style> 

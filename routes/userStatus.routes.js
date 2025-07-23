@@ -39,7 +39,6 @@ router.get('/my-status', requireAuth, async (req, res) => {
       console.log('⚠️ Usuario sin estado, creando estado por defecto...');
       // Crear estado por defecto si no existe
       const newStatus = await UserStatus.upsertStatus(req.session.user._id, {
-        status: 'available',
         isActive: true,
         sessionId: req.sessionID
       });
@@ -58,47 +57,85 @@ router.get('/my-status', requireAuth, async (req, res) => {
   }
 });
 
-// Cambiar estado del usuario
-router.post('/change-status', requireAuth, async (req, res) => {
+// Cambiar estado del usuario (sin requireAuth, solo Pub/Sub)
+router.post('/change-status', async (req, res) => {
   try {
-    console.log('🔄 Cambio de estado solicitado:', req.body);
-    console.log('✅ Usuario autenticado:', req.session.user.name);
-
-    const { status, customStatus } = req.body;
-    
-    if (!status) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Estado requerido' 
-      });
+    const { userId, userName, status, customStatus } = req.body;
+    if (!userId || !status) {
+      return res.status(400).json({ success: false, message: 'userId y status requeridos' });
     }
-
-    const userStatus = await UserStatus.getUserStatus(req.session.user._id);
-    
-    if (userStatus) {
-      await userStatus.changeStatus(status, customStatus);
-    } else {
-      await UserStatus.upsertStatus(req.session.user._id, {
-        status,
-        customStatus,
-        isActive: true
-      });
-    }
-
-    // Obtener el estado actualizado
-    const updatedStatus = await UserStatus.getUserStatus(req.session.user._id);
-    
-    res.json({ 
-      success: true, 
-      status: updatedStatus,
-      message: 'Estado actualizado correctamente'
+    const UserStatus = require('../models/userStatus');
+    // Cambiar estado en la base de datos
+    await UserStatus.upsertStatus(userId, {
+      status,
+      customStatus,
+      isActive: status !== 'offline',
+      lastSeen: new Date()
     });
+    // Obtener estado actualizado
+    const updatedStatus = await UserStatus.getUserStatus(userId);
+    // Publicar evento MQTT
+    const mqttService = req.app.get('mqttService');
+    mqttService.publishUserStatusChange(userId, userName, status, updatedStatus.label, updatedStatus.color);
+    // Publicar lista de usuarios activos
+    const activeUsers = await UserStatus.getActiveUsers();
+    mqttService.publishActiveUsersList(activeUsers);
+    res.json({ success: true, status: updatedStatus, message: 'Estado actualizado correctamente' });
   } catch (error) {
     console.error('Error cambiando estado:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error interno del servidor' 
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+});
+
+// Endpoint para login (sin requireAuth, solo Pub/Sub)
+router.post('/login-pubsub', async (req, res) => {
+  try {
+    const { userId, userName } = req.body;
+    if (!userId || !userName) {
+      return res.status(400).json({ success: false, message: 'userId y userName requeridos' });
+    }
+    const UserStatus = require('../models/userStatus');
+    await UserStatus.upsertStatus(userId, {
+      status: 'online',
+      isActive: true,
+      lastSeen: new Date()
     });
+    // Publicar evento MQTT
+    const mqttService = req.app.get('mqttService');
+    mqttService.publishUserConnected(userId, userName);
+    // Publicar lista de usuarios activos
+    const activeUsers = await UserStatus.getActiveUsers();
+    mqttService.publishActiveUsersList(activeUsers);
+    res.json({ success: true, message: 'Login Pub/Sub exitoso' });
+  } catch (error) {
+    console.error('Error en login Pub/Sub:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+});
+
+// Endpoint para logout (sin requireAuth, solo Pub/Sub)
+router.post('/logout-pubsub', async (req, res) => {
+  try {
+    const { userId, userName } = req.body;
+    if (!userId || !userName) {
+      return res.status(400).json({ success: false, message: 'userId y userName requeridos' });
+    }
+    const UserStatus = require('../models/userStatus');
+    await UserStatus.upsertStatus(userId, {
+      status: 'offline',
+      isActive: false,
+      lastSeen: new Date()
+    });
+    // Publicar evento MQTT
+    const mqttService = req.app.get('mqttService');
+    mqttService.publishUserDisconnected(userId, userName);
+    // Publicar lista de usuarios activos
+    const activeUsers = await UserStatus.getActiveUsers();
+    mqttService.publishActiveUsersList(activeUsers);
+    res.json({ success: true, message: 'Logout Pub/Sub exitoso' });
+  } catch (error) {
+    console.error('Error en logout Pub/Sub:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 });
 
@@ -108,6 +145,11 @@ router.post('/init-status-types', async (req, res) => {
     console.log('🔄 Inicializando tipos de estado por defecto...');
     
     const StatusType = require('../models/statusType');
+    
+    // Limpiar estados existentes y reinicializar
+    await StatusType.deleteMany({});
+    console.log('🧹 Estados existentes eliminados');
+    
     await StatusType.initializeDefaultStatuses();
     
     const statuses = await StatusType.getActiveStatuses();
@@ -213,62 +255,14 @@ router.get('/debug-all-users', async (req, res) => {
   }
 });
 
-// Obtener lista de usuarios activos
+// Obtener lista de usuarios activos (sin requireAuth)
 router.get('/active-users', async (req, res) => {
   try {
-    console.log('🔍 Solicitando usuarios activos...');
-    console.log('   - Session:', !!req.session);
-    console.log('   - User:', !!req.session?.user);
-    
+    const UserStatus = require('../models/userStatus');
     const activeUsers = await UserStatus.getActiveUsers();
-    console.log('✅ Usuarios activos encontrados:', activeUsers.length);
-    
-    // Transformar los datos para el frontend
-    const transformedUsers = activeUsers.map(userStatus => {
-      console.log('🔍 Transformando usuario:', userStatus.userId.name);
-      console.log('   - Estado:', userStatus.status);
-      console.log('   - Label:', userStatus.label);
-      console.log('   - Color:', userStatus.color);
-      console.log('   - Rol completo:', userStatus.userId.role);
-      console.log('   - Rol nombre:', userStatus.userId.role?.nombre);
-      console.log('   - Rol ID:', userStatus.userId.role?._id);
-      console.log('   - Tipo de rol:', typeof userStatus.userId.role);
-      
-      let roleName = 'Sin rol';
-      if (userStatus.userId.role) {
-        if (typeof userStatus.userId.role === 'object' && userStatus.userId.role.nombre) {
-          roleName = userStatus.userId.role.nombre;
-        } else if (typeof userStatus.userId.role === 'string') {
-          roleName = userStatus.userId.role;
-        }
-      }
-      
-      return {
-        _id: userStatus.userId._id,
-        name: userStatus.userId.name,
-        email: userStatus.userId.correo,
-        status: userStatus.status,
-        customStatus: userStatus.customStatus,
-        isOnline: userStatus.isActive,
-        lastActivity: userStatus.lastSeen,
-        role: roleName,
-        sessionId: userStatus.sessionId,
-        color: userStatus.color,
-        label: userStatus.label
-      };
-    });
-    
-    res.json({ 
-      success: true, 
-      users: transformedUsers,
-      count: transformedUsers.length
-    });
+    res.json({ success: true, users: activeUsers });
   } catch (error) {
-    console.error('Error obteniendo usuarios activos:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error interno del servidor' 
-    });
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 });
 
@@ -317,35 +311,6 @@ router.get('/available-statuses', requireAuth, async (req, res) => {
     });
   } catch (error) {
     console.error('Error obteniendo estados disponibles:', error);
-    res.status(500).json({ 
-      success: false, 
-      message: 'Error interno del servidor' 
-    });
-  }
-});
-
-// Endpoint para heartbeat - mantener conexión activa
-router.post('/heartbeat', requireAuth, async (req, res) => {
-  try {
-    console.log('💓 Heartbeat recibido de:', req.session.user.name);
-    console.log('   - Timestamp:', req.body.timestamp);
-    console.log('   - Last Sync:', req.body.lastSync);
-    
-    // Actualizar lastSeen del usuario
-    const userStatus = await UserStatus.getUserStatus(req.session.user._id);
-    if (userStatus) {
-      await userStatus.updateActivity();
-      console.log('✅ Actividad actualizada para heartbeat');
-    }
-    
-    res.json({
-      success: true,
-      message: 'Heartbeat recibido',
-      timestamp: new Date().toISOString(),
-      sessionId: req.sessionID
-    });
-  } catch (error) {
-    console.error('Error procesando heartbeat:', error);
     res.status(500).json({ 
       success: false, 
       message: 'Error interno del servidor' 
@@ -402,7 +367,6 @@ router.post('/init-status', requireAuth, async (req, res) => {
       }
       
       userStatus = await UserStatus.upsertStatus(req.session.user._id, {
-        status: 'available',
         isActive: true,
         sessionId: req.sessionID
       });
@@ -428,6 +392,47 @@ router.post('/init-status', requireAuth, async (req, res) => {
   }
 });
 
+// Endpoint para forzar estado por defecto (limpia estado existente)
+router.post('/force-default-status', requireAuth, async (req, res) => {
+  try {
+    console.log('🔄 Forzando estado por defecto para usuario:', req.session.user.name);
+    console.log('   - Session ID:', req.sessionID);
+    
+    // Eliminar estado existente
+    await UserStatus.deleteOne({ userId: req.session.user._id });
+    console.log('🧹 Estado existente eliminado');
+    
+    // Obtener el estado por defecto
+    const StatusType = require('../models/statusType');
+    const defaultStatus = await StatusType.getDefaultStatus();
+    
+    if (!defaultStatus) {
+      console.log('⚠️ No hay estado por defecto, inicializando tipos de estado...');
+      await StatusType.initializeDefaultStatuses();
+    }
+    
+    // Crear nuevo estado con el estado por defecto
+    const userStatus = await UserStatus.upsertStatus(req.session.user._id, {
+      isActive: true,
+      sessionId: req.sessionID
+    });
+    
+    console.log(`✅ Estado por defecto asignado: ${userStatus.status} (${userStatus.label})`);
+    
+    res.json({
+      success: true,
+      status: userStatus,
+      message: 'Estado por defecto forzado correctamente'
+    });
+  } catch (error) {
+    console.error('Error forzando estado por defecto:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor' 
+    });
+  }
+});
+
 // Endpoint para sincronización de estado
 router.post('/sync-status', requireAuth, async (req, res) => {
   try {
@@ -436,6 +441,9 @@ router.post('/sync-status', requireAuth, async (req, res) => {
     console.log('   - Session ID:', req.sessionID);
     
     const { status, customStatus } = req.body;
+    
+    // Aceptar cualquier estado sin validación
+    console.log(`✅ Aceptando estado: ${status}`);
     
     // Actualizar estado del usuario
     const userStatus = await UserStatus.getUserStatus(req.session.user._id);
@@ -453,6 +461,37 @@ router.post('/sync-status', requireAuth, async (req, res) => {
     const updatedStatus = await UserStatus.getUserStatus(req.session.user._id);
     
     console.log('✅ Estado sincronizado exitosamente');
+    
+    // 🚨 EMITIR EVENTO EN TIEMPO REAL VIA MQTT
+    try {
+      const mqttService = req.app.get('mqttService');
+      
+      console.log('📤 Publicando cambio de estado via MQTT...');
+      
+      // Publicar cambio de estado
+      const published = mqttService.publishUserStatusChange(
+        req.session.user._id,
+        req.session.user.name,
+        status,
+        updatedStatus.label,
+        updatedStatus.color
+      );
+      
+      if (published) {
+        console.log('✅ Evento de cambio de estado publicado via MQTT');
+        
+        // También publicar lista actualizada de usuarios
+        const UserStatus = require('../models/userStatus');
+        const activeUsers = await UserStatus.getActiveUsers();
+        mqttService.publishActiveUsersList(activeUsers);
+        
+      } else {
+        console.log('⚠️ No se pudo publicar evento MQTT');
+      }
+      
+    } catch (mqttError) {
+      console.error('❌ Error emitiendo evento MQTT:', mqttError);
+    }
     
     res.json({
       success: true,
@@ -594,6 +633,35 @@ router.get('/all-users', requireAuth, async (req, res) => {
       success: false, 
       message: 'Error interno del servidor' 
     });
+  }
+});
+
+// Endpoint para marcar usuario como desconectado
+router.post('/disconnect', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user._id;
+    const userName = req.session.user.name;
+    const UserStatus = require('../models/userStatus');
+    // Marcar usuario como inactivo y offline
+    await UserStatus.upsertStatus(userId, {
+      status: 'offline',
+      isActive: false
+    });
+    // 🚨 EMITIR EVENTOS SOLO POR MQTT (NO WEBSOCKET)
+    try {
+      const mqttService = req.app.get('mqttService');
+      // Publicar usuario desconectado por MQTT
+      mqttService.publishUserDisconnected(userId, userName);
+      // Publicar lista de usuarios activos por MQTT
+      const activeUsers = await UserStatus.getActiveUsers();
+      mqttService.publishActiveUsersList(activeUsers);
+    } catch (pubsubError) {
+      console.error('❌ Error emitiendo eventos MQTT (desconexión):', pubsubError);
+    }
+    res.json({ success: true, message: 'Usuario desconectado correctamente' });
+  } catch (error) {
+    console.error('Error desconectando usuario:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 });
 

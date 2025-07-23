@@ -24,7 +24,7 @@ export default createStore({
     token: sessionStorage.getItem('token') || '',
     // User status
     userStatus: {
-      status: 'available', // Estado por defecto: 'available' (Disponible)
+      status: null, // Se cargará dinámicamente desde el backend
       customStatus: null,
       lastActivity: null
     },

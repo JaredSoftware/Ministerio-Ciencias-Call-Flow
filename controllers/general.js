@@ -107,16 +107,14 @@ module.exports = {
                   });
                 }
 
-                // Asignar estado por defecto al usuario
+                // Asignar estado dinámico al usuario
                 try {
                   const UserStatus = require('../models/userStatus');
-                  const StatusType = require('../models/statusType');
                   
-                  // Obtener el estado por defecto
-                  const defaultStatus = await StatusType.getDefaultStatus();
-                  const statusToAssign = defaultStatus ? defaultStatus.value : 'available';
+                  // Usar estado dinámico sin depender de StatusType
+                  const statusToAssign = 'available';
                   
-                  console.log(`🔄 Asignando estado por defecto '${statusToAssign}' a ${FindUser.name}`);
+                  console.log(`🔄 Asignando estado dinámico '${statusToAssign}' a ${FindUser.name}`);
                   
                   // Crear o actualizar el estado del usuario
                   await UserStatus.upsertStatus(FindUser._id, {
@@ -125,9 +123,21 @@ module.exports = {
                     sessionId: req.sessionID
                   });
                   
-                  console.log(`✅ Estado por defecto asignado exitosamente a ${FindUser.name}`);
+                  console.log(`✅ Estado dinámico asignado exitosamente a ${FindUser.name}`);
+
+                  // 🚨 EMITIR EVENTOS SOLO POR MQTT (NO WEBSOCKET)
+                  try {
+                    const mqttService = req.app.get('mqttService');
+                    // Publicar usuario conectado por MQTT
+                    mqttService.publishUserConnected(FindUser._id, FindUser.name);
+                    // Publicar lista de usuarios activos por MQTT
+                    const activeUsers = await UserStatus.getActiveUsers();
+                    mqttService.publishActiveUsersList(activeUsers);
+                  } catch (pubsubError) {
+                    console.error('❌ Error emitiendo eventos MQTT (login):', pubsubError);
+                  }
                 } catch (statusError) {
-                  console.error('❌ Error asignando estado por defecto:', statusError);
+                  console.error('❌ Error asignando estado dinámico:', statusError);
                 }
 
                 console.log('✅✅✅ LOGIN COMPLETADO - SESIÓN ESTABLECIDA ✅✅✅');

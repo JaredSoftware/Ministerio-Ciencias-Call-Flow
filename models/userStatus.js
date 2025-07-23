@@ -9,8 +9,7 @@ const userStatusSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    required: true,
-    default: 'available'
+    required: true
   },
   customStatus: {
     type: String,
@@ -41,10 +40,7 @@ const userStatusSchema = new mongoose.Schema({
     type: String,
     default: 'Disponible'
   },
-  statusType: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'StatusType'
-  }
+  // Eliminada referencia a StatusType para hacer el sistema completamente dinámico
 }, {
   timestamps: true
 });
@@ -55,25 +51,31 @@ userStatusSchema.methods.updateActivity = function() {
   return this.save();
 };
 
-// Método para cambiar estado
+// Método para cambiar estado - COMPLETAMENTE DINÁMICO
 userStatusSchema.methods.changeStatus = async function(newStatus, customStatus = null) {
   this.status = newStatus;
   this.customStatus = customStatus;
   
-  // Obtener configuración del estado desde la base de datos
-  const StatusType = mongoose.model('StatusType');
+  // Obtener información del StatusType para este estado
+  try {
+    const StatusType = require('./statusType');
   const statusType = await StatusType.findOne({ value: newStatus, isActive: true });
   
   if (statusType) {
     this.color = statusType.color;
     this.label = statusType.label;
-    this.statusType = statusType._id;
-    console.log(`✅ Estado configurado: ${statusType.label} (${statusType.color})`);
+      console.log(`✅ Estado configurado desde StatusType: ${newStatus} -> ${statusType.label} (${statusType.color})`);
   } else {
-    // Fallback a valores por defecto si no se encuentra el estado
-    console.log(`⚠️ Estado '${newStatus}' no encontrado, usando valores por defecto`);
-    this.color = '#28a745';
-    this.label = 'Conectado';
+      // Fallback si no se encuentra el StatusType
+      this.color = this.color || '#00d25b';
+      this.label = newStatus;
+      console.log(`⚠️ StatusType no encontrado para: ${newStatus}, usando fallback`);
+    }
+  } catch (error) {
+    console.error('❌ Error obteniendo StatusType:', error);
+    // Fallback en caso de error
+    this.color = this.color || '#00d25b';
+    this.label = newStatus;
   }
   
   return this.save();
@@ -91,16 +93,39 @@ userStatusSchema.statics.getActiveUsers = function() {
       path: 'role',
       select: 'nombre'
     }
-  }).populate('statusType');
+  });
 };
 
 // Método estático para obtener estado de un usuario
 userStatusSchema.statics.getUserStatus = function(userId) {
-  return this.findOne({ userId }).populate('userId', 'name correo').populate('statusType');
+  return this.findOne({ userId }).populate('userId', 'name correo');
 };
 
 // Método estático para crear o actualizar estado
 userStatusSchema.statics.upsertStatus = async function(userId, statusData) {
+  // Si no se especifica un estado, obtener el estado por defecto de la base de datos
+  if (!statusData.status) {
+    try {
+      const StatusType = require('./statusType');
+      const defaultStatus = await StatusType.getDefaultStatus();
+      if (defaultStatus) {
+        statusData.status = defaultStatus.value;
+        statusData.color = defaultStatus.color;
+        statusData.label = defaultStatus.label;
+        console.log(`✅ Usando estado por defecto: ${defaultStatus.value} (${defaultStatus.color})`);
+      } else {
+        // Fallback si no hay estado por defecto
+        console.log('⚠️ No se encontró estado por defecto en la BD');
+        throw new Error('No se encontró estado por defecto en la base de datos');
+      }
+    } catch (error) {
+      console.error('❌ Error obteniendo estado por defecto:', error);
+      // Fallback en caso de error
+      console.error('❌ Error obteniendo estado por defecto:', error);
+      throw new Error('Error obteniendo estado por defecto de la base de datos');
+    }
+  }
+
   const userStatus = await this.findOneAndUpdate(
     { userId },
     { 
@@ -112,10 +137,10 @@ userStatusSchema.statics.upsertStatus = async function(userId, statusData) {
       new: true,
       setDefaultsOnInsert: true
     }
-  ).populate('userId', 'name correo').populate('statusType');
+  ).populate('userId', 'name correo');
   
-  // Si se especificó un estado, configurarlo correctamente
-  if (statusData.status) {
+  // Solo llamar changeStatus si no se especificaron color y label
+  if (statusData.status && (!statusData.color || !statusData.label)) {
     await userStatus.changeStatus(statusData.status, statusData.customStatus);
   }
   

@@ -175,12 +175,12 @@ export default {
       
       console.log('   - Estado encontrado en servicio:', selectedStatus);
       
-      // Si no se encuentra en el servicio, usar valores por defecto
+      // El servicio siempre devuelve un estado (dinámico si no existe)
       if (!selectedStatus) {
-        console.log('⚠️ Estado no encontrado en servicio, usando valores por defecto');
+        console.log('⚠️ Error: servicio no devolvió estado, usando valores por defecto');
         selectedStatus = {
           color: '#00d25b',
-          label: 'Disponible',
+          label: data.status || 'Disponible',
           icon: 'fas fa-circle'
         };
       }

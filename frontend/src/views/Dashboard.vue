@@ -133,7 +133,6 @@ import Carousel from "./components/Carousel.vue";
 import CategoriesCard from "./components/CategoriesCard.vue";
 import websocketService from "@/services/websocketService";
 import sessionSync from "@/services/sessionSync";
-import statusSyncService from "@/services/statusSync";
 import StatusValidation from "@/components/StatusValidation.vue";
 
 import US from "@/assets/img/icons/flags/US.png";
@@ -254,7 +253,8 @@ export default {
         
         // Inicializar sincronización continua de estados
         console.log('🔄 PASO 3: Inicializando sincronización continua de estados...');
-        await statusSyncService.initialize();
+        // Eliminar importación y uso de statusSyncService
+        // await statusSyncService.initialize(); // Eliminar esta línea
         console.log('✅ Sincronización continua inicializada');
         
       } else {
