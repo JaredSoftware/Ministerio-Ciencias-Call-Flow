@@ -298,6 +298,7 @@
                     <th>Estado Anterior</th>
                     <th>Estado Nuevo</th>
                     <th>Color</th>
+                    <th>Topic</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -318,6 +319,7 @@
                         :style="{ backgroundColor: event.newColor || '#6c757d' }"
                       ></div>
                     </td>
+                    <td>{{ event.topic || 'N/A' }}</td>
                   </tr>
                 </tbody>
               </table>
@@ -823,12 +825,32 @@ export default {
             console.log('🚨 MQTT TIEMPO REAL:', `${data.userName} ${data.previousStatus || 'N/A'} → ${data.newStatus}`);
             this.showNotification(`${data.userName} cambió de ${data.previousStatus || 'N/A'} a ${data.newStatus}`);
             this.handleUserStatusChange(data);
+            // Agregar evento con topic
+            this.addRealTimeEvent({
+              type: 'status_change',
+              userName: data.userName,
+              previousStatus: data.previousStatus,
+              newStatus: data.newStatus,
+              newColor: data.newColor,
+              timestamp: data.timestamp,
+              topic: this.mqttService.topics.statusChanged
+            });
           });
           
           // 🚨 LISTENER PARA LISTA DE USUARIOS ACTIVOS
           this.mqttService.on(this.mqttService.topics.activeUsers, (data) => {
             console.log('👥 Lista de usuarios activos MQTT:', data.users?.length || 0, 'usuarios');
             this.handleActiveUsersList(data);
+            // Agregar evento con topic
+            this.addRealTimeEvent({
+              type: 'active_users',
+              userName: 'Sistema',
+              previousStatus: '',
+              newStatus: '',
+              newColor: '',
+              timestamp: new Date().toISOString(),
+              topic: this.mqttService.topics.activeUsers
+            });
           });
           
           // 🚨 LISTENER PARA CONEXIONES
@@ -836,6 +858,14 @@ export default {
             console.log('🔗 Usuario conectado MQTT:', data.userName);
             this.showNotification(`${data.userName} se conectó`, 'success');
             this.handleUserConnected(data);
+            // Agregar evento con topic
+            this.addRealTimeEvent({
+              type: 'user_connected',
+              userName: data.userName,
+              role: data.role,
+              timestamp: new Date().toISOString(),
+              topic: this.mqttService.topics.userConnected
+            });
           });
           
           // 🚨 LISTENER PARA DESCONEXIONES
@@ -843,6 +873,13 @@ export default {
             console.log('🔌 Usuario desconectado MQTT:', data.userName);
             this.showNotification(`${data.userName} se desconectó`, 'warning');
             this.handleUserDisconnected(data);
+            // Agregar evento con topic
+            this.addRealTimeEvent({
+              type: 'user_disconnected',
+              userName: data.userName,
+              timestamp: new Date().toISOString(),
+              topic: this.mqttService.topics.userDisconnected
+            });
           });
           
           console.log('✅ MQTT inicializado correctamente para ActiveUsers');
@@ -969,7 +1006,7 @@ export default {
             const firstUser = this.users[0];
             console.log('🔍 Debug primer usuario:', firstUser);
             console.log('🔍 Todos los campos del usuario:', Object.keys(firstUser));
-            console.log('�� userId completo:', JSON.stringify(firstUser.userId));
+            console.log('🔍 userId completo:', JSON.stringify(firstUser.userId));
             console.log('🔍 user completo:', JSON.stringify(firstUser, null, 2));
             console.log('🔍 user.role:', firstUser.role);
             console.log('🔍 user.roleId:', firstUser.roleId);

@@ -40,6 +40,14 @@ const userStatusSchema = new mongoose.Schema({
     type: String,
     default: 'Disponible'
   },
+  // Historial de cambios de estado
+  statusHistory: [
+    {
+      status: { type: String, required: true },
+      timestamp: { type: Date, required: true },
+      duration: { type: String, default: null }
+    }
+  ]
   // Eliminada referencia a StatusType para hacer el sistema completamente dinámico
 }, {
   timestamps: true
@@ -53,6 +61,33 @@ userStatusSchema.methods.updateActivity = function() {
 
 // Método para cambiar estado - COMPLETAMENTE DINÁMICO
 userStatusSchema.methods.changeStatus = async function(newStatus, customStatus = null) {
+  // Guardar el estado anterior antes de cambiar
+  const prevStatus = this.status;
+  const prevTimestamp = this.lastSeen || this.updatedAt || this.createdAt || new Date();
+  const now = new Date();
+  if (prevStatus && prevStatus !== newStatus) {
+    // Calcular duración
+    const diffMs = now - prevTimestamp;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    let duration = '';
+    if (diffDays > 0) duration = `${diffDays}d ${diffHours % 24}h ${diffMins % 60}m`;
+    else if (diffHours > 0) duration = `${diffHours}h ${diffMins % 60}m`;
+    else if (diffMins > 0) duration = `${diffMins}m`;
+    else duration = 'menos de 1m';
+    // Agregar al historial
+    this.statusHistory = this.statusHistory || [];
+    this.statusHistory.unshift({
+      status: prevStatus,
+      timestamp: prevTimestamp,
+      duration
+    });
+    // Limitar historial a los últimos 30 cambios
+    if (this.statusHistory.length > 30) {
+      this.statusHistory = this.statusHistory.slice(0, 30);
+    }
+  }
   this.status = newStatus;
   this.customStatus = customStatus;
   
@@ -93,12 +128,12 @@ userStatusSchema.statics.getActiveUsers = function() {
       path: 'role',
       select: 'nombre'
     }
-  });
+  }).select('+statusHistory');
 };
 
 // Método estático para obtener estado de un usuario
 userStatusSchema.statics.getUserStatus = function(userId) {
-  return this.findOne({ userId }).populate('userId', 'name correo');
+  return this.findOne({ userId }).populate('userId', 'name correo').select('+statusHistory');
 };
 
 // Método estático para crear o actualizar estado
