@@ -200,16 +200,16 @@
                     <td>
                       <div class="d-flex flex-column">
                         <span class="text-xs font-weight-bold">
-                          {{ formatDate(user.lastActivity) }}
+                          {{ formatDate(getLastActivity(user)) }}
                         </span>
                         <span class="text-xs text-secondary">
-                          {{ getTimeAgo(user.lastActivity) }}
+                          {{ getTimeAgo(getLastActivity(user)) }}
                         </span>
                       </div>
                     </td>
                     <td>
                       <span class="text-xs font-weight-bold">
-                        {{ getConnectionTime(user.lastActivity) }}
+                        {{ formatConnectedTime(user) }}
                       </span>
                     </td>
                     <td>
@@ -346,8 +346,10 @@
               </div>
               <div class="col-md-6">
                 <h6>Actividad</h6>
-                <p><strong>Última Actividad:</strong> {{ formatDate(selectedUser.lastActivity) }}</p>
-                <p><strong>Tiempo Conectado:</strong> {{ getConnectionTime(selectedUser.lastActivity) }}</p>
+                <p><strong>Última Actividad:</strong> {{ formatDate(getLastActivity(selectedUser)) }}</p>
+                <p><strong>Tiempo Conectado:</strong> {{ formatConnectedTime(selectedUser) }}</p>
+                <p><strong>Estado Actual:</strong> {{ selectedUser.status || 'N/A' }}</p>
+                <p><strong>Última Vista:</strong> {{ formatDate(selectedUser.lastSeen) }}</p>
                 <p><strong>IP:</strong> {{ selectedUser.ipAddress || 'N/A' }}</p>
                 <p><strong>Sesión ID:</strong> {{ selectedUser.sessionId || 'N/A' }}</p>
               </div>
@@ -526,6 +528,12 @@ export default {
       this.loadUsers();
     }, 30000); // 30 segundos
     
+    // 4. Configurar actualización de tiempos cada minuto
+    this.timeUpdateInterval = setInterval(() => {
+      // Forzar actualización de la vista para recalcular tiempos
+      this.$forceUpdate();
+    }, 60000); // 1 minuto
+    
     // 4. Configurar event listener para actualizaciones forzadas
     window.addEventListener('forceUpdate', this.handleForceUpdate);
     
@@ -557,6 +565,11 @@ export default {
     // Limpiar intervalo de actualización
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
+    }
+    
+    // Limpiar intervalo de actualización de tiempos
+    if (this.timeUpdateInterval) {
+      clearInterval(this.timeUpdateInterval);
     }
     
     // Limpiar listener de actualización forzada
@@ -704,6 +717,46 @@ export default {
       return `${diffMins}m`;
     },
     
+    // 🕐 Obtener última actividad del usuario
+    getLastActivity(user) {
+      // Prioridad: lastSeen > updatedAt > createdAt
+      return user.lastSeen || user.updatedAt || user.createdAt;
+    },
+    
+    // 🕐 Obtener tiempo conectado (desde la última actividad real)
+    getConnectedTime(user) {
+      // Usar lastSeen como tiempo de conexión real, o updatedAt como fallback
+      return user.lastSeen || user.updatedAt;
+    },
+    
+    // 🕐 Formatear tiempo de conexión
+    formatConnectedTime(user) {
+      const connectedDate = this.getConnectedTime(user);
+      if (!connectedDate) return 'N/A';
+      
+      const now = new Date();
+      const connected = new Date(connectedDate);
+      const diffMs = now - connected;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      
+      // Si el usuario no está activo, mostrar "Desconectado"
+      if (!user.isActive || user.status === 'offline') {
+        return 'Desconectado';
+      }
+      
+      // Si se conectó hace menos de 1 minuto
+      if (diffMins < 1) {
+        return 'Recién conectado';
+      }
+      
+      if (diffDays > 0) return `${diffDays}d ${diffHours % 24}h ${diffMins % 60}m`;
+      if (diffHours > 0) return `${diffHours}h ${diffMins % 60}m`;
+      if (diffMins > 0) return `${diffMins}m`;
+      return 'Recién conectado';
+    },
+    
     changePage(page) {
       if (page >= 1 && page <= this.totalPages) {
         this.currentPage = page;
@@ -731,12 +784,12 @@ export default {
       const csvContent = [
         headers.join(','),
         ...this.filteredUsers.map(user => [
-          user.name,
-          user.email,
+          user.userId?.name || 'N/A',
+          user.userId?.correo || 'N/A',
           this.getStatusLabel(user.status),
-          user.role,
-          this.formatDate(user.lastActivity),
-          this.getConnectionTime(user.lastActivity)
+          this.roleMap[user.userId?.role?._id] || user.userId?.role?.nombre || 'N/A',
+          this.formatDate(this.getLastActivity(user)),
+          this.formatConnectedTime(user)
         ].join(','))
       ].join('\n');
       
