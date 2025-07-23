@@ -120,7 +120,11 @@ userStatusSchema.methods.changeStatus = async function(newStatus, customStatus =
 userStatusSchema.statics.getActiveUsers = function() {
   return this.find({ 
     isActive: true,
-    lastSeen: { $gte: new Date(Date.now() - 30 * 60 * 1000) } // Últimos 30 minutos
+    lastSeen: { $gte: new Date(Date.now() - 10 * 60 * 1000) }, // Últimos 10 minutos (más estricto)
+    $or: [
+      { socketId: { $ne: null } }, // Tiene socket activo
+      { sessionId: { $ne: null } }  // Tiene sesión activa
+    ]
   }).populate({
     path: 'userId',
     select: 'name correo role',
@@ -129,6 +133,37 @@ userStatusSchema.statics.getActiveUsers = function() {
       select: 'nombre'
     }
   }).select('+statusHistory');
+};
+
+// Método estático para limpiar usuarios fantasma
+userStatusSchema.statics.cleanupGhostUsers = async function() {
+  try {
+    console.log('🧹 Limpiando usuarios fantasma...');
+    
+    // Marcar como inactivos a usuarios que:
+    // 1. No tienen socketId ni sessionId
+    // 2. Su lastSeen es mayor a 15 minutos
+    // 3. Están marcados como activos
+    const result = await this.updateMany(
+      {
+        isActive: true,
+        $or: [
+          { socketId: null, sessionId: null },
+          { lastSeen: { $lt: new Date(Date.now() - 15 * 60 * 1000) } }
+        ]
+      },
+      {
+        isActive: false,
+        status: 'offline'
+      }
+    );
+    
+    console.log(`🧹 ${result.modifiedCount} usuarios fantasma limpiados`);
+    return result;
+  } catch (error) {
+    console.error('❌ Error limpiando usuarios fantasma:', error);
+    return null;
+  }
 };
 
 // Método estático para obtener estado de un usuario

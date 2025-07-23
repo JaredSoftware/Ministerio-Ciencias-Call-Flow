@@ -218,20 +218,43 @@ router.post("/api/websocket/init", (req, res) => {
   }
 });
 
-// Endpoint para tipificación (restaurado)
-router.get('/tipificacion/formulario', async (req, res) => {
+// 🚀 Endpoint para tipificación - SOLO MQTT/StateManager (NO BASE DE DATOS PARA ESTADOS)
+router.get('/api/tipificacion/formulario', async (req, res) => {
   try {
     const params = req.query;
-    // Buscar un agente en estado 'work' (ejemplo, puedes ajustar la lógica)
-    const UserStatus = require('../models/userStatus');
-    const users = require('../models/users');
-    const agentesWork = await UserStatus.find({ status: 'work' });
-    let assignedAgent = agentesWork[0];
-    if (!assignedAgent) {
-      return res.status(400).json({ success: false, message: 'No hay agentes en estado work' });
+    console.log('📞 Nueva solicitud de tipificación:', params);
+    
+    // ✅ OBTENER USUARIOS CONECTADOS DESDE STATEMANAGER (MEMORIA)
+    const stateManager = require('../services/stateManager');
+    const connectedUsers = stateManager.getConnectedUsers();
+    
+    console.log('👥 Usuarios conectados en StateManager:', connectedUsers.length);
+    connectedUsers.forEach(user => {
+      console.log(`  - ${user.name || user.userId}: conectado desde ${user.connectedAt}`);
+    });
+    
+    // 🎯 Seleccionar agente disponible (cualquier usuario conectado)
+    if (!connectedUsers || connectedUsers.length === 0) {
+      console.warn('⚠️ No hay usuarios conectados en StateManager');
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No hay agentes disponibles (ningún usuario conectado por WebSocket/MQTT)' 
+      });
     }
-    const user = await users.findById(assignedAgent.userId);
-    // Simular historial (en producción, deberías guardar y recuperar el historial real)
+    
+    // Usar el primer usuario conectado como agente asignado
+    const assignedAgent = connectedUsers[0];
+    console.log('🎯 Agente asignado:', assignedAgent.name || assignedAgent.userId);
+    
+    // 🌳 Buscar árbol de tipificaciones desde BD
+    const Tree = require('../models/tree');
+    const arbolDocument = await Tree.getTipificacionesTree();
+    const arbolTipificaciones = arbolDocument ? arbolDocument.root : [];
+    
+    console.log('🌳 Árbol de tipificaciones encontrado:', arbolTipificaciones ? 'SÍ' : 'NO');
+    console.log('📊 Cantidad de nodos raíz:', arbolTipificaciones.length);
+    
+    // 📋 Crear historial básico
     const historial = [
       {
         _id: Date.now(),
@@ -242,18 +265,50 @@ router.get('/tipificacion/formulario', async (req, res) => {
         createdAt: new Date(),
       }
     ];
-    // Publicar por MQTT
+    
+    // 📡 ENVIAR POR MQTT AL AGENTE ASIGNADO
     const mqttService = req.app.get('mqttService');
-    const topic = `telefonia/tipificacion/nueva/${user._id}`;
-    mqttService.publish(topic, {
-      ...params,
-      historial,
-      arbol: [], // Puedes incluir el árbol si lo tienes
+    const topic = `telefonia/tipificacion/nueva/${assignedAgent.userId}`;
+    
+    const tipificacionData = {
+      idLlamada: params.idLlamada,
+      cedula: params.cedula,
+      tipoDocumento: params.tipoDocumento,
+      observacion: params.observacion,
+      historial: historial,
+      arbol: arbolTipificaciones, // ✅ Árbol real de la BD
+      assignedTo: assignedAgent.userId,
+      assignedToName: assignedAgent.name || 'Usuario',
+      timestamp: new Date().toISOString(),
+      type: 'nueva_tipificacion'
+    };
+    
+    console.log('📤 Enviando tipificación por MQTT:');
+    console.log(`   - Topic: ${topic}`);
+    console.log(`   - Agente: ${assignedAgent.name}`);
+    console.log(`   - ID Llamada: ${params.idLlamada}`);
+    console.log(`   - Árbol: ${arbolTipificaciones.length} nodos`);
+    
+    mqttService.publish(topic, tipificacionData);
+    
+    console.log('✅ Tipificación enviada exitosamente por MQTT');
+    
+    res.json({ 
+      success: true, 
+      assignedTo: assignedAgent.userId,
+      assignedToName: assignedAgent.name,
+      historial: historial,
+      message: `Tipificación enviada por MQTT a ${assignedAgent.name}`,
+      method: 'StateManager + MQTT (sin BD para estados)'
     });
-    res.json({ success: true, assignedTo: user._id, historial });
+    
   } catch (error) {
-    console.error('Error en /tipificacion/formulario:', error);
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ Error en /api/tipificacion/formulario:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error interno del servidor',
+      error: error.message 
+    });
   }
 });
 

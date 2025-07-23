@@ -259,6 +259,10 @@ router.get('/debug-all-users', async (req, res) => {
 router.get('/active-users', async (req, res) => {
   try {
     const UserStatus = require('../models/userStatus');
+    
+    // Limpiar usuarios fantasma antes de obtener la lista
+    await UserStatus.cleanupGhostUsers();
+    
     const activeUsers = await UserStatus.getActiveUsers();
     res.json({ success: true, users: activeUsers });
   } catch (error) {

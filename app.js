@@ -630,6 +630,10 @@ io.on('connection', async (socket) => {
 async function emitActiveUsersList() {
   try {
     const UserStatus = require('./models/userStatus');
+    
+    // Limpiar usuarios fantasma antes de obtener la lista
+    await UserStatus.cleanupGhostUsers();
+    
     const activeUsers = await UserStatus.getActiveUsers();
     
     // Emitir via Socket.IO
@@ -738,7 +742,7 @@ app.use((req, res, next) => {
   res.status(404).send("404.html");
 });
 
-module.exports = { app, server, io };
+module.exports = { app, server, io, emitActiveUsersList };
 
 aedes.on('client', function (client) {
   console.log('🔗 Cliente MQTT conectado:', client ? client.id : client, 'username:', client?.connDetails?.username || client?.username);

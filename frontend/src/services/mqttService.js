@@ -5,6 +5,8 @@ class MQTTService {
   constructor() {
     this.client = null;
     this.isConnected = false;
+    this.isConnecting = false;
+    this.connectionPromise = null;
     this.topics = {
       statusChanged: 'telefonia/users/status/changed',
       activeUsers: 'telefonia/users/active/list',
@@ -12,30 +14,54 @@ class MQTTService {
       userDisconnected: 'telefonia/users/disconnected'
     };
     this.listeners = {};
+    this.userId = null;
   }
 
-  // Conectar al broker MQTT
-  async connect(brokerUrl = 'ws://localhost:9001') {
-    try {
-      console.log('🔌 Frontend conectando a broker MQTT:', brokerUrl);
-      
-      this.client = mqtt.connect(brokerUrl, {
-        clientId: `frontend_${Date.now()}_${Math.random().toString(16).substr(2, 8)}`,
-        clean: true,
-        connectTimeout: 4000,
-        reconnectPeriod: 1000,
-      });
+  // Conectar al broker MQTT (solo una vez por sesión)
+  async connect(brokerUrl = 'ws://localhost:9001', userId = null) {
+    // Si ya está conectado o conectando, devolver la promesa existente
+    if (this.isConnected) {
+      console.log('🔌 MQTT ya está conectado, reutilizando conexión');
+      return true;
+    }
+    
+    if (this.isConnecting && this.connectionPromise) {
+      console.log('🔌 MQTT ya está conectando, esperando...');
+      return this.connectionPromise;
+    }
 
-      return new Promise((resolve, reject) => {
+    this.isConnecting = true;
+    this.userId = userId;
+
+    this.connectionPromise = new Promise((resolve, reject) => {
+      try {
+        console.log('🔌 Frontend conectando a broker MQTT:', brokerUrl, 'userId:', userId);
+        
+        this.client = mqtt.connect(brokerUrl, {
+          clientId: userId ? `frontend_${userId}` : `frontend_${Date.now()}_${Math.random().toString(16).substr(2, 8)}`,
+          username: userId || undefined,
+          clean: true,
+          connectTimeout: 4000,
+          reconnectPeriod: 1000,
+        });
+
         this.client.on('connect', () => {
           console.log('✅ Frontend conectado al broker MQTT');
           this.isConnected = true;
+          this.isConnecting = false;
+          
+          // Re-suscribirse a todos los topics activos
+          Object.keys(this.listeners).forEach(topic => {
+            this.subscribe(topic);
+          });
+          
           resolve(true);
         });
 
         this.client.on('error', (error) => {
           console.error('❌ Error en MQTT frontend:', error);
           this.isConnected = false;
+          this.isConnecting = false;
           reject(error);
         });
 
@@ -46,6 +72,7 @@ class MQTTService {
         this.client.on('close', () => {
           console.log('❌ Frontend desconectado de MQTT');
           this.isConnected = false;
+          this.isConnecting = false;
         });
 
         this.client.on('message', (topic, message) => {
@@ -53,7 +80,6 @@ class MQTTService {
             const data = JSON.parse(message.toString());
             console.log(`📥 MQTT mensaje recibido en ${topic}:`, data);
             
-            // Emitir evento a los listeners
             if (this.listeners[topic]) {
               this.listeners[topic].forEach(callback => {
                 callback(data);
@@ -63,15 +89,17 @@ class MQTTService {
             console.error('❌ Error procesando mensaje MQTT:', error);
           }
         });
-      });
 
-    } catch (error) {
-      console.error('❌ Error conectando frontend a MQTT:', error);
-      throw error;
-    }
+      } catch (error) {
+        console.error('❌ Error conectando frontend a MQTT:', error);
+        this.isConnecting = false;
+        reject(error);
+      }
+    });
+
+    return this.connectionPromise;
   }
 
-  // Suscribirse a un topic
   subscribe(topic) {
     if (!this.isConnected || !this.client) {
       console.log('⚠️ MQTT no conectado, no se puede suscribir');
@@ -93,25 +121,37 @@ class MQTTService {
     }
   }
 
-  // Escuchar eventos de un topic
   on(topic, callback) {
     if (!this.listeners[topic]) {
       this.listeners[topic] = [];
-      // Suscribirse al topic si no está suscrito
+    }
+    
+    // Evitar duplicar listeners
+    if (!this.listeners[topic].includes(callback)) {
+      this.listeners[topic].push(callback);
+    }
+    
+    // Solo suscribirse si no está ya suscrito
+    if (this.isConnected && this.listeners[topic].length === 1) {
       this.subscribe(topic);
     }
-    this.listeners[topic].push(callback);
   }
 
-  // Desconectar
+  // Solo desconectar cuando se haga logout o se cierre la app
   disconnect() {
     if (this.client) {
       this.client.end();
       this.isConnected = false;
+      this.isConnecting = false;
+      this.connectionPromise = null;
+      this.listeners = {};
       console.log('🔌 Frontend desconectado de MQTT');
     }
   }
 }
+
+const mqttSingleton = new MQTTService();
+export { mqttSingleton };
 
 // Función de conexión simple para compatibilidad
 export function connectMQTT(userId, userName) {
@@ -122,5 +162,4 @@ export function connectMQTT(userId, userName) {
   });
 }
 
-// Exportar la clase como default
 export default MQTTService; 

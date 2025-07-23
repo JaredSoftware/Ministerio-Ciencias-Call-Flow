@@ -23,8 +23,8 @@ export default {
   },
   data() {
     return {
-      Headers: Array,
-      info: Array,
+      Headers: [],
+      info: [],
       tableName: "Users",
     };
   },

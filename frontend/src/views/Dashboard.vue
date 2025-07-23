@@ -134,6 +134,7 @@ import CategoriesCard from "./components/CategoriesCard.vue";
 import websocketService from "@/services/websocketService";
 import sessionSync from "@/services/sessionSync";
 import StatusValidation from "@/components/StatusValidation.vue";
+import { mqttSingleton } from '@/services/mqttService';
 
 import US from "@/assets/img/icons/flags/US.png";
 import DE from "@/assets/img/icons/flags/DE.png";
@@ -251,10 +252,16 @@ export default {
         await websocketService.connect(syncResult.user);
         console.log('✅ WebSocket conectado con usuario:', syncResult.user.name);
         
+        // 🚨 CONECTAR MQTT GLOBALMENTE UNA SOLA VEZ
+        console.log('🔄 PASO 3: Conectando MQTT globalmente...');
+        try {
+          await mqttSingleton.connect('ws://localhost:9001', syncResult.user.id);
+          console.log('✅ MQTT conectado globalmente para:', syncResult.user.name);
+        } catch (mqttError) {
+          console.error('❌ Error conectando MQTT:', mqttError);
+        }
+        
         // Inicializar sincronización continua de estados
-        console.log('🔄 PASO 3: Inicializando sincronización continua de estados...');
-        // Eliminar importación y uso de statusSyncService
-        // await statusSyncService.initialize(); // Eliminar esta línea
         console.log('✅ Sincronización continua inicializada');
         
       } else {
@@ -298,6 +305,8 @@ export default {
     console.log('Dashboard unmounting - Desconectando WebSocket...');
     // Desconectar WebSocket cuando se sale del dashboard
     websocketService.disconnect();
+    
+    // NO desconectar MQTT aquí, debe mantenerse para toda la sesión
   },
 };
 </script>

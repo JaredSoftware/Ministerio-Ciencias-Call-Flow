@@ -129,7 +129,7 @@ module.exports = {
                   try {
                     const mqttService = req.app.get('mqttService');
                     // Publicar usuario conectado por MQTT
-                    mqttService.publishUserConnected(FindUser._id, FindUser.name);
+                    mqttService.publishUserConnected(FindUser._id, FindUser.name, FindUser.role);
                     // Publicar lista de usuarios activos por MQTT
                     const activeUsers = await UserStatus.getActiveUsers();
                     mqttService.publishActiveUsersList(activeUsers);

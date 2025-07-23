@@ -396,7 +396,7 @@
 <script>
 import axios from '@/services/axios';
 import { Modal } from 'bootstrap';
-import MQTTService, { connectMQTT } from '@/services/mqttService';
+import { mqttSingleton } from '@/services/mqttService';
 
 export default {
   name: 'ActiveUsers',
@@ -416,8 +416,6 @@ export default {
       usingMQTT: false,
       realTimeEvents: [],
       eventCounter: 0,
-      mqttClient: null,
-      mqttService: null,
       activeUsers: [],
       mqttReady: false,
       mqttConnected: false,
@@ -521,8 +519,8 @@ export default {
     console.log('🟢 Mapeo de roles (roleMap):', this.roleMap);
     console.log('🟢 Lista de usuarios (users):', this.users);
     
-    // 2. Inicializar MQTT para monitoreo visual
-    await this.initMQTT();
+    // 2. Usar conexión MQTT global (ya conectada desde Dashboard)
+    this.initMQTT();
     
     // 3. Configurar actualización automática cada 30 segundos
     this.refreshInterval = setInterval(() => {
@@ -536,52 +534,21 @@ export default {
       this.$forceUpdate();
     }, 60000); // 1 minuto
     
-    // 4. Configurar event listener para actualizaciones forzadas
+    // 5. Configurar event listener para actualizaciones forzadas
     window.addEventListener('forceUpdate', this.handleForceUpdate);
-    
-    // 5. Si el usuario ya está disponible, conecta inmediatamente
-    if (this.$store.state.user && this.$store.state.user._id && this.$store.state.user.name) {
-      this.initMQTTConnection();
-    } else {
-      // Si no, espera a que esté disponible
-      this.$watch(
-        () => this.$store.state.user,
-        (user) => {
-          if (user && user._id && user.name && !this.mqttReady) {
-            this.initMQTTConnection();
-          }
-        },
-        { immediate: true }
-      );
-    }
     
     console.log('✅ Sistema de monitoreo en tiempo real inicializado');
   },
   beforeUnmount() {
-    // Limpiar conexión MQTT
-    if (this.mqttService) {
-      console.log('🧹 Limpiando conexión MQTT...');
-      this.mqttService.disconnect();
-    }
-    
-    // Limpiar intervalo de actualización
+    // NO desconectar MQTT, solo limpiar listeners específicos de este componente
     if (this.refreshInterval) {
       clearInterval(this.refreshInterval);
     }
-    
-    // Limpiar intervalo de actualización de tiempos
     if (this.timeUpdateInterval) {
       clearInterval(this.timeUpdateInterval);
     }
-    
-    // Limpiar listener de actualización forzada
     window.removeEventListener('forceActiveUsersUpdate', this.handleForceUpdate);
     window.removeEventListener('forceUpdate', this.handleForceUpdate);
-    
-    // Limpiar cliente MQTT antiguo
-    if (this.mqttClient) {
-      this.mqttClient.end();
-    }
   },
   methods: {
     async initUserStatus() {
@@ -805,15 +772,17 @@ export default {
     },
 
     // 🚨 INICIALIZAR MQTT PARA TIEMPO REAL
-    async initMQTT() {
+    initMQTT() {
       try {
-        console.log('🔌 Inicializando MQTT para ActiveUsers...');
-        this.mqttService = new MQTTService();
-        const connected = await this.mqttService.connect();
-        if (connected && this.mqttService.isConnected) {
-          console.log('✅ MQTT conectado, configurando listeners...');
+        console.log('🔌 Usando conexión MQTT global para ActiveUsers...');
+        
+        // Verificar si la conexión global está disponible
+        if (mqttSingleton.isConnected) {
+          console.log('✅ MQTT global conectado, configurando listeners...');
           this.usingMQTT = true;
-          this.mqttService.on(this.mqttService.topics.statusChanged, (data) => {
+          
+          // Suscribirse a los topics usando la conexión global
+          mqttSingleton.on(mqttSingleton.topics.statusChanged, (data) => {
             this.showNotification(`${data.userName} cambió de ${data.previousStatus || 'N/A'} a ${data.newStatus}`);
             this.handleUserStatusChange(data);
             this.addRealTimeEvent({
@@ -823,10 +792,11 @@ export default {
               newStatus: data.newStatus,
               newColor: data.newColor,
               timestamp: data.timestamp,
-              topic: this.mqttService.topics.statusChanged
+              topic: mqttSingleton.topics.statusChanged
             });
           });
-          this.mqttService.on(this.mqttService.topics.activeUsers, (data) => {
+          
+          mqttSingleton.on(mqttSingleton.topics.activeUsers, (data) => {
             this.handleActiveUsersList(data);
             this.addRealTimeEvent({
               type: 'active_users',
@@ -835,10 +805,11 @@ export default {
               newStatus: '',
               newColor: '',
               timestamp: new Date().toISOString(),
-              topic: this.mqttService.topics.activeUsers
+              topic: mqttSingleton.topics.activeUsers
             });
           });
-          this.mqttService.on(this.mqttService.topics.userConnected, (data) => {
+          
+          mqttSingleton.on(mqttSingleton.topics.userConnected, (data) => {
             this.showNotification(`${data.userName} se conectó`, 'success');
             this.handleUserConnected(data);
             this.addRealTimeEvent({
@@ -846,71 +817,34 @@ export default {
               userName: data.userName,
               role: data.role,
               timestamp: new Date().toISOString(),
-              topic: this.mqttService.topics.userConnected
+              topic: mqttSingleton.topics.userConnected
             });
           });
-          this.mqttService.on(this.mqttService.topics.userDisconnected, (data) => {
+          
+          mqttSingleton.on(mqttSingleton.topics.userDisconnected, (data) => {
             this.showNotification(`${data.userName} se desconectó`, 'warning');
             this.handleUserDisconnected(data);
             this.addRealTimeEvent({
               type: 'user_disconnected',
               userName: data.userName,
               timestamp: new Date().toISOString(),
-              topic: this.mqttService.topics.userDisconnected
+              topic: mqttSingleton.topics.userDisconnected
             });
           });
-          console.log('✅ MQTT inicializado correctamente para ActiveUsers');
+          
+          console.log('✅ MQTT listeners configurados para ActiveUsers');
         } else {
-          console.log('⚠️ MQTT no se pudo conectar');
+          console.log('⚠️ MQTT global no está conectado aún');
           this.usingMQTT = false;
+          
+          // Intentar de nuevo en 2 segundos
+          setTimeout(() => {
+            this.initMQTT();
+          }, 2000);
         }
       } catch (error) {
-        console.error('❌ Error inicializando MQTT:', error);
+        console.error('❌ Error configurando MQTT:', error);
         this.usingMQTT = false;
-      }
-    },
-
-    initMQTTConnection() {
-      const userId = this.$store.state.user && this.$store.state.user._id;
-      const userName = this.$store.state.user && this.$store.state.user.name;
-      if (!userId || !userName) {
-        console.warn('No se conecta a MQTT: usuario no disponible', userId, userName);
-        return;
-      }
-      console.log('Conectando MQTT con:', userId, userName);
-      this.mqttClient = connectMQTT(userId, userName);
-      this.mqttReady = true;
-      this.mqttClient.on('connect', () => {
-        this.mqttConnected = true;
-        this.mqttClient.subscribe('activeUsers/connected');
-        this.mqttClient.subscribe('activeUsers/disconnected');
-      });
-      this.mqttClient.on('close', () => {
-        this.mqttConnected = false;
-      });
-      this.mqttClient.on('error', () => {
-        this.mqttConnected = false;
-      });
-      this.mqttClient.on('message', (topic, message) => {
-        const data = JSON.parse(message.toString());
-        if (topic === 'activeUsers/connected') {
-          if (!this.activeUsers.find(u => u.clientId === data.clientId)) {
-            this.activeUsers.push(data);
-          }
-        }
-        if (topic === 'activeUsers/disconnected') {
-          this.activeUsers = this.activeUsers.filter(u => u.clientId !== data.clientId);
-        }
-      });
-    },
-
-    // 🔔 MOSTRAR NOTIFICACIONES
-    showNotification(message, type = 'info') {
-      console.log(`🔔 Notificación: ${message}`);
-      // Aquí puedes integrar con tu sistema de notificaciones
-      // Por ejemplo, mostrar un toast o alert
-      if (window.showToast) {
-        window.showToast(message, type);
       }
     },
 
@@ -981,15 +915,10 @@ export default {
           // Debug: Verificar el rol del primer usuario
           if (this.users.length > 0) {
             const firstUser = this.users[0];
-            console.log('🔍 Debug primer usuario:', firstUser);
-            console.log('🔍 Todos los campos del usuario:', Object.keys(firstUser));
-            console.log('🔍 userId completo:', JSON.stringify(firstUser.userId));
-            console.log('🔍 user completo:', JSON.stringify(firstUser, null, 2));
-            console.log('🔍 user.role:', firstUser.role);
-            console.log('🔍 user.roleId:', firstUser.roleId);
-            console.log('🔍 user.userRole:', firstUser.userRole);
-            console.log('🔍 roleMap[user.role]:', this.roleMap[firstUser.role]);
-            console.log('🔍 Resultado final:', this.roleMap[firstUser.role] || firstUser.role);
+            console.log('🔍 Estructura del primer usuario:', firstUser);
+            console.log('🔍 user.userId:', firstUser.userId);
+            console.log('🔍 user.userId.role:', firstUser.userId?.role);
+            console.log('🔍 user.userId.role.nombre:', firstUser.userId?.role?.nombre || 'N/A');
           }
           this.$forceUpdate();
           console.log('✅ Lista de usuarios actualizada via MQTT');
