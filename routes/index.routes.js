@@ -218,6 +218,44 @@ router.post("/api/websocket/init", (req, res) => {
   }
 });
 
+// Endpoint para tipificación (restaurado)
+router.get('/tipificacion/formulario', async (req, res) => {
+  try {
+    const params = req.query;
+    // Buscar un agente en estado 'work' (ejemplo, puedes ajustar la lógica)
+    const UserStatus = require('../models/userStatus');
+    const users = require('../models/users');
+    const agentesWork = await UserStatus.find({ status: 'work' });
+    let assignedAgent = agentesWork[0];
+    if (!assignedAgent) {
+      return res.status(400).json({ success: false, message: 'No hay agentes en estado work' });
+    }
+    const user = await users.findById(assignedAgent.userId);
+    // Simular historial (en producción, deberías guardar y recuperar el historial real)
+    const historial = [
+      {
+        _id: Date.now(),
+        idLlamada: params.idLlamada,
+        cedula: params.cedula,
+        tipoDocumento: params.tipoDocumento,
+        observacion: params.observacion,
+        createdAt: new Date(),
+      }
+    ];
+    // Publicar por MQTT
+    const mqttService = req.app.get('mqttService');
+    const topic = `telefonia/tipificacion/nueva/${user._id}`;
+    mqttService.publish(topic, {
+      ...params,
+      historial,
+      arbol: [], // Puedes incluir el árbol si lo tienes
+    });
+    res.json({ success: true, assignedTo: user._id, historial });
+  } catch (error) {
+    console.error('Error en /tipificacion/formulario:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 
 module.exports = router;

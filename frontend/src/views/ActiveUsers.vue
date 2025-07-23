@@ -396,7 +396,7 @@
 <script>
 import axios from '@/services/axios';
 import { Modal } from 'bootstrap';
-import { connectMQTT } from '@/services/mqttService';
+import MQTTService, { connectMQTT } from '@/services/mqttService';
 
 export default {
   name: 'ActiveUsers',
@@ -808,24 +808,14 @@ export default {
     async initMQTT() {
       try {
         console.log('🔌 Inicializando MQTT para ActiveUsers...');
-        const MQTTService = (await import('@/services/mqttService')).default;
-        
-        // Crear nueva instancia del servicio MQTT
         this.mqttService = new MQTTService();
-        
-        // Intentar conectar MQTT
         const connected = await this.mqttService.connect();
-        
         if (connected && this.mqttService.isConnected) {
           console.log('✅ MQTT conectado, configurando listeners...');
           this.usingMQTT = true;
-          
-          // 🚨 LISTENER PARA CAMBIOS DE ESTADO EN TIEMPO REAL
           this.mqttService.on(this.mqttService.topics.statusChanged, (data) => {
-            console.log('🚨 MQTT TIEMPO REAL:', `${data.userName} ${data.previousStatus || 'N/A'} → ${data.newStatus}`);
             this.showNotification(`${data.userName} cambió de ${data.previousStatus || 'N/A'} a ${data.newStatus}`);
             this.handleUserStatusChange(data);
-            // Agregar evento con topic
             this.addRealTimeEvent({
               type: 'status_change',
               userName: data.userName,
@@ -836,12 +826,8 @@ export default {
               topic: this.mqttService.topics.statusChanged
             });
           });
-          
-          // 🚨 LISTENER PARA LISTA DE USUARIOS ACTIVOS
           this.mqttService.on(this.mqttService.topics.activeUsers, (data) => {
-            console.log('👥 Lista de usuarios activos MQTT:', data.users?.length || 0, 'usuarios');
             this.handleActiveUsersList(data);
-            // Agregar evento con topic
             this.addRealTimeEvent({
               type: 'active_users',
               userName: 'Sistema',
@@ -852,13 +838,9 @@ export default {
               topic: this.mqttService.topics.activeUsers
             });
           });
-          
-          // 🚨 LISTENER PARA CONEXIONES
           this.mqttService.on(this.mqttService.topics.userConnected, (data) => {
-            console.log('🔗 Usuario conectado MQTT:', data.userName);
             this.showNotification(`${data.userName} se conectó`, 'success');
             this.handleUserConnected(data);
-            // Agregar evento con topic
             this.addRealTimeEvent({
               type: 'user_connected',
               userName: data.userName,
@@ -867,13 +849,9 @@ export default {
               topic: this.mqttService.topics.userConnected
             });
           });
-          
-          // 🚨 LISTENER PARA DESCONEXIONES
           this.mqttService.on(this.mqttService.topics.userDisconnected, (data) => {
-            console.log('🔌 Usuario desconectado MQTT:', data.userName);
             this.showNotification(`${data.userName} se desconectó`, 'warning');
             this.handleUserDisconnected(data);
-            // Agregar evento con topic
             this.addRealTimeEvent({
               type: 'user_disconnected',
               userName: data.userName,
@@ -881,7 +859,6 @@ export default {
               topic: this.mqttService.topics.userDisconnected
             });
           });
-          
           console.log('✅ MQTT inicializado correctamente para ActiveUsers');
         } else {
           console.log('⚠️ MQTT no se pudo conectar');
