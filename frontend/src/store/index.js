@@ -136,6 +136,19 @@ export default createStore({
           // Si falla la importación, continuar con el logout
         });
         
+        // Desconectar MQTT solo en logout
+        import('@/services/mqttService').then(module => {
+          if (module.mqttService && module.mqttService.isConnected) {
+            module.mqttService.disconnect();
+          }
+        });
+        // Desconectar WebSocket solo en logout
+        import('@/services/websocketService').then(module => {
+          if (module.default && module.default.isConnected) {
+            module.default.disconnect();
+          }
+        });
+        
         commit('clearToken');
         commit('logout');
         resolve();

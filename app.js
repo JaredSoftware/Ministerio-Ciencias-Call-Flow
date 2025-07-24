@@ -254,6 +254,7 @@ io.on('connection', async (socket) => {
     
     // Registrar usuario en StateManager
     stateManager.registerUser(user._id, {
+      userId: user._id, // <-- Forzar string plano aquí
       name: user.name,
       email: user.correo,
       role: user.role,
@@ -664,6 +665,28 @@ const mqttService = new MQTTService();
 mqttService.connect('mqtt://localhost:1883')
   .then(() => {
     console.log('✅ Servicio MQTT inicializado correctamente');
+    // Suscribirse al topic de heartbeat
+    if (mqttService.client) {
+      mqttService.client.subscribe('telefonia/users/heartbeat/+');
+      mqttService.client.on('message', async (topic, message) => {
+        if (topic.startsWith('telefonia/users/heartbeat/')) {
+          try {
+            const data = JSON.parse(message.toString());
+            const userId = data.userId;
+            if (userId) {
+              const UserStatus = require('./models/userStatus');
+              const userStatus = await UserStatus.getUserStatus(userId);
+              if (userStatus) {
+                await userStatus.updateActivity();
+                console.log(`💓 Heartbeat MQTT recibido y actualizado para usuario: ${userId}`);
+              }
+            }
+          } catch (err) {
+            console.error('❌ Error procesando heartbeat MQTT:', err);
+          }
+        }
+      });
+    }
   })
   .catch((error) => {
     console.error('❌ Error inicializando servicio MQTT:', error);

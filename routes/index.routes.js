@@ -268,7 +268,16 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     
     // 📡 ENVIAR POR MQTT AL AGENTE ASIGNADO
     const mqttService = req.app.get('mqttService');
-    const topic = `telefonia/tipificacion/nueva/${assignedAgent.userId}`;
+    // Obtener el userId plano del agente (puede estar anidado o ser string)
+    let userIdPlano;
+    if (assignedAgent.userId && typeof assignedAgent.userId === 'object') {
+      userIdPlano = assignedAgent.userId._id;
+    } else {
+      userIdPlano = assignedAgent.userId || assignedAgent._id;
+    }
+    console.log('DEBUG assignedAgent:', assignedAgent);
+    console.log('DEBUG userIdPlano:', userIdPlano);
+    const topic = `telefonia/tipificacion/nueva/${userIdPlano}`;
     
     const tipificacionData = {
       idLlamada: params.idLlamada,
@@ -277,7 +286,7 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       observacion: params.observacion,
       historial: historial,
       arbol: arbolTipificaciones, // ✅ Árbol real de la BD
-      assignedTo: assignedAgent.userId,
+      assignedTo: userIdPlano,
       assignedToName: assignedAgent.name || 'Usuario',
       timestamp: new Date().toISOString(),
       type: 'nueva_tipificacion'
@@ -295,7 +304,7 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     
     res.json({ 
       success: true, 
-      assignedTo: assignedAgent.userId,
+      assignedTo: userIdPlano,
       assignedToName: assignedAgent.name,
       historial: historial,
       message: `Tipificación enviada por MQTT a ${assignedAgent.name}`,

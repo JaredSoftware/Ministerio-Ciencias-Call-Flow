@@ -99,29 +99,14 @@ export default {
     },
     
     initializeWebSocket() {
-      // Solo inicializar si el usuario está logueado
-      if (!this.$store.state.isLoggedIn) {
-        console.log('🚪 Usuario no logueado, saltando inicialización de WebSocket');
-        return;
-      }
-      
-      console.log('🔌 Inicializando WebSocket en StatusIndicatorBar...');
-      
-      // Suscribirse a eventos de WebSocket
+      // Solo suscribirse a eventos de WebSocket, no conectar ni desconectar
       websocketService.on('own_status_changed', (data) => {
         console.log('📡 Evento own_status_changed recibido en StatusIndicatorBar:', data);
         if (data && data.status) {
           this.updateStatus(data);
         }
       });
-      
-      // Conectar WebSocket si no está conectado
-      if (!websocketService.isConnected) {
-        console.log('🔌 Conectando WebSocket desde StatusIndicatorBar...');
-        websocketService.connect();
-      } else {
-        console.log('✅ WebSocket ya conectado en StatusIndicatorBar');
-      }
+      // Eliminar cualquier llamada a websocketService.connect()
     },
     
     async loadCurrentStatus() {

@@ -51,6 +51,8 @@ import AppFooter from "@/examples/Footer.vue";
 import StatusIndicatorBar from "@/components/StatusIndicatorBar.vue";
 import StatusSyncMonitor from "@/components/StatusSyncMonitor.vue";
 import { mapMutations } from "vuex";
+import { mqttService } from '@/services/mqttService';
+import websocketService from '@/services/websocketService';
 
 export default {
   name: "App",
@@ -73,6 +75,42 @@ export default {
           .isAbsolute,
         "px-0 mx-4": !this.$store.state.isAbsolute
       };
+    }
+  },
+  watch: {
+    '$store.state.isLoggedIn': {
+      immediate: true,
+      handler(isLoggedIn) {
+        if (isLoggedIn && this.$store.state.user && this.$store.state.user._id) {
+          if (!mqttService.isConnected) {
+            mqttService.connect('ws://localhost:9001', this.$store.state.user._id, this.$store.state.user.name);
+          }
+          if (!websocketService.isConnected) {
+            websocketService.connect({
+              id: this.$store.state.user._id,
+              name: this.$store.state.user.name,
+              email: this.$store.state.user.correo
+            });
+          }
+        }
+      }
+    },
+    '$store.state.user': {
+      immediate: true,
+      handler(user) {
+        if (this.$store.state.isLoggedIn && user && user._id) {
+          if (!mqttService.isConnected) {
+            mqttService.connect('ws://localhost:9001', user._id, user.name);
+          }
+          if (!websocketService.isConnected) {
+            websocketService.connect({
+              id: user._id,
+              name: user.name,
+              email: user.correo
+            });
+          }
+        }
+      }
     }
   },
   beforeMount() {

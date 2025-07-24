@@ -46,6 +46,44 @@ class MQTTService {
           console.log('❌ Backend desconectado de MQTT');
           this.isConnected = false;
         });
+
+        this.client.on('message', async (topic, message) => {
+          if (topic.startsWith('telefonia/users/heartbeat/')) {
+            try {
+              const data = JSON.parse(message.toString());
+              const userId = data.userId;
+              if (userId) {
+                const UserStatus = require('../models/userStatus');
+                const userStatus = await UserStatus.getUserStatus(userId);
+                if (userStatus) {
+                  await UserStatus.updateActivity(userId, Date.now());
+                  const stateManager = require('./stateManager');
+                  if (!stateManager.isUserConnected(userId)) {
+                    // Extraer datos mínimos para el registro
+                    const userData = {
+                      userId: userId, // <-- Asegura que userId sea string plano
+                      name: userStatus.userId.name,
+                      correo: userStatus.userId.correo,
+                      status: userStatus.status,
+                      color: userStatus.color,
+                      label: userStatus.label,
+                      customStatus: userStatus.customStatus,
+                      isActive: userStatus.isActive,
+                      lastSeen: userStatus.lastSeen,
+                      sessionId: userStatus.sessionId,
+                      socketId: userStatus.socketId
+                    };
+                    stateManager.registerUser(userId, userData);
+                    console.log(`🟢 Usuario ${userId} re-registrado en StateManager por heartbeat`);
+                  }
+                }
+              }
+            } catch (err) {
+              console.error('❌ Error procesando heartbeat MQTT:', err);
+            }
+          }
+        });
+
       });
 
     } catch (error) {

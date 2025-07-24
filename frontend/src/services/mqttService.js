@@ -95,7 +95,23 @@ class MQTTService {
           keepalive: this.config.broker.keepalive
         });
 
-        this.setupEventHandlers(resolve, reject);
+        // Heartbeat interval
+        if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+        this.heartbeatInterval = null;
+
+        this.setupEventHandlers(() => {
+          // Iniciar heartbeat solo cuando esté conectado
+          if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+          if (this.userId) {
+            this.heartbeatInterval = setInterval(() => {
+              if (this.isConnected && this.userId) {
+                const topic = `telefonia/users/heartbeat/${this.userId}`;
+                this.publish(topic, { userId: this.userId, timestamp: Date.now() });
+              }
+            }, 60000); // cada 60 segundos
+          }
+          resolve(true);
+        }, reject);
 
       } catch (error) {
         console.error('❌ Error conectando frontend a MQTT:', error);
@@ -374,6 +390,8 @@ class MQTTService {
       this.connectionPromise = null;
       this.client = null;
       this.subscriptions.clear();
+      if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
       console.log('✅ MQTT desconectado');
     }
   }

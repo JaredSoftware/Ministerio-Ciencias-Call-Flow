@@ -217,4 +217,9 @@ userStatusSchema.statics.upsertStatus = async function(userId, statusData) {
   return userStatus;
 };
 
+// Método estático para actualizar lastSeen por userId
+userStatusSchema.statics.updateActivity = function(userId, timestamp) {
+  return this.updateOne({ userId }, { $set: { lastSeen: timestamp || new Date() } });
+};
+
 module.exports = mongoose.model('UserStatus', userStatusSchema); 

@@ -312,10 +312,8 @@ export default {
   methods: {
   },
   beforeUnmount() {
-    console.log('Dashboard unmounting - Desconectando WebSocket...');
-    // Desconectar WebSocket cuando se sale del dashboard
-    websocketService.disconnect();
-    
+    console.log('Dashboard unmounting - NO desconectar WebSocket (gestión global)');
+    // Eliminar websocketService.disconnect();
     // NO desconectar MQTT aquí, debe mantenerse para toda la sesión
   },
 };

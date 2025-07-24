@@ -162,6 +162,7 @@ export default {
       saving: false,
       skipNextEvent: false,
       mqttTopic: '',
+      mqttCallback: null, // Para guardar el callback y poder limpiarlo
     };
   },
   computed: {
@@ -432,13 +433,12 @@ export default {
       async handler(newUserId) {
         if (!newUserId) return;
         const topic = `telefonia/tipificacion/nueva/${newUserId}`;
-        if (!mqttService.isConnected) {
-          await mqttService.connect('ws://localhost:9001', newUserId);
+        // Limpiar listener anterior si existe
+        if (this.mqttTopic && this.mqttCallback) {
+          mqttService.off(this.mqttTopic, this.mqttCallback);
         }
-        if (this.mqttTopic) {
-          mqttService.client.unsubscribe(this.mqttTopic);
-        }
-        mqttService.on(topic, (data) => {
+        // Suscribirse al nuevo topic
+        const callback = (data) => {
           if (this.skipNextEvent) {
             this.skipNextEvent = false;
             return;
@@ -455,7 +455,12 @@ export default {
           if (data.arbol) {
             this.arbol = data.arbol;
           }
-        });
+        };
+        this.mqttCallback = callback;
+        if (!mqttService.isConnected) {
+          await mqttService.connect('ws://localhost:9001', newUserId);
+        }
+        mqttService.on(topic, callback);
         this.mqttTopic = topic;
       }
     }
@@ -476,8 +481,7 @@ export default {
      console.log('   - Árbol:', this.arbol.length, 'nodos');
      console.log('   - Historial:', this.historial.length, 'items');
      
-     // Configurar MQTT para recibir tipificaciones asignadas
-     this.setupMQTT();
+     // Eliminar setupMQTT();
      
      // Debug final
      setTimeout(() => {
@@ -495,7 +499,11 @@ export default {
      console.log('✅✅✅ WORK LISTO - ESPERANDO MQTT ✅✅✅');
    },
   beforeUnmount() {
-    // NO desconectar MQTT global, solo limpiar listeners específicos
+    // Limpiar listener MQTT si existe
+    if (this.mqttTopic && this.mqttCallback) {
+      mqttService.off(this.mqttTopic, this.mqttCallback);
+      this.mqttCallback = null;
+    }
     console.log('Work desmontándose - manteniendo conexión MQTT global');
   }
 };

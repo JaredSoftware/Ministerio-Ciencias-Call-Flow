@@ -151,8 +151,7 @@ export default {
           }, 100);
         } else {
           console.log('🚪 Usuario deslogueado - Limpiando sistema de estados...');
-          websocketService.disconnect();
-          // Eliminar importación y uso de statusSyncService
+          // Eliminar llamada a websocketService.disconnect();
           // Limpiar estados
           this.availableStatuses = [];
           this.statusesByCategory = {};
