@@ -1,6 +1,4 @@
 ---
-description: project telefonia 
-globs:
 alwaysApply: true
 ---
 - estamos creando servicios web siempre tener en cuenta la infrastructura que se busca crear, ejemplo docker contenedores

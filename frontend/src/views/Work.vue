@@ -135,7 +135,7 @@
 <script>
 import axios from '@/services/axios';
 import toastMixin from '@/mixins/toastMixin';
-import { mqttSingleton } from '@/services/mqttService';
+import { mqttService } from '@/services/mqttService';
 
 export default {
   name: 'Work',
@@ -318,11 +318,11 @@ export default {
          console.log('📡📡📡 TOPIC MQTT CONFIGURADO:', this.mqttTopic);
          
          // Verificar si la conexión global está disponible
-         if (mqttSingleton.isConnected) {
+         if (mqttService.isConnected) {
            console.log('✅✅✅ MQTT GLOBAL CONECTADO, CONFIGURANDO LISTENER');
            
            // Suscribirse al topic personalizado del usuario
-           mqttSingleton.on(this.mqttTopic, (data) => {
+           mqttService.on(this.mqttTopic, (data) => {
              console.log('📥📥📥 NUEVA TIPIFICACIÓN RECIBIDA POR MQTT:', data);
              this.handleNuevaTipificacion(data);
            });
@@ -331,9 +331,9 @@ export default {
            console.log('📡 Esperando mensajes en topic:', this.mqttTopic);
          } else {
            console.log('⚠️⚠️⚠️ MQTT GLOBAL NO CONECTADO, REINTENTANDO...');
-           console.log('🔍 Estado MQTT Singleton:', {
-             isConnected: mqttSingleton.isConnected,
-             isConnecting: mqttSingleton.isConnecting
+           console.log('🔍 Estado MQTT Service:', {
+             isConnected: mqttService.isConnected,
+             isConnecting: mqttService.isConnecting
            });
            
            // Intentar de nuevo en 2 segundos
@@ -432,13 +432,13 @@ export default {
       async handler(newUserId) {
         if (!newUserId) return;
         const topic = `telefonia/tipificacion/nueva/${newUserId}`;
-        if (!mqttSingleton.isConnected) {
-          await mqttSingleton.connect('ws://localhost:9001', newUserId);
+        if (!mqttService.isConnected) {
+          await mqttService.connect('ws://localhost:9001', newUserId);
         }
         if (this.mqttTopic) {
-          mqttSingleton.client.unsubscribe(this.mqttTopic);
+          mqttService.client.unsubscribe(this.mqttTopic);
         }
-        mqttSingleton.on(topic, (data) => {
+        mqttService.on(topic, (data) => {
           if (this.skipNextEvent) {
             this.skipNextEvent = false;
             return;
@@ -484,7 +484,7 @@ export default {
        console.log('⏰ DEBUG A LOS 5 SEGUNDOS:');
        console.log('   - Árbol final:', this.arbol.length, 'nodos');
        console.log('   - MQTT Topic:', this.mqttTopic);
-       console.log('   - MQTT Conectado:', mqttSingleton.isConnected);
+       console.log('   - MQTT Conectado:', mqttService.isConnected);
        console.log('   - Primer nodo del árbol:', this.arbol[0]?.label);
        
        if (this.arbol.length === 0) {

@@ -134,7 +134,7 @@ import CategoriesCard from "./components/CategoriesCard.vue";
 import websocketService from "@/services/websocketService";
 import sessionSync from "@/services/sessionSync";
 import StatusValidation from "@/components/StatusValidation.vue";
-import { mqttSingleton } from '@/services/mqttService';
+import { mqttService } from '@/services/mqttService';
 
 import US from "@/assets/img/icons/flags/US.png";
 import DE from "@/assets/img/icons/flags/DE.png";
@@ -255,8 +255,18 @@ export default {
         // 🚨 CONECTAR MQTT GLOBALMENTE UNA SOLA VEZ
         console.log('🔄 PASO 3: Conectando MQTT globalmente...');
         try {
-          await mqttSingleton.connect('ws://localhost:9001', syncResult.user.id);
+          await mqttService.connect(null, syncResult.user.id, syncResult.user.name);
           console.log('✅ MQTT conectado globalmente para:', syncResult.user.name);
+          
+          // Configurar callbacks del sistema
+          mqttService.onSystemEvent('onConnect', () => {
+            console.log('🎉 MQTT conectado exitosamente');
+          });
+          
+          mqttService.onSystemEvent('onError', (error) => {
+            console.error('❌ Error en MQTT:', error);
+          });
+          
         } catch (mqttError) {
           console.error('❌ Error conectando MQTT:', mqttError);
         }

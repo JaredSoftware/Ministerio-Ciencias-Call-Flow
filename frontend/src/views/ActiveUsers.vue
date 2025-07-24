@@ -396,7 +396,7 @@
 <script>
 import axios from '@/services/axios';
 import { Modal } from 'bootstrap';
-import { mqttSingleton } from '@/services/mqttService';
+import { mqttService } from '@/services/mqttService';
 
 export default {
   name: 'ActiveUsers',
@@ -777,12 +777,12 @@ export default {
         console.log('🔌 Usando conexión MQTT global para ActiveUsers...');
         
         // Verificar si la conexión global está disponible
-        if (mqttSingleton.isConnected) {
+        if (mqttService.isConnected) {
           console.log('✅ MQTT global conectado, configurando listeners...');
           this.usingMQTT = true;
           
-          // Suscribirse a los topics usando la conexión global
-          mqttSingleton.on(mqttSingleton.topics.statusChanged, (data) => {
+          // Usar métodos específicos del nuevo servicio MQTT
+          mqttService.onStatusChange((data) => {
             this.showNotification(`${data.userName} cambió de ${data.previousStatus || 'N/A'} a ${data.newStatus}`);
             this.handleUserStatusChange(data);
             this.addRealTimeEvent({
@@ -792,11 +792,11 @@ export default {
               newStatus: data.newStatus,
               newColor: data.newColor,
               timestamp: data.timestamp,
-              topic: mqttSingleton.topics.statusChanged
+              topic: mqttService.topics.statusChanged
             });
           });
           
-          mqttSingleton.on(mqttSingleton.topics.activeUsers, (data) => {
+          mqttService.onActiveUsersUpdate((data) => {
             this.handleActiveUsersList(data);
             this.addRealTimeEvent({
               type: 'active_users',
@@ -805,11 +805,11 @@ export default {
               newStatus: '',
               newColor: '',
               timestamp: new Date().toISOString(),
-              topic: mqttSingleton.topics.activeUsers
+              topic: mqttService.topics.activeUsers
             });
           });
           
-          mqttSingleton.on(mqttSingleton.topics.userConnected, (data) => {
+          mqttService.onUserConnected((data) => {
             this.showNotification(`${data.userName} se conectó`, 'success');
             this.handleUserConnected(data);
             this.addRealTimeEvent({
@@ -817,18 +817,18 @@ export default {
               userName: data.userName,
               role: data.role,
               timestamp: new Date().toISOString(),
-              topic: mqttSingleton.topics.userConnected
+              topic: mqttService.topics.userConnected
             });
           });
           
-          mqttSingleton.on(mqttSingleton.topics.userDisconnected, (data) => {
+          mqttService.onUserDisconnected((data) => {
             this.showNotification(`${data.userName} se desconectó`, 'warning');
             this.handleUserDisconnected(data);
             this.addRealTimeEvent({
               type: 'user_disconnected',
               userName: data.userName,
               timestamp: new Date().toISOString(),
-              topic: mqttSingleton.topics.userDisconnected
+              topic: mqttService.topics.userDisconnected
             });
           });
           
