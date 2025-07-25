@@ -16,10 +16,10 @@
 </template>
 
 <script>
-import websocketService from '@/services/websocketService';
-import axios from '@/services/axios';
+import websocketService from '@/router/services/websocketService';
+import axios from '@/router/services/axios';
 import { mapState } from 'vuex';
-import statusTypesService from '@/services/statusTypes';
+import statusTypes from '@/router/services/statusTypes';
 
 export default {
   name: 'StatusIndicatorBar',
@@ -89,10 +89,10 @@ export default {
     async initializeStatusService() {
       try {
         console.log('🔄 Inicializando servicio de tipos de estado en StatusIndicatorBar...');
-        await statusTypesService.initialize();
+        await statusTypes.initialize();
         console.log('✅ Servicio de tipos de estado inicializado');
-        console.log('📊 Estados cargados:', statusTypesService.statuses.length);
-        console.log('📊 Estados disponibles:', statusTypesService.statuses.map(s => `${s.value}:${s.color}`));
+        console.log('📊 Estados cargados:', statusTypes.statuses.length);
+        console.log('📊 Estados disponibles:', statusTypes.statuses.map(s => `${s.value}:${s.color}`));
       } catch (error) {
         console.error('❌ Error inicializando servicio de tipos de estado:', error);
       }
@@ -152,11 +152,11 @@ export default {
       console.log('   - Nuevo estado:', data.status);
       
       // Verificar que el servicio esté inicializado
-      console.log('   - Estados en servicio:', statusTypesService.statuses.length);
-      console.log('   - Estados disponibles:', statusTypesService.statuses.map(s => `${s.value}:${s.color}`));
+      console.log('   - Estados en servicio:', statusTypes.statuses.length);
+      console.log('   - Estados disponibles:', statusTypes.statuses.map(s => `${s.value}:${s.color}`));
       
       // Usar el servicio de tipos de estado para obtener información
-      let selectedStatus = statusTypesService.getStatusByValue(data.status);
+      let selectedStatus = statusTypes.getStatusByValue(data.status);
       
       console.log('   - Estado encontrado en servicio:', selectedStatus);
       

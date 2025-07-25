@@ -175,8 +175,8 @@
 </template>
 <script>
 import SidenavItem from "./SidenavItem.vue";
-import permissionsService from "@/services/permissions";
-import statusTypesService from '@/services/statusTypes';
+import permissions from '@/router/services/permissions';
+import statusTypes from '@/router/services/statusTypes';
 //import UserStatusSelector from "@/components/UserStatusSelector.vue";
 //import SidenavCard from "./SidenavCard.vue";
 
@@ -207,8 +207,8 @@ export default {
       const userStatus = this.$store.state.userStatus || {};
       if (!userStatus.status) return false;
       // Buscar la categoría del estado actual
-      const statusObj = statusTypesService.getStatusByValue
-        ? statusTypesService.getStatusByValue(userStatus.status)
+      const statusObj = statusTypes.getStatusByValue
+        ? statusTypes.getStatusByValue(userStatus.status)
         : null;
       return statusObj && statusObj.category === 'work';
     }
@@ -233,8 +233,8 @@ export default {
         console.log('🔄 Cargando permisos del usuario...');
         
         // Verificar permisos específicos para cada elemento del sidebar
-        this.canViewUsers = await permissionsService.canShowUIElement('sidebar-users');
-        this.canViewActiveUsers = await permissionsService.canShowUIElement('sidebar-active-users');
+        this.canViewUsers = await permissions.canShowUIElement('sidebar-users');
+        this.canViewActiveUsers = await permissions.canShowUIElement('sidebar-active-users');
         
         this.permissionsLoaded = true;
         console.log('✅ Permisos del usuario cargados');

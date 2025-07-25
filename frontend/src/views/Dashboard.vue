@@ -131,10 +131,10 @@ import Card from "@/examples/Cards/Card.vue";
 import GradientLineChart from "@/examples/Charts/chart.vue";
 import Carousel from "./components/Carousel.vue";
 import CategoriesCard from "./components/CategoriesCard.vue";
-import websocketService from "@/services/websocketService";
-import sessionSync from "@/services/sessionSync";
+import websocketService from '@/router/services/websocketService';
+import sessionSync from '@/router/services/sessionSync';
 import StatusValidation from "@/components/StatusValidation.vue";
-import { mqttService } from '@/services/mqttService';
+import { mqttService } from '@/router/services/mqttService';
 
 import US from "@/assets/img/icons/flags/US.png";
 import DE from "@/assets/img/icons/flags/DE.png";

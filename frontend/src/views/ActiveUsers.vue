@@ -394,9 +394,9 @@
 </template>
 
 <script>
-import axios from '@/services/axios';
+import axios from '@/router/services/axios';
 import { Modal } from 'bootstrap';
-import { mqttService } from '@/services/mqttService';
+import { mqttService } from '@/router/services/mqttService';
 
 export default {
   name: 'ActiveUsers',

@@ -16,9 +16,9 @@ import Work from "../views/Work.vue";
 
 import store from "../store/index"; // Importa tu store de Vuex
 
-import tokens from "../services/tokens";
-import sessionSync from "../services/sessionSync";
-import permissionsService from "../services/permissions";
+import tokens from "@/router/services/tokens";
+import sessionSync from "@/router/services/sessionSync";
+import permissions from "@/router/services/permissions";
 
 const routes = [
   {
@@ -277,7 +277,7 @@ router.beforeEach(async (to, from, next) => {
 
     try {
       // Verificar si el usuario tiene los permisos necesarios
-      const hasAccess = await permissionsService.hasAnyPermission(routePermissions);
+      const hasAccess = await permissions.hasAnyPermission(routePermissions);
       
       if (hasAccess) {
         console.log('✅ Usuario tiene permisos, permitiendo acceso');

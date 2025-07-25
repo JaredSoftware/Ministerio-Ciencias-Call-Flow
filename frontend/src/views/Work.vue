@@ -133,9 +133,9 @@
 </template>
 
 <script>
-import axios from '@/services/axios';
+import axios from '@/router/services/axios';
 import toastMixin from '@/mixins/toastMixin';
-import { mqttService } from '@/services/mqttService';
+import { mqttService } from '@/router/services/mqttService';
 
 export default {
   name: 'Work',
@@ -431,6 +431,7 @@ export default {
     '$store.state.user._id': {
       immediate: true,
       async handler(newUserId) {
+        console.log('🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍jared valdiar handle', newUserId)
         if (!newUserId) return;
         const topic = `telefonia/tipificacion/nueva/${newUserId}`;
         // Limpiar listener anterior si existe
@@ -466,38 +467,66 @@ export default {
     }
   },
      async mounted() {
-     console.log('🚀🚀🚀 WORK MONTADO - INICIANDO DEBUG 🚀🚀🚀');
-     
-     // Debug inicial
-     console.log('🔍 Estado inicial del árbol:', this.arbol.length, 'nodos');
-     console.log('🔍 Store state:', this.$store.state);
-     console.log('🔍 User en store:', this.$store.state.user);
-     
-     // Cargar datos necesarios
-     this.initializeArbol();
-     this.loadHistorial();
-     
-     console.log('📋 Después de inicializar:');
-     console.log('   - Árbol:', this.arbol.length, 'nodos');
-     console.log('   - Historial:', this.historial.length, 'items');
-     
-     // Eliminar setupMQTT();
-     
-     // Debug final
-     setTimeout(() => {
-       console.log('⏰ DEBUG A LOS 5 SEGUNDOS:');
-       console.log('   - Árbol final:', this.arbol.length, 'nodos');
-       console.log('   - MQTT Topic:', this.mqttTopic);
-       console.log('   - MQTT Conectado:', mqttService.isConnected);
-       console.log('   - Primer nodo del árbol:', this.arbol[0]?.label);
-       
-       if (this.arbol.length === 0) {
-         console.warn('⚠️⚠️⚠️ ÁRBOL SIGUE VACÍO DESPUÉS DE 5 SEGUNDOS!');
-       }
-     }, 5000);
-     
-     console.log('✅✅✅ WORK LISTO - ESPERANDO MQTT ✅✅✅');
-   },
+    console.log('🚀🚀🚀 WORK MONTADO - INICIANDO DEBUG 🚀🚀🚀');
+    
+    // Cargar y parsear usuario desde localStorage si no está en el store
+    let user = this.$store.state.user;
+    if (!user) {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        try {
+          // Parsear el string tipo query a objeto
+          const userParams = new URLSearchParams(userStr);
+          user = {
+            _id: userParams.get('_id'),
+            correo: userParams.get('correo'),
+            name: userParams.get('name')
+          };
+          
+          // Asignar al store
+          this.$store.state.user = user;
+          console.log('👤 Usuario cargado y parseado:', user);
+          console.log('👤 User ID:', user._id);
+        } catch (error) {
+          console.error('❌ Error parseando usuario:', error);
+        }
+      } else {
+        console.warn('⚠️ No se encontró usuario en localStorage');
+      }
+    }
+
+    // Debug inicial
+    console.log('🔍 Estado inicial del árbol:', this.arbol.length, 'nodos');
+    console.log('🔍 Store state:', this.$store.state);
+    console.log('🔍 User en store:', this.$store.state.user);
+    console.log('🔍 User ID en store:', this.$store.state.user?._id);
+    
+    // Cargar datos necesarios
+    this.initializeArbol();
+    this.loadHistorial();
+    
+    console.log('📋 Después de inicializar:');
+    console.log('   - Árbol:', this.arbol.length, 'nodos');
+    console.log('   - Historial:', this.historial.length, 'items');
+    
+    // Configurar MQTT para recibir tipificaciones asignadas
+    this.setupMQTT();
+    
+    // Debug final
+    setTimeout(() => {
+      console.log('⏰ DEBUG A LOS 5 SEGUNDOS:');
+      console.log('   - Árbol final:', this.arbol.length, 'nodos');
+      console.log('   - MQTT Topic:', this.mqttTopic);
+      console.log('   - User ID final:', this.$store.state.user?._id);
+      console.log('   - Primer nodo del árbol:', this.arbol[0]?.label);
+      
+      if (this.arbol.length === 0) {
+        console.warn('⚠️⚠️⚠️ ÁRBOL SIGUE VACÍO DESPUÉS DE 5 SEGUNDOS!');
+      }
+    }, 5000);
+    
+    console.log('✅✅✅ WORK LISTO - ESPERANDO MQTT ✅✅✅');
+  },
   beforeUnmount() {
     // Limpiar listener MQTT si existe
     if (this.mqttTopic && this.mqttCallback) {

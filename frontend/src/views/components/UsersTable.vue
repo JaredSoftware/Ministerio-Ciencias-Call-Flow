@@ -335,9 +335,9 @@
 </template>
 
 <script>
-import getRoles from "../../services/tokens";
-import roleAndActivate from "../../services/roleAndActivate";
-import axios from "../../services/axios";
+import tokens from "@/router/services/tokens";
+import roleAndActivate from "@/router/services/roleAndActivate";
+import axios from "@/router/services/axios";
 import { reactive } from 'vue';
 
 export default {
@@ -426,7 +426,7 @@ export default {
   methods: {
     async loadRoles() {
       try {
-        const roles = await getRoles.sendRoles();
+        const roles = await tokens.sendRoles();
         this.AllRoles = roles || [];
       } catch (error) {
         console.error('Error cargando roles:', error);
@@ -436,8 +436,8 @@ export default {
 
     async loadUsers() {
       try {
-        const role = await getRoles.sendRole();
-        const users = await getRoles.sendAllUsers(role);
+        const role = await tokens.sendRole();
+        const users = await tokens.sendAllUsers(role);
         this.users = users || [];
       } catch (error) {
         console.error('Error cargando usuarios:', error);

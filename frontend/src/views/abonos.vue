@@ -73,7 +73,7 @@
   </div>
 </template>
 <script>
-import clientes from "../services/clientes.js";
+import clientes from "@/router/services/clientes.js";
 export default {
   data() {
     return {

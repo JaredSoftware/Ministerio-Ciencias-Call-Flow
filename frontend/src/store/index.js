@@ -130,20 +130,20 @@ export default createStore({
         localStorage.removeItem('lastRoleAttempt');
         
         // Limpiar cache de permisos
-        import('@/services/permissions').then(module => {
+        import('@/router/services/permissions').then(module => {
           module.default.clearCache();
         }).catch(() => {
           // Si falla la importación, continuar con el logout
         });
         
         // Desconectar MQTT solo en logout
-        import('@/services/mqttService').then(module => {
+        import('@/router/services/mqttService').then(module => {
           if (module.mqttService && module.mqttService.isConnected) {
             module.mqttService.disconnect();
           }
         });
         // Desconectar WebSocket solo en logout
-        import('@/services/websocketService').then(module => {
+        import('@/router/services/websocketService').then(module => {
           if (module.default && module.default.isConnected) {
             module.default.disconnect();
           }

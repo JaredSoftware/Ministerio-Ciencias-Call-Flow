@@ -1,4 +1,4 @@
-import websocketService from '@/services/websocketService';
+import websocketService from '@/router/services/websocketService';
 
 export default {
   install(app) {

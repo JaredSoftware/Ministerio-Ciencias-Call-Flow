@@ -51,8 +51,8 @@ import AppFooter from "@/examples/Footer.vue";
 import StatusIndicatorBar from "@/components/StatusIndicatorBar.vue";
 import StatusSyncMonitor from "@/components/StatusSyncMonitor.vue";
 import { mapMutations } from "vuex";
-import { mqttService } from '@/services/mqttService';
-import websocketService from '@/services/websocketService';
+import { mqttService } from '@/router/services/mqttService';
+import websocketService from '@/router/services/websocketService';
 
 export default {
   name: "App",

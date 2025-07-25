@@ -89,10 +89,10 @@
 </template>
 
 <script>
-import websocketService from '@/services/websocketService';
-import axios from '@/services/axios';
+import websocketService from '@/router/services/websocketService';
+import axios from '@/router/services/axios';
 import { mapMutations } from 'vuex';
-import statusTypesService from '@/services/statusTypes';
+import statusTypes from '@/router/services/statusTypes';
 
 export default {
   name: 'UserStatusConfigurator',
@@ -122,7 +122,7 @@ export default {
     currentStatus(newStatus) {
       console.log('👀 Estado cambiado a:', newStatus);
       // Actualizar colores y labels cuando cambie el estado
-      let selectedStatus = statusTypesService.getStatusByValue(newStatus);
+      let selectedStatus = statusTypes.getStatusByValue(newStatus);
       
       // Si no se encuentra en el servicio, buscar en los estados locales
       if (!selectedStatus) {
@@ -197,19 +197,19 @@ export default {
         console.log('🔄 Cargando estados dinámicos...');
         
         // Inicializar el servicio de tipos de estado
-        await statusTypesService.initialize();
+        await statusTypes.initialize();
         console.log('✅ Servicio de estados inicializado');
         
         // Cargar todos los estados
-        this.availableStatuses = await statusTypesService.loadStatuses();
+        this.availableStatuses = await statusTypes.loadStatuses();
         console.log('📊 Estados cargados:', this.availableStatuses);
         
         // Cargar categorías
-        this.categories = await statusTypesService.loadCategories();
+        this.categories = await statusTypes.loadCategories();
         console.log('📊 Categorías cargadas:', this.categories);
         
         // Agrupar estados por categoría
-        this.statusesByCategory = statusTypesService.getStatusesGroupedByCategory();
+        this.statusesByCategory = statusTypes.getStatusesGroupedByCategory();
         console.log('📊 Estados agrupados:', this.statusesByCategory);
         
         console.log('✅ Estados dinámicos cargados:', {
@@ -468,7 +468,7 @@ export default {
         this.currentStatus = data.status;
         
         // Usar el servicio de tipos de estado para obtener información
-        const selectedStatus = statusTypesService.getStatusByValue(data.status);
+        const selectedStatus = statusTypes.getStatusByValue(data.status);
         if (selectedStatus) {
           this.currentStatusColor = selectedStatus.color;
           this.currentStatusLabel = selectedStatus.label;
@@ -529,7 +529,7 @@ export default {
         console.log('🔄 Asignando estado por defecto...');
         
         // Obtener estado por defecto del servicio
-        const defaultStatus = await statusTypesService.getDefaultStatus();
+        const defaultStatus = await statusTypes.getDefaultStatus();
         const statusToAssign = defaultStatus ? defaultStatus.value : 'available';
         
         console.log(`   - Estado por defecto encontrado: ${statusToAssign}`);

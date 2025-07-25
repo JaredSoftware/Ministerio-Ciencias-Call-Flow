@@ -195,7 +195,7 @@ import ArgonInput from "@/components/ArgonInput.vue";
 import ArgonCheckbox from "@/components/ArgonCheckbox.vue";
 //import ArgonCheckboxRadio from "@/components/ArgonCheckboxRadio.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
-import Login from "../services/LoginService";
+import Login from "@/router/services/LoginService";
 import ArgonAlert from "@/components/ArgonAlert.vue";
 const body = document.getElementsByTagName("body")[0];
 

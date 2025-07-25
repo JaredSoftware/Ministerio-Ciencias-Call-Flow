@@ -59,7 +59,7 @@
 </template>
 
 <script>
-import surveys from "../services/surveys";
+import surveys from "@/router/services/surveys";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import Chart from "chart.js";

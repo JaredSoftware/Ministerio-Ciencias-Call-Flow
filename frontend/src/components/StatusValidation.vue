@@ -79,7 +79,7 @@
 </template>
 
 <script>
-import axios from '@/services/axios';
+import axios from '@/router/services/axios';
 
 export default {
   name: 'StatusValidation',

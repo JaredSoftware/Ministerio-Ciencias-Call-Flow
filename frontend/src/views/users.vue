@@ -14,7 +14,7 @@
 
 <script>
 import AuthorsTable from "./components/UsersTable.vue";
-import tokens from "../services/tokens";
+import tokens from "@/router/services/tokens";
 
 export default {
   name: "tables",
