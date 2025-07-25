@@ -233,7 +233,7 @@ export default {
       await this.loadUserPermissions();
     }
     // Verificar permiso de reportes
-    this.canViewReports = await permissions.hasPermission('reports', 'viewReports');
+    this.canViewReports = await permissions.hasPermission('monitoring', 'viewReports');
   },
 
   methods: {

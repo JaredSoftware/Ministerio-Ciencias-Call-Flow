@@ -12,6 +12,7 @@ const axiosInstance = axios.create({
     "Content-Type": "application/x-www-form-urlencoded",
   },
   httpsAgent: agent,
+  withCredentials: true,
   // withCredentials se configura por petición cuando sea necesario
 });
 

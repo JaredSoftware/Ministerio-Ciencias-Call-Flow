@@ -451,5 +451,45 @@ router.post('/api/tipificacion/cancelar', async (req, res) => {
   }
 });
 
+// Endpoint para solicitar generación de reporte
+router.post('/api/reportes/solicitar', async (req, res) => {
+  try {
+    const { fechaInicio, fechaFin, nombreArchivo } = req.body;
+    const Report = require('../models/report');
+    const user = req.session?.user || {};
+    const nuevoReporte = await Report.create({
+      fechaInicio,
+      fechaFin,
+      nombreArchivo,
+      solicitadoPor: {
+        correo: user.correo || '',
+        userId: user._id || ''
+      },
+      status: 'pendiente'
+    });
+    res.json({ success: true, reporte: nuevoReporte });
+  } catch (error) {
+    console.error('❌ Error creando solicitud de reporte:', error);
+    res.status(500).json({ success: false, message: 'Error creando solicitud de reporte', error: error.message });
+  }
+});
+
+// Endpoint para obtener los reportes solicitados por el usuario autenticado
+router.get('/api/reportes/mis-reportes', async (req, res) => {
+  try {
+    const Report = require('../models/report');
+    const user = req.session?.user || {};
+    const query = [];
+    if (user.correo) query.push({ 'solicitadoPor.correo': user.correo });
+    if (user._id) query.push({ 'solicitadoPor.userId': user._id });
+    const reportes = await Report.find(query.length ? { $or: query } : {})
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ success: true, reportes });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Error obteniendo reportes', error: error.message });
+  }
+});
+
 
 module.exports = router;

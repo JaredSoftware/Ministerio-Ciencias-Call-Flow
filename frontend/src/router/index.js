@@ -218,7 +218,7 @@ const routes = [
     component: () => import('@/views/Reportes.vue'),
     meta: {
       requiresAuth: true,
-      permissions: [{ module: 'reports', permission: 'viewReports' }]
+      permissions: [{ module: 'monitoring', permission: 'viewReports' }]
     },
   },
 ];

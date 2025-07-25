@@ -22,6 +22,7 @@ const net = require('net');
 const ws = require('ws');
 const aedes = require('aedes')();
 const websocketStream = require('websocket-stream');
+require('./backend/reportCron');
 
 app.set("port", process.env.PORT || 9035);
 app.set("views", path.join(__dirname, "views"));
