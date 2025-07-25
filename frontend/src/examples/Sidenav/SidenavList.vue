@@ -55,6 +55,19 @@
         </sidenav-item>
       </li>
 
+      <!-- Opción de Reportes: solo para administradores o con permiso 'viewReports' -->
+      <li v-if="canViewReports" class="nav-item">
+        <sidenav-item
+          url="/reportes"
+          :class="getRoute() === 'reportes' ? 'active' : ''"
+          :navText="this.$store.state.isRTL ? 'تقارير' : 'Reportes'"
+        >
+          <template v-slot:icon>
+            <i class="ni ni-chart-pie-35 text-success text-sm opacity-10"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
       
 
       
@@ -192,6 +205,7 @@ export default {
       isActive: "active",
       canViewUsers: false,
       canViewActiveUsers: false,
+      canViewReports: false,
       permissionsLoaded: false,
     };
   },
@@ -218,6 +232,8 @@ export default {
     if (!this.permissionsLoaded) {
       await this.loadUserPermissions();
     }
+    // Verificar permiso de reportes
+    this.canViewReports = await permissions.hasPermission('reports', 'viewReports');
   },
 
   methods: {

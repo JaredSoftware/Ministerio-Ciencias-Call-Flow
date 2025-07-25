@@ -11,23 +11,87 @@
         </div>
         <div class="modal-buttons">
           <button @click="guardarModal" class="btn-accept">Aceptar</button>
-          <button @click="showModal = false" class="btn-cancel">Cancelar</button>
+          <button @click="cancelarTipificacion" class="btn-cancel">Cancelar</button>
         </div>
       </div>
     </div>
 
-    <div class="work-sidebar">
+    <div v-if="tipificacionActiva" class="client-info">
       <h5>INFORMACIÓN DEL CLIENTE</h5>
       <table class="client-info-table">
-        <tr><td><b>ID Llamada:</b></td><td>{{ idLlamada || 'Sin asignar' }}</td></tr>
-        <tr><td><b>T. Documento:</b></td><td>{{ tipoDocumento || 'No Info' }}</td></tr>
-        <tr><td><b>Doc. No.:</b></td><td>{{ cedula || 'No Info' }}</td></tr>
-        <tr><td><b>Teléfono:</b></td><td>No Info</td></tr>
-        <tr><td><b>Correo:</b></td><td>No Info</td></tr>
-        <tr><td><b>Departamento:</b></td><td>No Info</td></tr>
-        <tr><td><b>Municipio:</b></td><td>No Info</td></tr>
+        <tr>
+          <td><b>ID Llamada:</b></td>
+          <td>{{ idLlamada || 'Sin asignar' }}</td>
+        </tr>
+        <tr>
+          <td><b>T. Documento:</b></td>
+          <td>{{ tipoDocumento || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Doc. No.:</b></td>
+          <td>{{ cedula || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Teléfono:</b></td>
+          <td>{{ telefono || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Correo:</b></td>
+          <td>{{ correo || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Departamento:</b></td>
+          <td>{{ departamento || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Municipio:</b></td>
+          <td>{{ municipio || 'No Info' }}</td>
+        </tr>
       </table>
-      <button class="btn-update">Actualizar</button>
+      <div>
+        <button class="btn-update" @click="editarCliente">Actualizar</button>
+      </div>
+    </div>
+
+    <!-- MODAL PARA EDITAR CLIENTE -->
+    <div v-if="mostrarModalCliente" class="modal-overlay">
+      <div class="modal-content">
+        <h4>Editar Información del Cliente</h4>
+        <table class="client-info-table">
+          <tr>
+            <td><b>ID Llamada:</b></td>
+            <td><input v-model="clienteTemp.idLlamada" /></td>
+          </tr>
+          <tr>
+            <td><b>T. Documento:</b></td>
+            <td><input v-model="clienteTemp.tipoDocumento" /></td>
+          </tr>
+          <tr>
+            <td><b>Doc. No.:</b></td>
+            <td><input v-model="clienteTemp.cedula" /></td>
+          </tr>
+          <tr>
+            <td><b>Teléfono:</b></td>
+            <td><input v-model="clienteTemp.telefono" /></td>
+          </tr>
+          <tr>
+            <td><b>Correo:</b></td>
+            <td><input v-model="clienteTemp.correo" /></td>
+          </tr>
+          <tr>
+            <td><b>Departamento:</b></td>
+            <td><input v-model="clienteTemp.departamento" /></td>
+          </tr>
+          <tr>
+            <td><b>Municipio:</b></td>
+            <td><input v-model="clienteTemp.municipio" /></td>
+          </tr>
+        </table>
+        <div style="margin-top: 16px; text-align: right;">
+          <button class="btn-save" @click="guardarCliente">Guardar</button>
+          <button class="btn-cancel" @click="cancelarEdicionCliente">Cancelar</button>
+        </div>
+      </div>
     </div>
     
     <div class="work-main">
@@ -35,7 +99,8 @@
         <button class="tab-active">TIPIFICACIONES</button>
       </div>
       
-      <div class="tipificacion-form">
+      <!-- Envolver el formulario principal con v-if="tipificacionActiva" -->
+      <div class="tipificacion-form" v-if="tipificacionActiva">
         <h4>Formulario de Tipificación</h4>
         
         <div class="form-row" v-if="nivel1Options.length > 0">
@@ -118,13 +183,60 @@
         </div>
         <div v-for="(item, index) in historial" :key="item._id || index" class="history-item">
           <div class="history-header">
-            <span class="history-index">{{ index + 1 }} -</span>
-            <span class="history-id">ID: {{ item.idLlamada }}</span>
-            <span class="history-doc">{{ item.tipoDocumento }}: {{ item.cedula }}</span>
+            <span class="history-index">{{ index + 1 }}.</span>
+            <span class="history-id"><b>ID:</b> <span class="badge-id">{{ item.idLlamada }}</span></span>
+            <span class="history-doc"><b>{{ item.tipoDocumento }}:</b> <span class="badge-doc">{{ item.cedula }}</span></span>
+            <span v-if="item.status" :class="['badge-status',
+              item.status === 'success' ? 'badge-success' :
+              item.status === 'pending' ? 'badge-pending' :
+              item.status === 'cancelada_por_agente' ? 'badge-cancelada' : '']">
+              {{ item.status === 'success' ? 'Completada' :
+                 item.status === 'pending' ? 'Pendiente' :
+                 item.status === 'cancelada_por_agente' ? 'Cancelada' : item.status }}
+            </span>
           </div>
           <div class="history-details">
             <p><strong>Observación:</strong> {{ item.observacion || 'Sin observaciones' }}</p>
-            <p><strong>Fecha:</strong> {{ formatDate(item.createdAt) }}</p>
+            <p v-if="item.nivel1 || item.nivel2 || item.nivel3 || item.nivel4 || item.nivel5">
+              <strong>Niveles:</strong>
+              <span v-if="item.nivel1">{{ item.nivel1 }}</span>
+              <span v-if="item.nivel2"> &raquo; {{ item.nivel2 }}</span>
+              <span v-if="item.nivel3"> &raquo; {{ item.nivel3 }}</span>
+              <span v-if="item.nivel4"> &raquo; {{ item.nivel4 }}</span>
+              <span v-if="item.nivel5"> &raquo; {{ item.nivel5 }}</span>
+            </p>
+            <p><strong>Fecha:</strong> <span class="badge-date">{{ formatDate(item.createdAt) }}</span></p>
+            <!-- Mostrar sub-historial si existe -->
+            <div v-if="Array.isArray(item.historial) && item.historial.length > 0" class="sub-history-list">
+              <strong>Sub-historial:</strong>
+              <ul>
+                <li v-for="(sub, subIdx) in item.historial" :key="sub._id || subIdx">
+                  <span><b>ID:</b> {{ sub.idLlamada }}</span> |
+                  <span><b>{{ sub.tipoDocumento }}:</b> {{ sub.cedula }}</span> |
+                  <span><b>Obs:</b> {{ sub.observacion || 'Sin observaciones' }}</span> |
+                  <span><b>Fecha:</b> {{ formatDate(sub.createdAt) }}</span>
+                </li>
+              </ul>
+            </div>
+            <!-- Mostrar árbol/arbol si existe -->
+            <div v-if="Array.isArray(item.arbol) && item.arbol.length > 0" class="arbol-list">
+              <strong>Árbol de Tipificación:</strong>
+              <ul>
+                <li v-for="(nodo, nodoIdx) in item.arbol" :key="nodo.value || nodoIdx">
+                  {{ nodo.label }} ({{ nodo.value }})
+                  <ul v-if="nodo.children && nodo.children.length > 0">
+                    <li v-for="(child, childIdx) in nodo.children" :key="child.value || childIdx">
+                      {{ child.label }} ({{ child.value }})
+                      <ul v-if="child.children && child.children.length > 0">
+                        <li v-for="(subchild, subchildIdx) in child.children" :key="subchild.value || subchildIdx">
+                          {{ subchild.label }} ({{ subchild.value }})
+                        </li>
+                      </ul>
+                    </li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
@@ -163,6 +275,18 @@ export default {
       skipNextEvent: false,
       mqttTopic: '',
       mqttCallback: null, // Para guardar el callback y poder limpiarlo
+      editandoCliente: false,
+      mostrarModalCliente: false,
+      clienteTemp: {
+        idLlamada: '',
+        tipoDocumento: '',
+        cedula: '',
+        telefono: '',
+        correo: '',
+        departamento: '',
+        municipio: ''
+      },
+      tipificacionActiva: false,
     };
   },
   computed: {
@@ -248,47 +372,56 @@ export default {
     async guardarTipificacion() {
       this.saving = true;
       try {
-        const _id = this.historial.length > 0 && this.historial[0]._id ? this.historial[0]._id : undefined;
+        // Función para obtener el label de un nivel
         const getLabel = (options, value) => {
           const found = options.find(opt => opt.value === value);
-          return found ? found.label : '';
+          return found ? found.label : value;
         };
-        const nivel1Label = getLabel(this.nivel1Options, this.nivel1);
-        const nivel2Label = getLabel(this.nivel2Options, this.nivel2);
-        const nivel3Label = getLabel(this.nivel3Options, this.nivel3);
-        const nivel4Label = getLabel(this.nivel4Options, this.nivel4);
-        const nivel5Label = getLabel(this.nivel5Options, this.nivel5);
+        // Preparar los datos para actualizar la tipificación
         const params = {
-          _id,
           idLlamada: this.idLlamada,
           cedula: this.cedula,
           tipoDocumento: this.tipoDocumento,
           observacion: this.observacion,
-          nivel1: nivel1Label,
-          nivel2: nivel2Label,
-          nivel3: nivel3Label,
-          nivel4: nivel4Label,
-          nivel5: nivel5Label,
-          startTime: this.startTime || Date.now()
+          nivel1: getLabel(this.nivel1Options, this.nivel1),
+          nivel2: getLabel(this.nivel2Options, this.nivel2),
+          nivel3: getLabel(this.nivel3Options, this.nivel3),
+          nivel4: getLabel(this.nivel4Options, this.nivel4),
+          nivel5: getLabel(this.nivel5Options, this.nivel5),
+          historial: this.historial,
+          arbol: this.arbol,
+          assignedTo: this.$store.state.user?._id || this.$store.state.user?.id
         };
-        if (!params._id) delete params._id;
-        await axios.get('/tipificacion/formulario', { params });
-        if (this.showToast) {
-          this.showToast('Tipificación guardada correctamente', 'success');
-        } else if (window.showToast) {
-          window.showToast('Tipificación guardada correctamente', 'success');
+        // Llamar al endpoint de actualización
+        const response = await axios.post('/tipificacion/actualizar', params);
+        if (response.data.success) {
+          // Limpiar campos y cerrar formulario/modal
+          this.nivel1 = '';
+          this.nivel2 = '';
+          this.nivel3 = '';
+          this.nivel4 = '';
+          this.nivel5 = '';
+          this.observacion = '';
+          this.idLlamada = '';
+          this.cedula = '';
+          this.tipoDocumento = '';
+          this.historial = [];
+          this.arbol = [];
+          this.tipificacionActiva = false;
+          this.showModal = false;
+          this.skipNextEvent = true;
+          if (this.showToast) {
+            this.showToast('Tipificación guardada correctamente', 'success');
+          } else if (window.showToast) {
+            window.showToast('Tipificación guardada correctamente', 'success');
+          }
+        } else {
+          if (this.showToast) {
+            this.showToast('Error al guardar la tipificación', 'error');
+          } else if (window.showToast) {
+            window.showToast('Error al guardar la tipificación', 'error');
+          }
         }
-        this.nivel1 = '';
-        this.nivel2 = '';
-        this.nivel3 = '';
-        this.nivel4 = '';
-        this.nivel5 = '';
-        this.observacion = '';
-        this.idLlamada = '';
-        this.cedula = '';
-        this.tipoDocumento = '';
-        this.historial = [];
-        this.skipNextEvent = true;
       } catch (e) {
         if (this.showToast) {
           this.showToast('Error al guardar la tipificación', 'error');
@@ -426,6 +559,67 @@ export default {
         console.log('No se pudo reproducir sonido de notificación');
       }
     },
+    editarCliente() {
+      this.mostrarModalCliente = true;
+      this.clienteTemp = {
+        idLlamada: this.idLlamada || '',
+        tipoDocumento: this.tipoDocumento || '',
+        cedula: this.cedula || '',
+        telefono: this.telefono || '',
+        correo: this.correo || '',
+        departamento: this.departamento || '',
+        municipio: this.municipio || ''
+      };
+    },
+    guardarCliente() {
+      this.idLlamada = this.clienteTemp.idLlamada;
+      this.tipoDocumento = this.clienteTemp.tipoDocumento;
+      this.cedula = this.clienteTemp.cedula;
+      this.telefono = this.clienteTemp.telefono;
+      this.correo = this.clienteTemp.correo;
+      this.departamento = this.clienteTemp.departamento;
+      this.municipio = this.clienteTemp.municipio;
+      this.mostrarModalCliente = false;
+    },
+    cancelarEdicionCliente() {
+      this.mostrarModalCliente = false;
+    },
+    limpiarTipificacion() {
+      this.cedula = '';
+      this.idLlamada = '';
+      this.tipoDocumento = '';
+      this.observacion = '';
+      // ... limpia otros campos si es necesario ...
+    },
+    async cancelarTipificacion() {
+      // Lógica para cancelar la tipificación pendiente en el backend
+      try {
+        const params = {
+          idLlamada: this.modalData.idLlamada,
+          assignedTo: this.$store.state.user?._id || this.$store.state.user?.id
+        };
+        await axios.post('/tipificacion/cancelar', params);
+      } catch (e) {
+        // Opcional: mostrar error
+        if (this.showToast) {
+          this.showToast('Error al cancelar la tipificación', 'error');
+        }
+      }
+      // Limpiar y cerrar modal y formulario
+      this.showModal = false;
+      this.tipificacionActiva = false;
+      this.nivel1 = '';
+      this.nivel2 = '';
+      this.nivel3 = '';
+      this.nivel4 = '';
+      this.nivel5 = '';
+      this.observacion = '';
+      this.idLlamada = '';
+      this.cedula = '';
+      this.tipoDocumento = '';
+      this.historial = [];
+      this.arbol = [];
+    },
   },
   watch: {
     '$store.state.user._id': {
@@ -444,6 +638,8 @@ export default {
             this.skipNextEvent = false;
             return;
           }
+          // Mostrar formulario y cargar datos
+          this.tipificacionActiva = true;
           this.cedula = data.cedula || '';
           this.idLlamada = data.idLlamada || '';
           this.tipoDocumento = data.tipoDocumento || '';
@@ -780,7 +976,7 @@ export default {
 }
 
 .history-list {
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .no-history {
@@ -793,12 +989,12 @@ export default {
 }
 
 .history-item {
-  margin-bottom: 16px;
-  border: 1px solid #1976d2;
+  background: #f8f9fa;
+  border: 1px solid #e3e3e3;
   border-radius: 8px;
-  padding: 12px;
-  background: #fafafa;
-  transition: all 0.2s;
+  margin-bottom: 12px;
+  padding: 12px 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
 }
 
 .history-item:hover {
@@ -807,12 +1003,10 @@ export default {
 }
 
 .history-header {
-  font-size: 0.95rem;
-  margin-bottom: 8px;
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-weight: 600;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
 }
 
 .history-index {
@@ -837,6 +1031,57 @@ export default {
 .history-details p {
   margin: 4px 0;
   line-height: 1.4;
+}
+
+.badge-id {
+  background: #007bff;
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.95em;
+  margin-left: 2px;
+}
+.badge-doc {
+  background: #28a745;
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.95em;
+  margin-left: 2px;
+}
+.badge-status {
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 0.85em;
+  margin-left: 8px;
+  font-weight: 600;
+  display: inline-block;
+  vertical-align: middle;
+  box-shadow: 0 1px 2px rgba(40,167,69,0.08);
+  letter-spacing: 0.5px;
+}
+.badge-success {
+  background: linear-gradient(90deg, #43e97b 0%, #38f9d7 100%);
+  color: #155724;
+  border: 1px solid #38c172;
+}
+.badge-pending {
+  background: #ffc107;
+  color: #856404;
+  border: 1px solid #ffe082;
+}
+.badge-date {
+  background: #e9ecef;
+  color: #333;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.95em;
+  margin-left: 2px;
+}
+.badge-cancelada {
+  background: #ff9800;
+  color: #fff;
+  border: 1px solid #ffa726;
 }
 
 /* Responsive Design */

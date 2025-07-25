@@ -227,23 +227,47 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     // ✅ OBTENER USUARIOS CONECTADOS DESDE STATEMANAGER (MEMORIA)
     const stateManager = require('../services/stateManager');
     const connectedUsers = stateManager.getConnectedUsers();
-    
-    console.log('👥 Usuarios conectados en StateManager:', connectedUsers.length);
-    connectedUsers.forEach(user => {
-      console.log(`  - ${user.name || user.userId}: conectado desde ${user.connectedAt}`);
+
+    // Filtrar solo usuarios con statusType.category === 'work'
+    const StatusType = require('../models/statusType');
+    const UserStatus = require('../models/userStatus');
+    const availableUsers = [];
+    for (const user of connectedUsers) {
+      console.log('🔍 Usuario conectado:', user);
+      
+      // Buscar el estado actual del usuario en la tabla userStatuses
+      const userStatus = await UserStatus.findOne({ userId: user.userId });
+      
+      if (userStatus && userStatus.status) {
+        console.log('🔍 UserStatus encontrado:', userStatus.status);
+        
+        // Buscar la categoría del status en StatusType
+        const statusType = await StatusType.findOne({ value: userStatus.status, isActive: true });
+        console.log('🔍 StatusType:', statusType);
+        
+        if (statusType && statusType.category === 'work') {
+          availableUsers.push(user);
+        }
+      }
+    }
+
+    console.log('👥 Usuariosnectados enStateManager:', connectedUsers.length);
+    console.log('👥 Usuarios disponibles para asignar:', availableUsers.length);
+    availableUsers.forEach(user => {
+      console.log(`  - ${user.name || user.userId}: conectado desde ${user.connectedAt}, status: ${user.status}`);
     });
-    
-    // 🎯 Seleccionar agente disponible (cualquier usuario conectado)
-    if (!connectedUsers || connectedUsers.length === 0) {
-      console.warn('⚠️ No hay usuarios conectados en StateManager');
+
+    // 🎯 Seleccionar agente disponible (usuario conectado y disponible para trabajo)
+    if (!availableUsers || availableUsers.length === 0) {
+      console.warn('⚠️ No hay usuarios disponibles para asignar trabajo');
       return res.status(400).json({ 
         success: false, 
-        message: 'No hay agentes disponibles (ningún usuario conectado por WebSocket/MQTT)' 
+        message: 'No hay agentes disponibles (ningún usuario disponible para trabajar)' 
       });
     }
-    
-    // Usar el primer usuario conectado como agente asignado
-    const assignedAgent = connectedUsers[0];
+
+    // Usar el primer usuario disponible como agente asignado
+    const assignedAgent = availableUsers[0];
     console.log('🎯 Agente asignado:', assignedAgent.name || assignedAgent.userId);
     
     // 🌳 Buscar árbol de tipificaciones desde BD
@@ -254,8 +278,8 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     console.log('🌳 Árbol de tipificaciones encontrado:', arbolTipificaciones ? 'SÍ' : 'NO');
     console.log('📊 Cantidad de nodos raíz:', arbolTipificaciones.length);
     
-    // 📋 Crear historial básico
-    const historial = [
+    // 📋 Crear historial básico para la nueva tipificación (solo el item actual)
+    const historialNuevo = [
       {
         _id: Date.now(),
         idLlamada: params.idLlamada,
@@ -284,7 +308,7 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       cedula: params.cedula,
       tipoDocumento: params.tipoDocumento,
       observacion: params.observacion,
-      historial: historial,
+      historial: [], // Se llenará después
       arbol: arbolTipificaciones, // ✅ Árbol real de la BD
       assignedTo: userIdPlano,
       assignedToName: assignedAgent.name || 'Usuario',
@@ -298,6 +322,63 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     console.log(`   - ID Llamada: ${params.idLlamada}`);
     console.log(`   - Árbol: ${arbolTipificaciones.length} nodos`);
     
+    // 1. Crear la nueva tipificación (pending)
+    const Tipificacion = require('../models/tipificacion');
+    let tipificacionDoc = null;
+    try {
+      tipificacionDoc = await Tipificacion.create({
+        idLlamada: params.idLlamada,
+        cedula: params.cedula,
+        tipoDocumento: params.tipoDocumento,
+        observacion: params.observacion,
+        nivel1: params.nivel1,
+        nivel2: params.nivel2,
+        nivel3: params.nivel3,
+        nivel4: params.nivel4,
+        nivel5: params.nivel5,
+        historial: historialNuevo, // Solo el item actual
+        arbol: arbolTipificaciones,
+        assignedTo: userIdPlano,
+        assignedToName: assignedAgent.name || 'Usuario',
+        status: 'pending',
+        timestamp: new Date(),
+        type: 'nueva_tipificacion'
+      });
+      console.log('✅ Registro de tipificación creado en MongoDB (pending)');
+    } catch (err) {
+      console.error('❌ Error creando registro de tipificación:', err);
+    }
+
+    // 2. Buscar historial (ahora sí existe la nueva y las anteriores)
+    let historialPrevio = [];
+    try {
+      console.log('Buscando historial para:', { idLlamada: params.idLlamada, cedula: params.cedula });
+      historialPrevio = await Tipificacion.find({
+        idLlamada: params.idLlamada,
+        status: 'success',
+        _id: { $ne: tipificacionDoc?._id }
+      })
+      .sort({ createdAt: -1 })
+      .limit(5)
+      .lean();
+      console.log('Historial por idLlamada:', historialPrevio);
+      if (historialPrevio.length === 0) {
+        historialPrevio = await Tipificacion.find({
+          cedula: params.cedula,
+          status: 'success',
+          _id: { $ne: tipificacionDoc?._id }
+        })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean();
+        console.log('Historial por cedula:', historialPrevio);
+      }
+    } catch (err) {
+      console.error('❌ Error buscando historial de tipificaciones:', err);
+    }
+
+    // 3. Asigna el historial y publica MQTT
+    tipificacionData.historial = historialPrevio;
     mqttService.publish(topic, tipificacionData);
     
     console.log('✅ Tipificación enviada exitosamente por MQTT');
@@ -306,7 +387,7 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       success: true, 
       assignedTo: userIdPlano,
       assignedToName: assignedAgent.name,
-      historial: historial,
+      historial: historialPrevio,
       message: `Tipificación enviada por MQTT a ${assignedAgent.name}`,
       method: 'StateManager + MQTT (sin BD para estados)'
     });
@@ -318,6 +399,55 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       message: 'Error interno del servidor',
       error: error.message 
     });
+  }
+});
+
+// Endpoint para actualizar tipificación (desde el frontend)
+router.post('/api/tipificacion/actualizar', async (req, res) => {
+  try {
+    const { idLlamada, cedula, tipoDocumento, observacion, historial, arbol, assignedTo, nivel1, nivel2, nivel3, nivel4, nivel5 } = req.body;
+    const Tipificacion = require('../models/tipificacion');
+    // Buscar la tipificación pendiente por idLlamada y assignedTo
+    const tip = await Tipificacion.findOne({ idLlamada, assignedTo, status: 'pending' });
+    if (!tip) {
+      return res.status(404).json({ success: false, message: 'Tipificación no encontrada' });
+    }
+    // Actualizar campos y marcar como success
+    tip.cedula = cedula;
+    tip.tipoDocumento = tipoDocumento;
+    tip.observacion = observacion;
+    tip.nivel1 = nivel1;
+    tip.nivel2 = nivel2;
+    tip.nivel3 = nivel3;
+    tip.nivel4 = nivel4;
+    tip.nivel5 = nivel5;
+    tip.historial = historial || tip.historial;
+    tip.arbol = arbol || tip.arbol;
+    tip.status = 'success';
+    await tip.save();
+    res.json({ success: true, message: 'Tipificación actualizada', tipificacion: tip });
+  } catch (error) {
+    console.error('❌ Error actualizando tipificación:', error);
+    res.status(500).json({ success: false, message: 'Error actualizando tipificación', error: error.message });
+  }
+});
+
+// Endpoint para cancelar tipificación (desde el frontend)
+router.post('/api/tipificacion/cancelar', async (req, res) => {
+  try {
+    const { idLlamada, assignedTo } = req.body;
+    const Tipificacion = require('../models/tipificacion');
+    // Buscar la tipificación pendiente por idLlamada y assignedTo
+    const tip = await Tipificacion.findOne({ idLlamada, assignedTo, status: 'pending' });
+    if (!tip) {
+      return res.status(404).json({ success: false, message: 'Tipificación no encontrada o ya procesada' });
+    }
+    tip.status = 'cancelada_por_agente';
+    await tip.save();
+    res.json({ success: true, message: 'Tipificación cancelada por el agente', tipificacion: tip });
+  } catch (error) {
+    console.error('❌ Error cancelando tipificación:', error);
+    res.status(500).json({ success: false, message: 'Error cancelando tipificación', error: error.message });
   }
 });
 

@@ -212,6 +212,15 @@ const routes = [
       permissions: [] // Acceso libre para usuarios autenticados
     },
   },
+  {
+    path: "/reportes",
+    name: "Reportes",
+    component: () => import('@/views/Reportes.vue'),
+    meta: {
+      requiresAuth: true,
+      permissions: [{ module: 'reports', permission: 'viewReports' }]
+    },
+  },
 ];
 
 const router = createRouter({
