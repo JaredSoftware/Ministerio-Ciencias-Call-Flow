@@ -254,37 +254,38 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     console.log(`👤 Segmento cliente: ${customerSegment}`);
     console.log(`⏱️ Tiempo estimado: ${estimatedTime} minutos`);
     
-    // ✅ OBTENER USUARIOS CONECTADOS DESDE STATEMANAGER (MEMORIA)
-    const stateManager = require('../services/stateManager');
-    const connectedUsers = stateManager.getConnectedUsers();
-
-    // Filtrar usuarios ACTIVOS con category === 'work' (SIN LOGS)
+    // 🚨 CAMBIO: OBTENER USUARIOS ACTIVOS DIRECTAMENTE DE LA BASE DE DATOS
+    // No depender del stateManager que puede estar vacío
     const StatusType = require('../models/statusType');
     const UserStatus = require('../models/userStatus');
-    const availableUsers = [];
+    const User = require('../models/users');
     
     // 🚀 OPTIMIZACIÓN: Una sola query para obtener todos los StatusTypes de categoría 'work'
     const workStatusTypes = await StatusType.find({ category: 'work', isActive: true }).lean();
     const workStatusValues = workStatusTypes.map(st => st.value);
     
-    // 🚀 OPTIMIZACIÓN: Una sola query para obtener todos los UserStatus activos
-    const userIds = connectedUsers.map(u => u.userId);
+    console.log('🎯 Estados de trabajo disponibles:', workStatusValues);
+    
+    // 🚨 BUSCAR USUARIOS ACTIVOS CON ESTADOS DE TRABAJO DIRECTAMENTE EN BD
     const activeUserStatuses = await UserStatus.find({ 
-      userId: { $in: userIds },
       isActive: true,
       status: { $in: workStatusValues }
-    }).lean();
+    }).populate('userId').lean();
     
-    // Crear map para acceso rápido
-    const statusMap = new Map(activeUserStatuses.map(us => [us.userId.toString(), us]));
+    console.log(`👥 Usuarios activos encontrados: ${activeUserStatuses.length}`);
     
-    // Filtrar usuarios disponibles
-    for (const user of connectedUsers) {
-      const userIdStr = user.userId.toString();
-      const userStatus = statusMap.get(userIdStr);
-      
-      if (userStatus && userStatus.isActive && workStatusValues.includes(userStatus.status)) {
-        availableUsers.push(user);
+    // Transformar a formato compatible
+    const availableUsers = [];
+    for (const userStatus of activeUserStatuses) {
+      if (userStatus.userId) {
+        availableUsers.push({
+          userId: userStatus.userId._id,
+          name: userStatus.userId.name,
+          email: userStatus.userId.correo,
+          status: userStatus.status,
+          socketId: userStatus.socketId,
+          sessionId: userStatus.sessionId
+        });
       }
     }
 
@@ -596,29 +597,39 @@ router.get('/api/tipificacion/cola/:userId', async (req, res) => {
 // Endpoint para ver agentes conectados (DEBUG)
 router.get('/api/agentes/conectados', async (req, res) => {
   try {
-    const stateManager = require('../services/stateManager');
-    const connectedUsers = stateManager.getConnectedUsers();
-    
     const StatusType = require('../models/statusType');
     const UserStatus = require('../models/userStatus');
-    const availableUsers = [];
+    const User = require('../models/users');
+    const Tipificacion = require('../models/tipificacion');
+    
+    // 🚨 CAMBIO: BUSCAR DIRECTAMENTE EN LA BASE DE DATOS
     
     // Debug: mostrar todos los estados de trabajo
     const workStatusTypes = await StatusType.find({ category: 'work', isActive: true }).lean();
     console.log('🔍 Estados de trabajo en BD:', workStatusTypes.map(s => ({ value: s.value, label: s.label, category: s.category })));
     
-    for (const user of connectedUsers) {
-      const userStatus = await UserStatus.findOne({ userId: user.userId });
-      
-      console.log(`👤 Usuario ${user.name || user.userId}:`, {
-        userStatus: userStatus ? {
+    const workStatusValues = workStatusTypes.map(st => st.value);
+    
+    // Buscar usuarios activos con estados de trabajo
+    const activeUserStatuses = await UserStatus.find({ 
+      isActive: true,
+      status: { $in: workStatusValues }
+    }).populate('userId').lean();
+    
+    console.log(`👥 Usuarios activos con estados de trabajo: ${activeUserStatuses.length}`);
+    
+    const availableUsers = [];
+    
+    for (const userStatus of activeUserStatuses) {
+      if (userStatus.userId) {
+        const user = userStatus.userId;
+        
+        console.log(`👤 Usuario ${user.name}:`, {
           status: userStatus.status,
           isActive: userStatus.isActive,
           label: userStatus.label
-        } : 'No encontrado'
-      });
-      
-      if (userStatus && userStatus.status) {
+        });
+        
         const statusType = await StatusType.findOne({ value: userStatus.status, isActive: true });
         
         console.log(`📋 StatusType para '${userStatus.status}':`, statusType ? {
@@ -629,36 +640,45 @@ router.get('/api/agentes/conectados', async (req, res) => {
         
         if (statusType && statusType.category === 'work') {
           // Contar tipificaciones pendientes
-          let userIdPlano;
-          if (user.userId && typeof user.userId === 'object') {
-            userIdPlano = user.userId._id;
-          } else {
-            userIdPlano = user.userId || user._id;
-          }
-          
           const pendingCount = await Tipificacion.countDocuments({ 
-            assignedTo: userIdPlano, 
+            assignedTo: user._id, 
             status: 'pending' 
           });
           
           availableUsers.push({
-            ...user,
-            userIdPlano,
+            userId: user._id,
+            name: user.name,
+            email: user.correo,
+            userIdPlano: user._id,
             pendingCount,
             status: userStatus.status,
-            category: statusType.category
+            category: statusType.category,
+            socketId: userStatus.socketId,
+            sessionId: userStatus.sessionId,
+            lastSeen: userStatus.lastSeen
           });
         }
       }
     }
     
+    // También mostrar información del stateManager para comparación
+    const stateManager = require('../services/stateManager');
+    const stateManagerUsers = stateManager.getConnectedUsers();
+    
+    console.log(`📊 Comparación: StateManager: ${stateManagerUsers.length}, Base de datos: ${availableUsers.length}`);
+    
     res.json({
       success: true,
-      totalConnected: connectedUsers.length,
+      totalConnected: activeUserStatuses.length,
       workAvailable: availableUsers.length,
       agents: availableUsers,
       workStatusTypes: workStatusTypes,
-      roundRobinCounter: roundRobinCounter
+      roundRobinCounter: roundRobinCounter,
+      debug: {
+        stateManagerUsers: stateManagerUsers.length,
+        dbUsers: activeUserStatuses.length,
+        workStatusValues: workStatusValues
+      }
     });
     
   } catch (error) {
@@ -756,41 +776,42 @@ async function assignPendingTipificaciones() {
     
     console.log(`📋 Encontradas ${unassignedTipificaciones.length} tipificaciones sin asignar`);
     
-    // Obtener agentes disponibles
-    const stateManager = require('../services/stateManager');
-    const connectedUsers = stateManager.getConnectedUsers();
-    
-    if (connectedUsers.length === 0) {
-      console.log('⚠️ No hay agentes conectados');
-      return { assigned: 0, message: 'No hay agentes conectados' };
-    }
-    
-    // Filtrar usuarios ACTIVOS con category === 'work'
+    // 🚨 CAMBIO: OBTENER USUARIOS ACTIVOS DIRECTAMENTE DE LA BASE DE DATOS
     const StatusType = require('../models/statusType');
     const UserStatus = require('../models/userStatus');
-    const availableUsers = [];
+    const User = require('../models/users');
     
+    // Obtener estados de trabajo
     const workStatusTypes = await StatusType.find({ category: 'work', isActive: true }).lean();
     const workStatusValues = workStatusTypes.map(st => st.value);
     
-    // Obtener UserStatus activos
-    const userIds = connectedUsers.map(u => u.userId);
+    console.log('🎯 Estados de trabajo disponibles:', workStatusValues);
+    
+    // BUSCAR USUARIOS ACTIVOS CON ESTADOS DE TRABAJO DIRECTAMENTE EN BD
     const activeUserStatuses = await UserStatus.find({ 
-      userId: { $in: userIds },
       isActive: true,
       status: { $in: workStatusValues }
-    }).lean();
+    }).populate('userId').lean();
     
-    // Crear map para acceso rápido
-    const statusMap = new Map(activeUserStatuses.map(us => [us.userId.toString(), us]));
+    console.log(`👥 Usuarios activos encontrados en assignPendingTipificaciones: ${activeUserStatuses.length}`);
     
-    // Filtrar usuarios disponibles
-    for (const user of connectedUsers) {
-      const userIdStr = user.userId.toString();
-      const userStatus = statusMap.get(userIdStr);
-      
-      if (userStatus && userStatus.isActive && workStatusValues.includes(userStatus.status)) {
-        availableUsers.push(user);
+    if (activeUserStatuses.length === 0) {
+      console.log('⚠️ No hay agentes disponibles para trabajar');
+      return { assigned: 0, message: 'No hay agentes disponibles' };
+    }
+    
+    // Transformar a formato compatible
+    const availableUsers = [];
+    for (const userStatus of activeUserStatuses) {
+      if (userStatus.userId) {
+        availableUsers.push({
+          userId: userStatus.userId._id,
+          name: userStatus.userId.name,
+          email: userStatus.userId.correo,
+          status: userStatus.status,
+          socketId: userStatus.socketId,
+          sessionId: userStatus.sessionId
+        });
       }
     }
     
