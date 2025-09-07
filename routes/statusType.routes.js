@@ -81,9 +81,17 @@ router.get('/category/:category', async (req, res) => {
 router.get('/default', async (req, res) => {
   try {
     const defaultStatus = await StatusType.getDefaultStatus();
+    
+    // Debug: mostrar todos los estados con isDefault: true
+    const allDefaultStatuses = await StatusType.find({ isDefault: true, isActive: true });
+    console.log('🔍 Estados con isDefault: true:', allDefaultStatuses.map(s => ({ value: s.value, label: s.label, isDefault: s.isDefault })));
+    
     res.json({ 
       success: true, 
-      status: defaultStatus 
+      status: defaultStatus,
+      debug: {
+        allDefaultStatuses: allDefaultStatuses.map(s => ({ value: s.value, label: s.label, isDefault: s.isDefault }))
+      }
     });
   } catch (error) {
     console.error('Error obteniendo estado por defecto:', error);

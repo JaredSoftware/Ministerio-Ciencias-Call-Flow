@@ -107,23 +107,19 @@ module.exports = {
                   });
                 }
 
-                // Asignar estado dinámico al usuario
+                // Asignar estado por defecto al usuario
                 try {
                   const UserStatus = require('../models/userStatus');
                   
-                  // Usar estado dinámico sin depender de StatusType
-                  const statusToAssign = 'available';
+                  console.log(`🔄 Asignando estado por defecto a ${FindUser.name}`);
                   
-                  console.log(`🔄 Asignando estado dinámico '${statusToAssign}' a ${FindUser.name}`);
-                  
-                  // Crear o actualizar el estado del usuario
+                  // Crear o actualizar el estado del usuario (usará el estado por defecto automáticamente)
                   await UserStatus.upsertStatus(FindUser._id, {
-                    status: statusToAssign,
                     isActive: true,
                     sessionId: req.sessionID
                   });
                   
-                  console.log(`✅ Estado dinámico asignado exitosamente a ${FindUser.name}`);
+                  console.log(`✅ Estado por defecto asignado exitosamente a ${FindUser.name}`);
 
                   // 🚨 EMITIR EVENTOS SOLO POR MQTT (NO WEBSOCKET)
                   try {
@@ -355,17 +351,55 @@ module.exports = {
   },
   makerRole: async (req, res) => {
     try {
-      if (!req.body.role || !req.body.permissions) {
-        res.send({ error: "necesita un nombre de rol y permisos" });
-      } else {
-        const addRole = new rol({
-          nombre: req.body.role,
-          permissions: req.body.permissions,
+      // Validaciones básicas
+      if (!req.body.role || !req.body.role.trim()) {
+        return res.status(400).send({ 
+          success: false, 
+          error: "El nombre del rol es requerido" 
         });
-        res.send(await addRole.save());
       }
+
+      if (!req.body.permissions) {
+        return res.status(400).send({ 
+          success: false, 
+          error: "Los permisos son requeridos" 
+        });
+      }
+
+      // Verificar si el rol ya existe
+      const existingRole = await rol.findOne({ nombre: req.body.role.trim() });
+      if (existingRole) {
+        return res.status(400).send({ 
+          success: false, 
+          error: "Ya existe un rol con ese nombre" 
+        });
+      }
+
+      // Crear el rol
+      const addRole = new rol({
+        nombre: req.body.role.trim(),
+        permissions: req.body.permissions,
+        descripcion: req.body.descripcion || `Rol ${req.body.role.trim()}`,
+        isActive: true
+      });
+
+      const savedRole = await addRole.save();
+      
+      console.log(`✅ Rol creado exitosamente: ${savedRole.nombre}`);
+      console.log(`   - ID: ${savedRole._id}`);
+
+      res.status(201).send({ 
+        success: true, 
+        role: savedRole,
+        message: `Rol '${savedRole.nombre}' creado exitosamente`
+      });
+
     } catch (error) {
-      console.log(error);
+      console.error('❌ Error creando rol:', error);
+      res.status(500).send({ 
+        success: false, 
+        error: "Error interno del servidor al crear rol"
+      });
     }
   },
   role: async (req, res) => {

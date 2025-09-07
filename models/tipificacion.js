@@ -17,6 +17,14 @@ const tipificacionSchema = new mongoose.Schema({
   nivel3: { type: String },
   nivel4: { type: String },
   nivel5: { type: String },
+  // NUEVOS CAMPOS PARA GESTIÓN DE COLAS
+  priority: { type: Number, default: 1, min: 1, max: 5 }, // 1=Baja, 5=Crítica
+  queuePosition: { type: Number }, // Posición en la cola del agente
+  estimatedTime: { type: Number }, // Tiempo estimado en minutos
+  timeInQueue: { type: Number }, // Tiempo que lleva en cola (calculado)
+  callbackRequested: { type: Boolean, default: false }, // Cliente solicita callback
+  skillRequired: { type: String }, // Skill específico requerido
+  customerSegment: { type: String, enum: ['premium', 'standard', 'basic'], default: 'standard' },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Tipificacion', tipificacionSchema); 

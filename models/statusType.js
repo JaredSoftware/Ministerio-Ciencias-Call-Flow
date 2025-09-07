@@ -73,7 +73,7 @@ statusTypeSchema.statics.getDefaultStatus = function() {
   return this.findOne({ 
     isDefault: true, 
     isActive: true 
-  });
+  }).sort({ order: 1 }); // Ordenar por order para obtener el primero si hay múltiples
 };
 
 // Método estático para inicializar estados por defecto (estilo Avaya)

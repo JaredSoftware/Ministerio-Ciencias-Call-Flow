@@ -9,7 +9,7 @@ import ArgonDashboard from "./argon-dashboard";
 import VueGoodTablePlugin from 'vue-good-table-next';
 import 'vue-good-table-next/dist/vue-good-table-next.css'
 import WebSocketPlugin from "./plugins/websocket";
-
+import { mqttService } from "./router/services/mqttService";
 
 const appInstance = createApp(App);
 appInstance.use(store);
@@ -22,3 +22,11 @@ appInstance.use(WebSocketPlugin);
 // appInstance.config.globalProperties.$popper = Popper;
 
 appInstance.mount("#app");
+
+// Inicializar MQTT después de que la app esté montada
+console.log('🔌 Inicializando MQTT Service...');
+mqttService.connect('ws://localhost:9001').then(() => {
+  console.log('✅ MQTT Service conectado exitosamente');
+}).catch((error) => {
+  console.error('❌ Error conectando MQTT Service:', error);
+});

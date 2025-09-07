@@ -6,6 +6,10 @@ const login = require("../controllers/general")
 const userStatusRoutes = require("./userStatus.routes");
 const statusTypeRoutes = require("./statusType.routes");
 const User = require("../models/users");
+const Tipificacion = require("../models/tipificacion");
+
+// 🔄 CONTADOR GLOBAL PARA ROUND ROBIN
+let roundRobinCounter = 0;
 
 // Rutas de estado de usuario
 router.use("/api/user-status", userStatusRoutes);
@@ -224,51 +228,131 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     const params = req.query;
     console.log('📞 Nueva solicitud de tipificación:', params);
     
+    // 🎯 DETERMINAR PRIORIDAD AUTOMÁTICAMENTE
+    let priority = 1; // Por defecto: prioridad baja
+    let customerSegment = 'standard';
+    let estimatedTime = 5; // 5 minutos por defecto
+    
+    // Lógica de priorización inteligente
+    if (params.priority && !isNaN(params.priority)) {
+      priority = Math.min(Math.max(parseInt(params.priority), 1), 5);
+    } else {
+      // Auto-determinar prioridad basada en criterios
+      if (params.customerSegment === 'premium') {
+        priority = 4;
+        customerSegment = 'premium';
+        estimatedTime = 3;
+      } else if (params.urgente === 'true' || params.callback === 'true') {
+        priority = 3;
+        estimatedTime = 4;
+      } else if (params.tipoDocumento === 'CC' && params.cedula && params.cedula.length > 8) {
+        priority = 2; // Cédulas largas pueden ser empresariales
+      }
+    }
+    
+    console.log(`🎯 Prioridad asignada: ${priority} (${priority === 5 ? 'CRÍTICA' : priority === 4 ? 'ALTA' : priority === 3 ? 'MEDIA' : priority === 2 ? 'NORMAL' : 'BAJA'})`);
+    console.log(`👤 Segmento cliente: ${customerSegment}`);
+    console.log(`⏱️ Tiempo estimado: ${estimatedTime} minutos`);
+    
     // ✅ OBTENER USUARIOS CONECTADOS DESDE STATEMANAGER (MEMORIA)
     const stateManager = require('../services/stateManager');
     const connectedUsers = stateManager.getConnectedUsers();
 
-    // Filtrar solo usuarios con statusType.category === 'work'
+    // Filtrar usuarios ACTIVOS con category === 'work' (SIN LOGS)
     const StatusType = require('../models/statusType');
     const UserStatus = require('../models/userStatus');
     const availableUsers = [];
+    
+    // 🚀 OPTIMIZACIÓN: Una sola query para obtener todos los StatusTypes de categoría 'work'
+    const workStatusTypes = await StatusType.find({ category: 'work', isActive: true }).lean();
+    const workStatusValues = workStatusTypes.map(st => st.value);
+    
+    // 🚀 OPTIMIZACIÓN: Una sola query para obtener todos los UserStatus activos
+    const userIds = connectedUsers.map(u => u.userId);
+    const activeUserStatuses = await UserStatus.find({ 
+      userId: { $in: userIds },
+      isActive: true,
+      status: { $in: workStatusValues }
+    }).lean();
+    
+    // Crear map para acceso rápido
+    const statusMap = new Map(activeUserStatuses.map(us => [us.userId.toString(), us]));
+    
+    // Filtrar usuarios disponibles
     for (const user of connectedUsers) {
-      console.log('🔍 Usuario conectado:', user);
+      const userIdStr = user.userId.toString();
+      const userStatus = statusMap.get(userIdStr);
       
-      // Buscar el estado actual del usuario en la tabla userStatuses
-      const userStatus = await UserStatus.findOne({ userId: user.userId });
-      
-      if (userStatus && userStatus.status) {
-        console.log('🔍 UserStatus encontrado:', userStatus.status);
-        
-        // Buscar la categoría del status en StatusType
-        const statusType = await StatusType.findOne({ value: userStatus.status, isActive: true });
-        console.log('🔍 StatusType:', statusType);
-        
-        if (statusType && statusType.category === 'work') {
-          availableUsers.push(user);
-        }
+      if (userStatus && userStatus.isActive && workStatusValues.includes(userStatus.status)) {
+        availableUsers.push(user);
       }
     }
 
-    console.log('👥 Usuariosnectados enStateManager:', connectedUsers.length);
-    console.log('👥 Usuarios disponibles para asignar:', availableUsers.length);
-    availableUsers.forEach(user => {
-      console.log(`  - ${user.name || user.userId}: conectado desde ${user.connectedAt}, status: ${user.status}`);
-    });
+    // Solo log crítico sin detalles
+    if (availableUsers.length === 0) {
+      console.warn('⚠️ No hay agentes disponibles para asignar');
+    }
 
-    // 🎯 Seleccionar agente disponible (usuario conectado y disponible para trabajo)
+    // 🎯 Seleccionar agente disponible
     if (!availableUsers || availableUsers.length === 0) {
-      console.warn('⚠️ No hay usuarios disponibles para asignar trabajo');
       return res.status(400).json({ 
         success: false, 
-        message: 'No hay agentes disponibles (ningún usuario disponible para trabajar)' 
+        message: 'No hay agentes disponibles para trabajar' 
       });
     }
 
-    // Usar el primer usuario disponible como agente asignado
-    const assignedAgent = availableUsers[0];
-    console.log('🎯 Agente asignado:', assignedAgent.name || assignedAgent.userId);
+    // 🔄 SISTEMA DE BALANCEO DE CARGA INTELIGENTE
+    
+    // Obtener carga de trabajo actual de cada agente (tipificaciones pendientes)
+    const agentWorkloads = await Promise.all(
+      availableUsers.map(async (user) => {
+        let userIdPlano;
+        if (user.userId && typeof user.userId === 'object') {
+          userIdPlano = user.userId._id;
+        } else {
+          userIdPlano = user.userId || user._id;
+        }
+        
+        const pendingCount = await Tipificacion.countDocuments({ 
+          assignedTo: userIdPlano, 
+          status: 'pending' 
+        });
+        
+        return {
+          agent: user,
+          userId: userIdPlano,
+          pendingCount,
+          name: user.name || user.userId
+        };
+      })
+    );
+
+    if (agentWorkloads.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Error: No se pudo calcular carga de agentes'
+      });
+    }
+
+    // 🎯 ALGORITMO DE SELECCIÓN: Round Robin inteligente (SIN LOGS)
+    const sortedAgents = agentWorkloads.sort((a, b) => a.pendingCount - b.pendingCount);
+    const minLoad = sortedAgents[0].pendingCount;
+    const agentsWithMinLoad = sortedAgents.filter(agent => agent.pendingCount === minLoad);
+    
+    // Si hay múltiples agentes con la misma carga mínima, usar Round Robin
+    let selectedAgent;
+    if (agentsWithMinLoad.length > 1) {
+      roundRobinCounter++;
+      const rotationIndex = roundRobinCounter % agentsWithMinLoad.length;
+      selectedAgent = agentsWithMinLoad[rotationIndex];
+    } else {
+      selectedAgent = agentsWithMinLoad[0];
+    }
+    const assignedAgent = selectedAgent.agent;
+    
+    // Agente seleccionado (sin logs)
+    
+    // ✅ Sistema de colas sin limitación - asignar a agente con menor carga
     
     // 🌳 Buscar árbol de tipificaciones desde BD
     const Tree = require('../models/tree');
@@ -292,13 +376,8 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     
     // 📡 ENVIAR POR MQTT AL AGENTE ASIGNADO
     const mqttService = req.app.get('mqttService');
-    // Obtener el userId plano del agente (puede estar anidado o ser string)
-    let userIdPlano;
-    if (assignedAgent.userId && typeof assignedAgent.userId === 'object') {
-      userIdPlano = assignedAgent.userId._id;
-    } else {
-      userIdPlano = assignedAgent.userId || assignedAgent._id;
-    }
+    // Usar el userId ya calculado del sistema de balanceo
+    const userIdPlano = selectedAgent.userId;
     console.log('DEBUG assignedAgent:', assignedAgent);
     console.log('DEBUG userIdPlano:', userIdPlano);
     const topic = `telefonia/tipificacion/nueva/${userIdPlano}`;
@@ -323,9 +402,14 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     console.log(`   - Árbol: ${arbolTipificaciones.length} nodos`);
     
     // 1. Crear la nueva tipificación (pending)
-    const Tipificacion = require('../models/tipificacion');
     let tipificacionDoc = null;
     try {
+      // Calcular posición en cola del agente
+      const currentQueuePosition = await Tipificacion.countDocuments({ 
+        assignedTo: userIdPlano, 
+        status: 'pending' 
+      }) + 1;
+      
       tipificacionDoc = await Tipificacion.create({
         idLlamada: params.idLlamada,
         cedula: params.cedula,
@@ -339,12 +423,20 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
         historial: historialNuevo, // Solo el item actual
         arbol: arbolTipificaciones,
         assignedTo: userIdPlano,
-        assignedToName: assignedAgent.name || 'Usuario',
+        assignedToName: selectedAgent.name || 'Usuario',
         status: 'pending',
         timestamp: new Date(),
-        type: 'nueva_tipificacion'
+        type: 'nueva_tipificacion',
+        // NUEVOS CAMPOS DE GESTIÓN DE COLAS
+        priority: priority,
+        customerSegment: customerSegment,
+        estimatedTime: estimatedTime,
+        queuePosition: currentQueuePosition,
+        callbackRequested: params.callback === 'true',
+        skillRequired: params.skill || 'general',
+        timeInQueue: 0 // Se calculará dinámicamente
       });
-      console.log('✅ Registro de tipificación creado en MongoDB (pending)');
+      // Tipificación creada exitosamente
     } catch (err) {
       console.error('❌ Error creando registro de tipificación:', err);
     }
@@ -352,7 +444,7 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     // 2. Buscar historial (ahora sí existe la nueva y las anteriores)
     let historialPrevio = [];
     try {
-      console.log('Buscando historial para:', { idLlamada: params.idLlamada, cedula: params.cedula });
+      // Buscando historial
       historialPrevio = await Tipificacion.find({
         idLlamada: params.idLlamada,
         status: 'success',
@@ -361,7 +453,6 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(5)
       .lean();
-      console.log('Historial por idLlamada:', historialPrevio);
       if (historialPrevio.length === 0) {
         historialPrevio = await Tipificacion.find({
           cedula: params.cedula,
@@ -371,7 +462,6 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(5)
         .lean();
-        console.log('Historial por cedula:', historialPrevio);
       }
     } catch (err) {
       console.error('❌ Error buscando historial de tipificaciones:', err);
@@ -379,17 +469,25 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
 
     // 3. Asigna el historial y publica MQTT
     tipificacionData.historial = historialPrevio;
-    mqttService.publish(topic, tipificacionData);
     
-    console.log('✅ Tipificación enviada exitosamente por MQTT');
+    if (mqttService && mqttService.publish) {
+      mqttService.publish(topic, tipificacionData);
+    } else {
+      console.error('❌ mqttService no disponible');
+    }
     
     res.json({ 
       success: true, 
       assignedTo: userIdPlano,
-      assignedToName: assignedAgent.name,
+      assignedToName: selectedAgent.name,
       historial: historialPrevio,
-      message: `Tipificación enviada por MQTT a ${assignedAgent.name}`,
-      method: 'StateManager + MQTT (sin BD para estados)'
+      message: `Tipificación enviada por MQTT a ${selectedAgent.name}`,
+      method: 'StateManager + MQTT + Balanceo de Carga',
+      queueInfo: {
+        agentPendingCount: selectedAgent.pendingCount,
+        totalAgents: availableUsers.length,
+        totalPending: agentWorkloads.reduce((sum, agent) => sum + agent.pendingCount, 0)
+      }
     });
     
   } catch (error) {
@@ -406,7 +504,6 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
 router.post('/api/tipificacion/actualizar', async (req, res) => {
   try {
     const { idLlamada, cedula, tipoDocumento, observacion, historial, arbol, assignedTo, nivel1, nivel2, nivel3, nivel4, nivel5 } = req.body;
-    const Tipificacion = require('../models/tipificacion');
     // Buscar la tipificación pendiente por idLlamada y assignedTo
     const tip = await Tipificacion.findOne({ idLlamada, assignedTo, status: 'pending' });
     if (!tip) {
@@ -432,11 +529,152 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
   }
 });
 
+// Endpoint para obtener cola de trabajo del agente
+router.get('/api/tipificacion/cola/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Obtener tipificaciones pendientes del agente con cálculo de tiempo en cola
+    const pendingTipificaciones = await Tipificacion.find({ 
+      assignedTo: userId, 
+      status: 'pending' 
+    })
+    .sort({ 
+      priority: -1,      // Prioridad alta primero (5 -> 1)
+      createdAt: 1       // Luego por antigüedad (FIFO)
+    })
+    .lean();
+    
+    // Calcular tiempo en cola para cada tipificación
+    const now = new Date();
+    pendingTipificaciones.forEach(tip => {
+      const createdAt = new Date(tip.createdAt);
+      tip.timeInQueue = Math.floor((now - createdAt) / (1000 * 60)); // en minutos
+      
+      // Determinar texto de prioridad
+      tip.priorityText = tip.priority === 5 ? 'CRÍTICA' : 
+                        tip.priority === 4 ? 'ALTA' : 
+                        tip.priority === 3 ? 'MEDIA' : 
+                        tip.priority === 2 ? 'NORMAL' : 'BAJA';
+      
+      // Color de prioridad para UI
+      tip.priorityColor = tip.priority === 5 ? '#dc3545' : 
+                         tip.priority === 4 ? '#fd7e14' : 
+                         tip.priority === 3 ? '#ffc107' : 
+                         tip.priority === 2 ? '#28a745' : '#6c757d';
+    });
+    
+    // Obtener estadísticas generales
+    const totalPending = await Tipificacion.countDocuments({ status: 'pending' });
+    const agentCompleted = await Tipificacion.countDocuments({ 
+      assignedTo: userId, 
+      status: 'success' 
+    });
+    
+    console.log(`📋 Cola de ${userId}: ${pendingTipificaciones.length} pendientes, ${agentCompleted} completadas`);
+    
+    res.json({
+      success: true,
+      queue: pendingTipificaciones,
+      stats: {
+        pending: pendingTipificaciones.length,
+        completed: agentCompleted,
+        totalSystemPending: totalPending
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo cola:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error obteniendo cola de trabajo',
+      error: error.message 
+    });
+  }
+});
+
+// Endpoint para ver agentes conectados (DEBUG)
+router.get('/api/agentes/conectados', async (req, res) => {
+  try {
+    const stateManager = require('../services/stateManager');
+    const connectedUsers = stateManager.getConnectedUsers();
+    
+    const StatusType = require('../models/statusType');
+    const UserStatus = require('../models/userStatus');
+    const availableUsers = [];
+    
+    // Debug: mostrar todos los estados de trabajo
+    const workStatusTypes = await StatusType.find({ category: 'work', isActive: true }).lean();
+    console.log('🔍 Estados de trabajo en BD:', workStatusTypes.map(s => ({ value: s.value, label: s.label, category: s.category })));
+    
+    for (const user of connectedUsers) {
+      const userStatus = await UserStatus.findOne({ userId: user.userId });
+      
+      console.log(`👤 Usuario ${user.name || user.userId}:`, {
+        userStatus: userStatus ? {
+          status: userStatus.status,
+          isActive: userStatus.isActive,
+          label: userStatus.label
+        } : 'No encontrado'
+      });
+      
+      if (userStatus && userStatus.status) {
+        const statusType = await StatusType.findOne({ value: userStatus.status, isActive: true });
+        
+        console.log(`📋 StatusType para '${userStatus.status}':`, statusType ? {
+          value: statusType.value,
+          category: statusType.category,
+          isActive: statusType.isActive
+        } : 'No encontrado');
+        
+        if (statusType && statusType.category === 'work') {
+          // Contar tipificaciones pendientes
+          let userIdPlano;
+          if (user.userId && typeof user.userId === 'object') {
+            userIdPlano = user.userId._id;
+          } else {
+            userIdPlano = user.userId || user._id;
+          }
+          
+          const pendingCount = await Tipificacion.countDocuments({ 
+            assignedTo: userIdPlano, 
+            status: 'pending' 
+          });
+          
+          availableUsers.push({
+            ...user,
+            userIdPlano,
+            pendingCount,
+            status: userStatus.status,
+            category: statusType.category
+          });
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      totalConnected: connectedUsers.length,
+      workAvailable: availableUsers.length,
+      agents: availableUsers,
+      workStatusTypes: workStatusTypes,
+      roundRobinCounter: roundRobinCounter
+    });
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo agentes conectados:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error obteniendo agentes conectados',
+      error: error.message 
+    });
+  }
+});
+
 // Endpoint para cancelar tipificación (desde el frontend)
 router.post('/api/tipificacion/cancelar', async (req, res) => {
   try {
     const { idLlamada, assignedTo } = req.body;
-    const Tipificacion = require('../models/tipificacion');
     // Buscar la tipificación pendiente por idLlamada y assignedTo
     const tip = await Tipificacion.findOne({ idLlamada, assignedTo, status: 'pending' });
     if (!tip) {
@@ -491,5 +729,177 @@ router.get('/api/reportes/mis-reportes', async (req, res) => {
   }
 });
 
+// 🚀 FUNCIÓN PARA ASIGNAR AUTOMÁTICAMENTE TIPIFICACIONES PENDIENTES
+async function assignPendingTipificaciones() {
+  try {
+    console.log('🔄 Iniciando asignación automática de tipificaciones pendientes...');
+    
+    // Obtener tipificaciones sin asignar (status: 'pending' y assignedTo: null o vacío)
+    const unassignedTipificaciones = await Tipificacion.find({ 
+      status: 'pending',
+      $or: [
+        { assignedTo: { $exists: false } },
+        { assignedTo: null },
+        { assignedTo: '' }
+      ]
+    })
+    .sort({ 
+      priority: -1,      // Prioridad alta primero (5 -> 1)
+      createdAt: 1       // Luego por antigüedad (FIFO)
+    })
+    .lean();
+    
+    if (unassignedTipificaciones.length === 0) {
+      console.log('✅ No hay tipificaciones pendientes sin asignar');
+      return { assigned: 0, message: 'No hay tipificaciones pendientes' };
+    }
+    
+    console.log(`📋 Encontradas ${unassignedTipificaciones.length} tipificaciones sin asignar`);
+    
+    // Obtener agentes disponibles
+    const stateManager = require('../services/stateManager');
+    const connectedUsers = stateManager.getConnectedUsers();
+    
+    if (connectedUsers.length === 0) {
+      console.log('⚠️ No hay agentes conectados');
+      return { assigned: 0, message: 'No hay agentes conectados' };
+    }
+    
+    // Filtrar usuarios ACTIVOS con category === 'work'
+    const StatusType = require('../models/statusType');
+    const UserStatus = require('../models/userStatus');
+    const availableUsers = [];
+    
+    const workStatusTypes = await StatusType.find({ category: 'work', isActive: true }).lean();
+    const workStatusValues = workStatusTypes.map(st => st.value);
+    
+    // Obtener UserStatus activos
+    const userIds = connectedUsers.map(u => u.userId);
+    const activeUserStatuses = await UserStatus.find({ 
+      userId: { $in: userIds },
+      isActive: true,
+      status: { $in: workStatusValues }
+    }).lean();
+    
+    // Crear map para acceso rápido
+    const statusMap = new Map(activeUserStatuses.map(us => [us.userId.toString(), us]));
+    
+    // Filtrar usuarios disponibles
+    for (const user of connectedUsers) {
+      const userIdStr = user.userId.toString();
+      const userStatus = statusMap.get(userIdStr);
+      
+      if (userStatus && userStatus.isActive && workStatusValues.includes(userStatus.status)) {
+        availableUsers.push(user);
+      }
+    }
+    
+    if (availableUsers.length === 0) {
+      console.log('⚠️ No hay agentes disponibles para trabajar');
+      return { assigned: 0, message: 'No hay agentes disponibles' };
+    }
+    
+    console.log(`👥 ${availableUsers.length} agentes disponibles`);
+    
+    // Obtener carga de trabajo actual de cada agente
+    const agentWorkloads = await Promise.all(
+      availableUsers.map(async (user) => {
+        let userIdPlano;
+        if (user.userId && typeof user.userId === 'object') {
+          userIdPlano = user.userId._id;
+        } else {
+          userIdPlano = user.userId || user._id;
+        }
+        
+        const pendingCount = await Tipificacion.countDocuments({ 
+          assignedTo: userIdPlano, 
+          status: 'pending' 
+        });
+        
+        return {
+          agent: user,
+          userId: userIdPlano,
+          pendingCount,
+          name: user.name || user.userId
+        };
+      })
+    );
+    
+    // Usar todos los agentes disponibles (sin limitación de cantidad)
+    const availableAgents = agentWorkloads;
+    
+    if (availableAgents.length === 0) {
+      console.log('⚠️ No hay agentes disponibles');
+      return { assigned: 0, message: 'No hay agentes disponibles' };
+    }
+    
+    console.log(`🎯 ${availableAgents.length} agentes disponibles`);
+    
+    // Asignar tipificaciones usando round robin
+    let assignedCount = 0;
+    const mqttService = require('../services/mqttService');
+    
+    for (let i = 0; i < unassignedTipificaciones.length && assignedCount < availableAgents.length; i++) {
+      const tipificacion = unassignedTipificaciones[i];
+      const agentIndex = assignedCount % availableAgents.length;
+      const selectedAgent = availableAgents[agentIndex];
+      
+      // Actualizar la tipificación con el agente asignado
+      await Tipificacion.findByIdAndUpdate(tipificacion._id, {
+        assignedTo: selectedAgent.userId,
+        assignedToName: selectedAgent.name
+      });
+      
+      // Preparar datos para MQTT
+      const tipificacionData = {
+        ...tipificacion,
+        assignedTo: selectedAgent.userId,
+        assignedToName: selectedAgent.name,
+        historial: tipificacion.historial || []
+      };
+      
+      // Publicar por MQTT al agente específico
+      const topic = `telefonia/tipificacion/nueva/${selectedAgent.userId}`;
+      if (mqttService && mqttService.publish) {
+        mqttService.publish(topic, tipificacionData);
+        console.log(`📡 Tipificación ${tipificacion.idLlamada} enviada por MQTT a ${selectedAgent.name}`);
+      }
+      
+      assignedCount++;
+      console.log(`✅ Asignada tipificación ${tipificacion.idLlamada} a ${selectedAgent.name} (${selectedAgent.pendingCount + 1} pendientes)`);
+    }
+    
+    console.log(`🎉 Asignación completada: ${assignedCount} tipificaciones asignadas`);
+    return { 
+      assigned: assignedCount, 
+      message: `${assignedCount} tipificaciones asignadas automáticamente`,
+      agents: availableAgents.map(a => ({ name: a.name, pendingCount: a.pendingCount }))
+    };
+    
+  } catch (error) {
+    console.error('❌ Error en asignación automática:', error);
+    return { assigned: 0, message: 'Error en asignación automática', error: error.message };
+  }
+}
 
+// Endpoint para forzar asignación de tipificaciones pendientes
+router.post('/api/tipificacion/assign-pending', async (req, res) => {
+  try {
+    const result = await assignPendingTipificaciones();
+    res.json({
+      success: true,
+      ...result
+    });
+  } catch (error) {
+    console.error('❌ Error forzando asignación:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error forzando asignación de tipificaciones',
+      error: error.message
+    });
+  }
+});
+
+// Exportar la función de asignación automática para uso en otros módulos
 module.exports = router;
+module.exports.assignPendingTipificaciones = assignPendingTipificaciones;

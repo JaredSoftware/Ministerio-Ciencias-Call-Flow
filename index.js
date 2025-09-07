@@ -4,6 +4,9 @@ const fs = require("fs");
 // Configurar limpieza automática de estados
 const stateManager = require("./services/stateManager");
 
+// Configurar asignación automática de tipificaciones
+const autoAssignService = require("./services/autoAssignService");
+
 // Limpiar estados antiguos cada hora
 setInterval(() => {
   stateManager.cleanupOldStates();
@@ -30,4 +33,8 @@ server.listen(app.get("port"), function () {
   }, 30000); // Cada 30 segundos
   
   console.log('🚀 Sistema de eventos Pub/Sub (MQTT) con publicación automática inicializado');
+  
+  // 🚀 INICIAR SERVICIO DE ASIGNACIÓN AUTOMÁTICA
+  autoAssignService.start();
+  console.log('🎯 Servicio de asignación automática iniciado');
 });

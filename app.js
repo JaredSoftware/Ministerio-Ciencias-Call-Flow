@@ -34,8 +34,8 @@ require("dotenv").config();
 
 // --- MQTT Broker embebido ---
 
-// Puerto TCP estándar MQTT
-const MQTT_PORT = 1883;
+// Puerto TCP estándar MQTT (cambiado para evitar conflictos)
+const MQTT_PORT = 1884;
 const mqttServer = net.createServer(aedes.handle);
 mqttServer.listen(MQTT_PORT, function () {
   console.log('🚀 Broker MQTT TCP escuchando en puerto', MQTT_PORT);
@@ -661,9 +661,22 @@ async function emitActiveUsersList() {
 // Inicializar StateManager
 stateManager.initialize(io);
 
+// 🚀 INICIALIZAR BASE DE DATOS CON ESTADOS DESPUÉS DE LA CONEXIÓN
+const { initializeDatabase } = require('./initDb');
+
+// Esperar a que se establezca la conexión a MongoDB
+mongoose.connection.once('open', async () => {
+  console.log('✅ Conexión a MongoDB establecida, inicializando estados...');
+  try {
+    await initializeDatabase();
+  } catch (error) {
+    console.error('❌ Error inicializando base de datos:', error);
+  }
+});
+
 // 🚨 INICIALIZAR MQTT PARA COMUNICACIÓN PUB/SUB
 const mqttService = new MQTTService();
-mqttService.connect('mqtt://localhost:1883')
+mqttService.connect('mqtt://localhost:1884')
   .then(() => {
     console.log('✅ Servicio MQTT inicializado correctamente');
     // Suscribirse al topic de heartbeat

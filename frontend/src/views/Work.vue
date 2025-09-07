@@ -101,7 +101,7 @@
       
       <!-- Envolver el formulario principal con v-if="tipificacionActiva" -->
       <div class="tipificacion-form" v-if="tipificacionActiva">
-        <h4>Formulario de Tipificación</h4>
+        <h4>📞 Formulario de Tipificación</h4>
         
         <div class="form-row" v-if="nivel1Options.length > 0">
           <label for="nivel1">Nivel 1</label>
@@ -173,14 +173,46 @@
           <button @click="limpiarFormulario" class="btn-clear">Limpiar</button>
         </div>
       </div>
+      
+      <!-- MENSAJE CUANDO NO HAY FORMULARIO ACTIVO -->
+      <div v-else class="no-active-form" style="text-align: center; padding: 40px; color: #6c757d;">
+        <h4>📋 Esperando Nueva Tipificación</h4>
+        <p>El sistema asignará automáticamente la siguiente llamada...</p>
+        <div style="margin-top: 20px;">
+          <div class="loading-spinner" style="display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+        </div>
+      </div>
     </div>
     
     <div class="work-history">
-      <h5>Historial de Tipificaciones</h5>
-      <div class="history-list">
-        <div v-if="historial.length === 0" class="no-history">
-          No hay tipificaciones asignadas
+      <!-- SECCIÓN SIMPLIFICADA: ESTADO DE TRABAJO -->
+      <div class="work-status-section">
+        <h5>📞 Estado de Trabajo</h5>
+        <div class="work-status-info">
+          <div v-if="!tipificacionActiva" class="waiting-status">
+            <div class="waiting-icon">⏳</div>
+            <div class="waiting-text">
+              <h6>Esperando Nueva Llamada</h6>
+              <p>El sistema asignará automáticamente la siguiente llamada cuando esté disponible</p>
+            </div>
+          </div>
+          <div v-else class="active-status">
+            <div class="active-icon">📞</div>
+            <div class="active-text">
+              <h6>Llamada Activa</h6>
+              <p>Procesando tipificación actual</p>
+            </div>
+          </div>
         </div>
+      </div>
+      
+      <!-- SECCIÓN EXISTENTE: HISTORIAL -->
+      <div class="history-section">
+        <h5>📋 Historial Completado</h5>
+        <div class="history-list">
+          <div v-if="historial.length === 0" class="no-history">
+            No hay tipificaciones completadas
+          </div>
         <div v-for="(item, index) in historial" :key="item._id || index" class="history-item">
           <div class="history-header">
             <span class="history-index">{{ index + 1 }}.</span>
@@ -238,6 +270,7 @@
               </ul>
             </div>
           </div>
+          </div>
         </div>
       </div>
     </div>
@@ -248,6 +281,7 @@
 import axios from '@/router/services/axios';
 import toastMixin from '@/mixins/toastMixin';
 import { mqttService } from '@/router/services/mqttService';
+import statusService from '@/services/statusService';
 
 export default {
   name: 'Work',
@@ -320,10 +354,15 @@ export default {
   },
   methods: {
     guardarModal() {
+      console.log('🎯 Guardando modal y activando formulario');
       this.idLlamada = this.modalData.idLlamada;
       this.tipoDocumento = this.modalData.tipoDocumento;
       this.cedula = this.modalData.cedula;
       this.showModal = false;
+      
+      // ✅ ACTIVAR FORMULARIO DESPUÉS DE ACEPTAR MODAL
+      this.tipificacionActiva = true;
+      console.log('✅ Formulario activado - tipificacionActiva:', this.tipificacionActiva);
     },
     
          // Método para inicializar el árbol - SIN HARDCODE, espera MQTT
@@ -410,29 +449,19 @@ export default {
           this.tipificacionActiva = false;
           this.showModal = false;
           this.skipNextEvent = true;
-          if (this.showToast) {
-            this.showToast('Tipificación guardada correctamente', 'success');
-          } else if (window.showToast) {
-            window.showToast('Tipificación guardada correctamente', 'success');
-          }
+          
+          
+          this.showToast('Tipificación guardada correctamente', 'success');
         } else {
-          if (this.showToast) {
-            this.showToast('Error al guardar la tipificación', 'error');
-          } else if (window.showToast) {
-            window.showToast('Error al guardar la tipificación', 'error');
-          }
+          this.showToast('Error al guardar la tipificación', 'error');
         }
       } catch (e) {
-        if (this.showToast) {
-          this.showToast('Error al guardar la tipificación', 'error');
-        } else if (window.showToast) {
-          window.showToast('Error al guardar la tipificación', 'error');
-        }
+        this.showToast('Error al guardar la tipificación', 'error');
       } finally {
         this.saving = false;
       }
     },
-         setupMQTT() {
+         async setupMQTT() {
        try {
          console.log('🔌🔌🔌 CONFIGURANDO MQTT PARA WORK 🔌🔌🔌');
          
@@ -451,30 +480,41 @@ export default {
          this.mqttTopic = `telefonia/tipificacion/nueva/${userId}`;
          console.log('📡📡📡 TOPIC MQTT CONFIGURADO:', this.mqttTopic);
          
-         // Verificar si la conexión global está disponible
-         if (mqttService.isConnected) {
-           console.log('✅✅✅ MQTT GLOBAL CONECTADO, CONFIGURANDO LISTENER');
-           
-           // Suscribirse al topic personalizado del usuario
-           mqttService.on(this.mqttTopic, (data) => {
-             console.log('📥📥📥 NUEVA TIPIFICACIÓN RECIBIDA POR MQTT:', data);
-             this.handleNuevaTipificacion(data);
-           });
-           
-           console.log('✅✅✅ MQTT CONFIGURADO PARA RECIBIR TIPIFICACIONES');
-           console.log('📡 Esperando mensajes en topic:', this.mqttTopic);
-         } else {
-           console.log('⚠️⚠️⚠️ MQTT GLOBAL NO CONECTADO, REINTENTANDO...');
-           console.log('🔍 Estado MQTT Service:', {
-             isConnected: mqttService.isConnected,
-             isConnecting: mqttService.isConnecting
-           });
-           
-           // Intentar de nuevo en 2 segundos
-           setTimeout(() => {
-             this.setupMQTT();
-           }, 2000);
+         // Asegurar que MQTT esté conectado
+         if (!mqttService.isConnected) {
+           console.log('🔄 Conectando MQTT Service...');
+           try {
+             await mqttService.connect('ws://localhost:9001', userId, this.$store.state.user?.name);
+             console.log('✅ MQTT Service conectado exitosamente');
+           } catch (error) {
+             console.error('❌ Error conectando MQTT Service:', error);
+             // Reintentar en 3 segundos
+             setTimeout(() => {
+               this.setupMQTT();
+             }, 3000);
+             return;
+           }
          }
+         
+         console.log('✅✅✅ MQTT GLOBAL CONECTADO, CONFIGURANDO LISTENER');
+         
+         // Limpiar listener anterior si existe
+         if (this.mqttCallback) {
+           mqttService.off(this.mqttTopic, this.mqttCallback);
+         }
+         
+         // Crear callback para nueva tipificación
+         this.mqttCallback = (data) => {
+           console.log('📥📥📥 NUEVA TIPIFICACIÓN RECIBIDA POR MQTT:', data);
+           this.handleNuevaTipificacion(data);
+         };
+         
+         // Suscribirse al topic personalizado del usuario
+         mqttService.on(this.mqttTopic, this.mqttCallback);
+         
+         console.log('✅✅✅ MQTT CONFIGURADO PARA RECIBIR TIPIFICACIONES');
+         console.log('📡 Esperando mensajes en topic:', this.mqttTopic);
+         
        } catch (error) {
          console.error('❌❌❌ ERROR CONFIGURANDO MQTT:', error);
        }
@@ -532,22 +572,26 @@ export default {
            console.warn('⚠️ NO SE RECIBIÓ ÁRBOL O ÁRBOL INVÁLIDO');
          }
          
-         // Mostrar modal con la información de la tipificación
-         this.modalData = {
-           idLlamada: data.idLlamada || '',
-           tipoDocumento: data.tipoDocumento || '',
-           cedula: data.cedula || ''
-         };
+        // Mostrar modal con la información de la tipificación
+        this.modalData = {
+          idLlamada: data.idLlamada || '',
+          tipoDocumento: data.tipoDocumento || '',
+          cedula: data.cedula || ''
+        };
+        
+        this.showModal = true;
+        // ✅ ASEGURAR QUE EL FORMULARIO SE ACTIVE CUANDO LLEGUE NUEVA TIPIFICACIÓN
+        this.tipificacionActiva = true;
+        console.log('🗂️ Modal mostrado con datos:', this.modalData);
+        console.log('✅ Formulario pre-activado para nueva tipificación');
          
-         this.showModal = true;
-         console.log('🗂️ Modal mostrado con datos:', this.modalData);
-         
-         // Reproducir sonido de notificación (opcional)
-         this.playNotificationSound();
-         
-       } catch (error) {
-         console.error('❌❌❌ ERROR PROCESANDO TIPIFICACIÓN:', error);
-       }
+        // Reproducir sonido de notificación (opcional)
+        this.playNotificationSound();
+        
+        
+      } catch (error) {
+        console.error('❌❌❌ ERROR PROCESANDO TIPIFICACIÓN:', error);
+      }
      },
     
     playNotificationSound() {
@@ -619,7 +663,11 @@ export default {
       this.tipoDocumento = '';
       this.historial = [];
       this.arbol = [];
+      
     },
+    
+    
+    
   },
   watch: {
     '$store.state.user._id': {
@@ -638,20 +686,10 @@ export default {
             this.skipNextEvent = false;
             return;
           }
-          // Mostrar formulario y cargar datos
-          this.tipificacionActiva = true;
-          this.cedula = data.cedula || '';
-          this.idLlamada = data.idLlamada || '';
-          this.tipoDocumento = data.tipoDocumento || '';
-          this.observacion = data.observacion || '';
-          if (Array.isArray(data.historial)) {
-            this.historial = data.historial;
-          } else {
-            this.historial.unshift(data);
-          }
-          if (data.arbol) {
-            this.arbol = data.arbol;
-          }
+          
+          console.log('🔥 WATCHER: Nueva tipificación recibida', data);
+          // Usar el método principal para procesar
+          this.handleNuevaTipificacion(data);
         };
         this.mqttCallback = callback;
         if (!mqttService.isConnected) {
@@ -662,66 +700,39 @@ export default {
       }
     }
   },
-     async mounted() {
-    console.log('🚀🚀🚀 WORK MONTADO - INICIANDO DEBUG 🚀🚀🚀');
-    
-    // Cargar y parsear usuario desde localStorage si no está en el store
+  async mounted() {
+    // Cargar usuario desde localStorage si no está en el store
     let user = this.$store.state.user;
     if (!user) {
       const userStr = localStorage.getItem('user');
       if (userStr) {
         try {
-          // Parsear el string tipo query a objeto
           const userParams = new URLSearchParams(userStr);
           user = {
             _id: userParams.get('_id'),
             correo: userParams.get('correo'),
             name: userParams.get('name')
           };
-          
-          // Asignar al store
           this.$store.state.user = user;
-          console.log('👤 Usuario cargado y parseado:', user);
-          console.log('👤 User ID:', user._id);
         } catch (error) {
-          console.error('❌ Error parseando usuario:', error);
+          console.error('Error parseando usuario:', error);
         }
-      } else {
-        console.warn('⚠️ No se encontró usuario en localStorage');
       }
     }
 
-    // Debug inicial
-    console.log('🔍 Estado inicial del árbol:', this.arbol.length, 'nodos');
-    console.log('🔍 Store state:', this.$store.state);
-    console.log('🔍 User en store:', this.$store.state.user);
-    console.log('🔍 User ID en store:', this.$store.state.user?._id);
+    // Validar estado del usuario para recibir tipificaciones
+    const userId = user?._id;
+    if (userId) {
+      const isAvailable = await statusService.validateCurrentUserForWork(userId);
+      if (!isAvailable) {
+        this.showToast('Tu estado actual no permite recibir tipificaciones. Cambia a un estado de trabajo.', 'warning');
+      }
+    }
     
-    // Cargar datos necesarios
+    // Inicializar componente
     this.initializeArbol();
     this.loadHistorial();
-    
-    console.log('📋 Después de inicializar:');
-    console.log('   - Árbol:', this.arbol.length, 'nodos');
-    console.log('   - Historial:', this.historial.length, 'items');
-    
-    // Configurar MQTT para recibir tipificaciones asignadas
     this.setupMQTT();
-    
-    // Debug final
-    setTimeout(() => {
-      console.log('⏰ DEBUG A LOS 5 SEGUNDOS:');
-      console.log('   - Árbol final:', this.arbol.length, 'nodos');
-      console.log('   - MQTT Topic:', this.mqttTopic);
-      console.log('   - User ID final:', this.$store.state.user?._id);
-      console.log('   - Primer nodo del árbol:', this.arbol[0]?.label);
-      
-      if (this.arbol.length === 0) {
-        console.warn('⚠️⚠️⚠️ ÁRBOL SIGUE VACÍO DESPUÉS DE 5 SEGUNDOS!');
-      }
-    }, 5000);
-    
-    console.log('✅✅✅ WORK LISTO - ESPERANDO MQTT ✅✅✅');
   },
   beforeUnmount() {
     // Limpiar listener MQTT si existe
@@ -729,7 +740,9 @@ export default {
       mqttService.off(this.mqttTopic, this.mqttCallback);
       this.mqttCallback = null;
     }
-    console.log('Work desmontándose - manteniendo conexión MQTT global');
+    
+    
+    // Desmontando componente
   }
 };
 </script>
@@ -1082,6 +1095,82 @@ export default {
   background: #ff9800;
   color: #fff;
   border: 1px solid #ffa726;
+}
+
+/* ESTILOS PARA ESTADO DE TRABAJO SIMPLIFICADO */
+.work-status-section {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #28a745;
+}
+
+.work-status-section h5 {
+  margin-bottom: 16px;
+  color: #28a745;
+  font-weight: 600;
+}
+
+.work-status-info {
+  text-align: center;
+}
+
+.waiting-status, .active-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.waiting-icon, .active-icon {
+  font-size: 2.5rem;
+  opacity: 0.8;
+}
+
+.waiting-text h6, .active-text h6 {
+  margin: 0 0 8px 0;
+  color: #333;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.waiting-text p, .active-text p {
+  margin: 0;
+  color: #6c757d;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.waiting-status {
+  border-left: 4px solid #ffc107;
+}
+
+.active-status {
+  border-left: 4px solid #28a745;
+  background: #f0fff4;
+}
+
+.history-section {
+  padding: 16px;
+  background: white;
+  border-radius: 8px;
+  border-left: 4px solid #28a745;
+}
+
+.history-section h5 {
+  color: #28a745;
+  font-weight: 600;
+}
+
+/* ANIMACIÓN PARA SPINNER */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 /* Responsive Design */

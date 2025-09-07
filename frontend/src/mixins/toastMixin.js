@@ -1,5 +1,29 @@
 export default {
   methods: {
+    showToast(message, type = 'info') {
+      // Usar el sistema de toast global si está disponible
+      if (window.showToast) {
+        window.showToast(message, type);
+        return;
+      }
+      
+      // Fallback a console según el tipo
+      switch (type) {
+        case 'success':
+          console.log('✅ Success:', message);
+          break;
+        case 'error':
+          console.error('❌ Error:', message);
+          break;
+        case 'warning':
+          console.warn('⚠️ Warning:', message);
+          break;
+        case 'info':
+        default:
+          console.info('ℹ️ Info:', message);
+          break;
+      }
+    },
     $toast: {
       success(message) {
         console.log('✅ Success:', message);

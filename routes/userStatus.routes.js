@@ -126,6 +126,14 @@ router.post('/logout-pubsub', async (req, res) => {
       isActive: false,
       lastSeen: new Date()
     });
+    
+    // 🚨 REMOVER DEL STATEMANAGER TAMBIÉN
+    const stateManager = req.app.get('stateManager');
+    if (stateManager) {
+      stateManager.unregisterUser(userId);
+      console.log(`🧹 Usuario ${userName} removido del StateManager por logout`);
+    }
+    
     // Publicar evento MQTT
     const mqttService = req.app.get('mqttService');
     mqttService.publishUserDisconnected(userId, userName);
@@ -135,6 +143,128 @@ router.post('/logout-pubsub', async (req, res) => {
     res.json({ success: true, message: 'Logout Pub/Sub exitoso' });
   } catch (error) {
     console.error('Error en logout Pub/Sub:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+});
+
+// Endpoint para cambiar estado de agente (con validaciones robustas)
+router.post('/change-agent-status', async (req, res) => {
+  try {
+    const { userId, userName, newStatus } = req.body;
+    
+    if (!userId || !newStatus) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'userId y newStatus requeridos' 
+      });
+    }
+    
+    const UserStatus = require('../models/userStatus');
+    const StatusType = require('../models/statusType');
+    
+    // Verificar que el status existe
+    const statusType = await StatusType.findOne({ value: newStatus, isActive: true });
+    if (!statusType) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Status '${newStatus}' no existe o no está activo` 
+      });
+    }
+    
+    console.log(`🔄 Cambiando estado de ${userName || userId}: ${newStatus}`);
+    
+    // Actualizar estado en base de datos
+    const isActive = !['disconnected', 'offline', 'unavailable'].includes(newStatus);
+    await UserStatus.upsertStatus(userId, {
+      status: newStatus,
+      isActive: isActive,
+      lastSeen: new Date()
+    });
+    
+    // 🚨 SI ES DESCONEXIÓN, REMOVER DEL STATEMANAGER
+    const stateManager = req.app.get('stateManager');
+    if (!isActive && stateManager) {
+      stateManager.unregisterUser(userId);
+      console.log(`🧹 Usuario ${userName || userId} removido del StateManager por cambio a estado inactivo`);
+    }
+    
+    // Publicar evento MQTT
+    const mqttService = req.app.get('mqttService');
+    if (!isActive) {
+      mqttService.publishUserDisconnected(userId, userName || 'Usuario');
+    } else {
+      // Si se reconecta, registrar nuevamente
+      if (stateManager) {
+        stateManager.registerUser(userId, {
+          name: userName || 'Usuario',
+          connectedAt: new Date(),
+          status: newStatus
+        });
+      }
+      mqttService.publishUserConnected(userId, userName || 'Usuario', null);
+    }
+    
+    // Publicar lista de usuarios activos actualizada
+    const activeUsers = await UserStatus.getActiveUsers();
+    mqttService.publishActiveUsersList(activeUsers);
+    
+    // 🚀 ASIGNACIÓN AUTOMÁTICA: Si el agente cambia a estado de trabajo, asignar tipificaciones pendientes
+    if (isActive && statusType.category === 'work') {
+      console.log(`🎯 Agente ${userName || userId} cambió a estado de trabajo, iniciando asignación automática...`);
+      
+      // Usar el servicio de asignación automática
+      const autoAssignService = require('../services/autoAssignService');
+      
+      // Ejecutar asignación automática en background (no bloquear respuesta)
+      setImmediate(async () => {
+        try {
+          const result = await autoAssignService.executeImmediate();
+          console.log(`✅ Asignación automática completada: ${result.assigned} tipificaciones asignadas`);
+        } catch (error) {
+          console.error('❌ Error en asignación automática:', error);
+        }
+      });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Estado cambiado a '${newStatus}' ${isActive ? '(activo)' : '(inactivo)'}`,
+      newStatus,
+      isActive
+    });
+    
+  } catch (error) {
+    console.error('Error cambiando estado de agente:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+});
+
+// Endpoint para obtener tipos de estado (para frontend)
+router.get('/status-types', async (req, res) => {
+  try {
+    const StatusType = require('../models/statusType');
+    const statusTypes = await StatusType.find({ isActive: true }).lean();
+    res.json(statusTypes);
+  } catch (error) {
+    console.error('Error obteniendo tipos de estado:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+});
+
+// Endpoint para obtener estado específico de un usuario
+router.get('/user-status/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const UserStatus = require('../models/userStatus');
+    const userStatus = await UserStatus.findOne({ userId }).lean();
+    
+    if (userStatus) {
+      res.json({ success: true, userStatus });
+    } else {
+      res.status(404).json({ success: false, message: 'Estado de usuario no encontrado' });
+    }
+  } catch (error) {
+    console.error('Error obteniendo estado de usuario:', error);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
   }
 });
