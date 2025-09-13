@@ -92,6 +92,8 @@ export default {
               email: this.$store.state.user.correo
             });
           }
+          // Configurar listeners para cambios de estado automáticos
+          this.setupAutoStatusChangeListeners();
         }
       }
     },
@@ -109,6 +111,8 @@ export default {
               email: user.correo
             });
           }
+          // Configurar listeners para cambios de estado automáticos
+          this.setupAutoStatusChangeListeners();
         }
       }
     }
@@ -132,7 +136,208 @@ export default {
         console.log('🔄 Token encontrado pero isLoggedIn es false - Restaurando estado...');
         this.$store.commit('makelogin');
       }
+    },
+    
+    setupAutoStatusChangeListeners() {
+      if (!this.$store.state.user || !this.$store.state.user._id) {
+        console.log('⚠️ No se puede configurar listeners sin usuario');
+        return;
+      }
+      
+      const userId = this.$store.state.user._id;
+      console.log('🔧 Configurando listeners para cambios de estado automáticos para usuario:', userId);
+      
+      // Listener para cambios de estado del usuario específico
+      const statusChangeTopic = `telefonia/users/status-change/${userId}`;
+      
+      // Limpiar listener anterior si existe
+      if (this.statusChangeCallback) {
+        mqttService.off(statusChangeTopic, this.statusChangeCallback, 'status');
+      }
+      
+      // Crear nuevo callback
+      this.statusChangeCallback = (data) => {
+        console.log('🔄 Cambio de estado recibido por MQTT:', data);
+        this.handleAutoStatusChange(data);
+      };
+      
+      // Registrar listener
+      mqttService.on(statusChangeTopic, this.statusChangeCallback, 'status');
+      
+      console.log('✅ Listeners configurados para cambios automáticos de estado');
+    },
+    
+    async handleAutoStatusChange(data) {
+      try {
+        console.log('🎯 Procesando cambio automático de estado:', data);
+        
+        // Verificar si el cambio fue automático por asignación de llamada
+        if (data.changedBy === 'system_auto_assignment' && data.reason === 'incoming_call') {
+          console.log('🚀 Cambio automático detectado por llamada entrante');
+          
+          // Actualizar estado en el store
+          if (data.newStatus) {
+            this.$store.commit('updateUserStatus', data.newStatus);
+          }
+          
+          // Verificar si necesita redirigir a /work
+          const currentRoute = this.$route.path;
+          console.log('📍 Ruta actual:', currentRoute);
+          
+          if (currentRoute !== '/work') {
+            console.log('🔄 Redirigiendo automáticamente a /work...');
+            
+            // Mostrar notificación antes de redirigir
+            this.showAutoStatusChangeNotification(data);
+            
+            // Redirigir después de un breve delay para que se vea la notificación
+            setTimeout(() => {
+              this.$router.push('/work');
+            }, 2000);
+          } else {
+            console.log('✅ Usuario ya está en /work, solo mostrando notificación');
+            this.showAutoStatusChangeNotification(data);
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error procesando cambio automático de estado:', error);
+      }
+    },
+    
+    showAutoStatusChangeNotification(data) {
+      // Crear notificación visual
+      const notification = document.createElement('div');
+      notification.className = 'auto-status-notification';
+      notification.innerHTML = `
+        <div class="notification-content">
+          <div class="notification-icon">📞</div>
+          <div class="notification-text">
+            <h4>¡Nueva Llamada Asignada!</h4>
+            <p>Tu estado cambió automáticamente a "${data.newLabel || data.newStatus}"</p>
+            <p class="notification-detail">Serás redirigido al área de trabajo...</p>
+          </div>
+        </div>
+      `;
+      
+      // Agregar estilos
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 8px 25px rgba(40, 167, 69, 0.3);
+        z-index: 10000;
+        min-width: 350px;
+        animation: slideInRight 0.5s ease-out;
+      `;
+      
+      // Agregar al DOM
+      document.body.appendChild(notification);
+      
+      // Reproducir sonido de notificación
+      this.playNotificationSound();
+      
+      // Remover después de 4 segundos
+      setTimeout(() => {
+        notification.style.animation = 'slideOutRight 0.5s ease-in';
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
+          }
+        }, 500);
+      }, 4000);
+    },
+    
+    playNotificationSound() {
+      try {
+        // Crear un sonido de notificación simple usando Web Audio API
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+        oscillator.frequency.setValueAtTime(600, audioContext.currentTime + 0.1);
+        oscillator.frequency.setValueAtTime(800, audioContext.currentTime + 0.2);
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.3);
+      } catch (error) {
+        console.log('No se pudo reproducir sonido de notificación:', error);
+      }
     }
+  },
+  
+  data() {
+    return {
+      statusChangeCallback: null
+    };
   },
 };
 </script>
+
+<style>
+/* Animaciones para notificaciones de cambio automático de estado */
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.auto-status-notification {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.auto-status-notification .notification-content {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.auto-status-notification .notification-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.auto-status-notification .notification-text h4 {
+  margin: 0 0 8px 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.auto-status-notification .notification-text p {
+  margin: 4px 0;
+  font-size: 0.95rem;
+  opacity: 0.95;
+}
+
+.auto-status-notification .notification-detail {
+  font-size: 0.85rem !important;
+  opacity: 0.8 !important;
+  font-style: italic;
+}
+</style>

@@ -186,6 +186,18 @@ module.exports = {
         return;
       }
       
+      // Verificar si el idAgent ya existe (solo si se proporciona y no está vacío)
+      if (req.body.idAgent && req.body.idAgent.trim() !== '') {
+        const existingAgent = await users.findOne({ idAgent: req.body.idAgent.trim() });
+        if (existingAgent) {
+          res.send({
+            success: false,
+            error: "El ID Agente ya está registrado. Debe ser único para cada persona.",
+          });
+          return;
+        }
+      }
+      
       // Buscar rol "asesor" o crear uno por defecto
       let role = await rol.findOne({ nombre: "asesor" });
       if (!role) {
@@ -208,6 +220,7 @@ module.exports = {
         lastName: req.body.lastName,
         Phone: req.body.Phone,
         ID: req.body.ID,
+        idAgent: req.body.idAgent && req.body.idAgent.trim() !== '' ? req.body.idAgent.trim() : undefined, // Campo único para identificar al agente
         role: role._id,
         active: false,
       });
@@ -220,6 +233,9 @@ module.exports = {
   },
   updateUser: async (req, res) => {
     try {
+      console.log('🔍 updateUser llamado con:', req.body);
+      console.log('🔍 Content-Type:', req.headers['content-type']);
+      
       if (!req.body.id) {
         return res.send({
           success: false,
@@ -242,6 +258,22 @@ module.exports = {
           return;
         }
       }
+
+      // Si se está actualizando el idAgent, verificar que no exista
+      if (req.body.idAgent && req.body.idAgent.trim() !== '') {
+        const existingAgent = await users.findOne({ 
+          idAgent: req.body.idAgent.trim(),
+          _id: { $ne: req.body.id } // Excluir el usuario actual
+        });
+        
+        if (existingAgent) {
+          res.send({
+            success: false,
+            error: "El ID Agente ya está registrado por otro usuario. Debe ser único para cada persona.",
+          });
+          return;
+        }
+      }
       
       var dataForUpdate = {};
       if (req.body.email) {
@@ -250,6 +282,10 @@ module.exports = {
       if (req.body.name) {
         dataForUpdate.name = req.body.name;
       }
+      if (req.body.idAgent !== undefined) {
+        // Actualizar idAgent (puede ser vacío para limpiarlo)
+        dataForUpdate.idAgent = req.body.idAgent && req.body.idAgent.trim() !== '' ? req.body.idAgent.trim() : undefined;
+      }
       if (req.body.password) {
         // Cifrar la nueva contraseña antes de actualizar
         const saltRounds = 12;
@@ -257,10 +293,43 @@ module.exports = {
         dataForUpdate.password = hashedPassword;
       }
 
+      console.log('🔍 Datos para actualizar:', dataForUpdate);
+      console.log('🔍 ID del usuario:', req.body.id);
+
+      // Verificar si el usuario existe
+      let existingUser;
+      try {
+        existingUser = await users.findById(req.body.id);
+        console.log('🔍 Usuario encontrado:', existingUser ? 'SÍ' : 'NO');
+        if (existingUser) {
+          console.log('🔍 Usuario actual:', {
+            _id: existingUser._id,
+            name: existingUser.name,
+            email: existingUser.correo,
+            idAgent: existingUser.idAgent
+          });
+        }
+      } catch (findError) {
+        console.error('🔍 Error buscando usuario:', findError);
+        return res.send({ 
+          success: false, 
+          error: "Error al buscar el usuario: " + findError.message
+        });
+      }
+      
+      if (!existingUser) {
+        return res.send({ 
+          success: false, 
+          error: "Usuario no encontrado"
+        });
+      }
+
       const update = await users.updateOne(
         { _id: req.body.id },
         dataForUpdate
       );
+
+      console.log('🔍 Resultado de la actualización:', update);
 
       if (update.modifiedCount > 0) {
         res.send({ 
@@ -271,7 +340,7 @@ module.exports = {
       } else {
         res.send({ 
           success: false, 
-          error: "Usuario no encontrado o no se realizaron cambios"
+          error: "No se realizaron cambios en el usuario"
         });
       }
     } catch (error) {
@@ -279,6 +348,85 @@ module.exports = {
       res.send({ 
         success: false, 
         error: "Error interno del servidor al actualizar usuario"
+      });
+    }
+  },
+  // Endpoint temporal para listar todos los usuarios
+  listUsers: async (req, res) => {
+    try {
+      const allUsers = await users.find({}, '_id name correo idAgent').limit(10);
+      res.send({
+        success: true,
+        users: allUsers,
+        count: allUsers.length
+      });
+    } catch (error) {
+      console.error('Error listando usuarios:', error);
+      res.send({
+        success: false,
+        error: "Error interno del servidor"
+      });
+    }
+  },
+  // Endpoint temporal para verificar si un usuario existe
+  checkUser: async (req, res) => {
+    try {
+      const { id } = req.body;
+      console.log('🔍 Verificando usuario con ID:', id);
+      
+      const user = await users.findById(id);
+      if (user) {
+        res.send({
+          success: true,
+          user: {
+            _id: user._id,
+            name: user.name,
+            email: user.correo,
+            idAgent: user.idAgent
+          }
+        });
+      } else {
+        res.send({
+          success: false,
+          error: "Usuario no encontrado"
+        });
+      }
+    } catch (error) {
+      console.error('Error verificando usuario:', error);
+      res.send({
+        success: false,
+        error: "Error interno del servidor"
+      });
+    }
+  },
+  // Endpoint simple para verificar usuario por ID en URL
+  checkUserById: async (req, res) => {
+    try {
+      const { id } = req.params;
+      console.log('🔍 Verificando usuario con ID:', id);
+      
+      const user = await users.findById(id);
+      if (user) {
+        res.send({
+          success: true,
+          user: {
+            _id: user._id,
+            name: user.name,
+            email: user.correo,
+            idAgent: user.idAgent
+          }
+        });
+      } else {
+        res.send({
+          success: false,
+          error: "Usuario no encontrado"
+        });
+      }
+    } catch (error) {
+      console.error('Error verificando usuario:', error);
+      res.send({
+        success: false,
+        error: "Error interno del servidor"
       });
     }
   },

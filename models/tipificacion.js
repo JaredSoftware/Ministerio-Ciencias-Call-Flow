@@ -17,6 +17,28 @@ const tipificacionSchema = new mongoose.Schema({
   nivel3: { type: String },
   nivel4: { type: String },
   nivel5: { type: String },
+  
+  // CAMPOS DEL CLIENTE - INFORMACIÓN PERSONAL
+  nombres: { type: String },
+  apellidos: { type: String },
+  fechaNacimiento: { type: Date },
+  
+  // UBICACIÓN
+  pais: { type: String },
+  departamento: { type: String },
+  ciudad: { type: String },
+  direccion: { type: String },
+  
+  // CONTACTO
+  telefono: { type: String },
+  correo: { type: String },
+  
+  // DEMOGRÁFICOS
+  sexo: { type: String, enum: ['Hombre', 'Mujer', 'Intersexual'] },
+  nivelEscolaridad: { type: String },
+  grupoEtnico: { type: String },
+  discapacidad: { type: String },
+  
   // NUEVOS CAMPOS PARA GESTIÓN DE COLAS
   priority: { type: Number, default: 1, min: 1, max: 5 }, // 1=Baja, 5=Crítica
   queuePosition: { type: Number }, // Posición en la cola del agente

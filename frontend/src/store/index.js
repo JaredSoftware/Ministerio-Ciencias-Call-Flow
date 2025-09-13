@@ -19,6 +19,7 @@ export default createStore({
     layout: "default",
     //login
     isLoggedIn: sessionStorage.getItem('isLoggedIn') === 'true' || false,
+    user: null, // Usuario actual
     //remember me
     rememberMe: false,
     token: sessionStorage.getItem('token') || '',
@@ -89,6 +90,10 @@ export default createStore({
       state.role = '';
       localStorage.removeItem('role');
     },
+    // User mutations
+    setUser(state, user) {
+      state.user = user;
+    },
     // User status mutations
     setUserStatus(state, statusData) {
       state.userStatus = { ...state.userStatus, ...statusData };
@@ -103,11 +108,17 @@ export default createStore({
     },
     //loggin
     // En el action de login
-    login({ commit, state }, tokenInfo) {
+    login({ commit, state }, loginData) {
       // Login inmediato sin delay
       return new Promise((resolve) => {
-        const token = tokenInfo;
+        // Manejar tanto el formato nuevo { token, user } como el formato antiguo (solo token)
+        const token = typeof loginData === 'string' ? loginData : loginData.token;
+        const user = typeof loginData === 'object' ? loginData.user : null;
+        
         commit('setToken', token);
+        if (user) {
+          commit('setUser', user);
+        }
         if (state.rememberMe) {
           // Establecer una cookie para recordar la sesión
           const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 días desde ahora
@@ -150,6 +161,7 @@ export default createStore({
         });
         
         commit('clearToken');
+        commit('setUser', null);
         commit('logout');
         resolve();
       });

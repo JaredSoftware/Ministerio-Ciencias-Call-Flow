@@ -193,7 +193,7 @@ export default {
           }
 
           // Redirigir al dashboard
-          this.$store.dispatch("login", token);
+          this.$store.dispatch("login", { token, user: getInfoForLogin.user });
           console.log('🏠 Redirigiendo al dashboard...');
           this.$router.push("/dashboard");
         } else {

@@ -81,18 +81,42 @@ export default {
       }
     },
     
-    updateSyncStatus() {
-      // Obtener estado del servicio de sincronización
-      this.isSyncing = false; // No hay heartbeat, asumimos que si está sincronizando, está en proceso
-      this.lastSyncTime = null; // No hay heartbeat, no podemos obtener el tiempo de la última sincronización
-      this.currentStatus = null; // No hay heartbeat, no podemos obtener el estado actual
-      
-      // Determinar si está conectado basado en la última sincronización
-      if (this.lastSyncTime) {
-        const timeSinceLastSync = Date.now() - this.lastSyncTime.getTime();
-        this.isConnected = timeSinceLastSync < 60000; // 1 minuto
-      } else {
+    async updateSyncStatus() {
+      try {
+        // Verificar si el usuario está logueado
+        if (!this.$store.state.isLoggedIn || !this.$store.state.user) {
+          this.isConnected = false;
+          this.currentStatus = null;
+          return;
+        }
+
+        // Obtener estado actual del usuario desde el backend
+        const response = await fetch('/api/user-status/my-status', {
+          credentials: 'include'
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.status) {
+            this.currentStatus = data.status;
+            this.lastSyncTime = new Date();
+            this.isConnected = true;
+            this.sessionId = data.status.sessionId || 'Activo';
+            
+            // Actualizar el store con el estado actual
+            this.$store.commit('setUserStatus', data.status);
+          } else {
+            this.isConnected = false;
+            this.currentStatus = null;
+          }
+        } else {
+          this.isConnected = false;
+          this.currentStatus = null;
+        }
+      } catch (error) {
+        console.error('Error actualizando estado de sincronización:', error);
         this.isConnected = false;
+        this.currentStatus = null;
       }
     },
     

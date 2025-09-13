@@ -5,9 +5,21 @@
       <div class="modal-content">
         <h4>📞 Nueva Tipificación Asignada</h4>
         <div class="modal-info">
-          <p><strong>ID Llamada:</strong> {{ modalData.idLlamada }}</p>
-          <p><strong>Tipo Documento:</strong> {{ modalData.tipoDocumento }}</p>
-          <p><strong>Cédula:</strong> {{ modalData.cedula }}</p>
+          <div class="modal-info-grid">
+            <div class="modal-info-section">
+              <h5>Información de la Llamada</h5>
+              <p><strong>ID Llamada:</strong> {{ modalData.idLlamada }}</p>
+              <p><strong>Tipo Documento:</strong> {{ modalData.tipoDocumento }}</p>
+              <p><strong>Cédula:</strong> {{ modalData.cedula }}</p>
+            </div>
+            <div class="modal-info-section" v-if="modalData.nombres || modalData.apellidos">
+              <h5>Información del Cliente</h5>
+              <p v-if="modalData.nombres"><strong>Nombres:</strong> {{ modalData.nombres }}</p>
+              <p v-if="modalData.apellidos"><strong>Apellidos:</strong> {{ modalData.apellidos }}</p>
+              <p v-if="modalData.telefono"><strong>Teléfono:</strong> {{ modalData.telefono }}</p>
+              <p v-if="modalData.correo"><strong>Correo:</strong> {{ modalData.correo }}</p>
+            </div>
+          </div>
         </div>
         <div class="modal-buttons">
           <button @click="guardarModal" class="btn-accept">Aceptar</button>
@@ -32,20 +44,56 @@
           <td>{{ cedula || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Teléfono:</b></td>
-          <td>{{ telefono || 'No Info' }}</td>
+          <td><b>Nombres:</b></td>
+          <td>{{ nombres || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Correo:</b></td>
-          <td>{{ correo || 'No Info' }}</td>
+          <td><b>Apellidos:</b></td>
+          <td>{{ apellidos || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Fecha Nacimiento:</b></td>
+          <td>{{ fechaNacimiento || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>País:</b></td>
+          <td>{{ pais || 'No Info' }}</td>
         </tr>
         <tr>
           <td><b>Departamento:</b></td>
           <td>{{ departamento || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Municipio:</b></td>
-          <td>{{ municipio || 'No Info' }}</td>
+          <td><b>Ciudad:</b></td>
+          <td>{{ ciudad || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Correo:</b></td>
+          <td>{{ correo || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Teléfono:</b></td>
+          <td>{{ telefono || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Dirección:</b></td>
+          <td>{{ direccion || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Sexo:</b></td>
+          <td>{{ sexo || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Nivel Escolaridad:</b></td>
+          <td>{{ nivelEscolaridad || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Grupo Étnico:</b></td>
+          <td>{{ grupoEtnico || 'No Info' }}</td>
+        </tr>
+        <tr>
+          <td><b>Discapacidad:</b></td>
+          <td>{{ discapacidad || 'No Info' }}</td>
         </tr>
       </table>
       <div>
@@ -55,38 +103,132 @@
 
     <!-- MODAL PARA EDITAR CLIENTE -->
     <div v-if="mostrarModalCliente" class="modal-overlay">
-      <div class="modal-content">
+      <div class="modal-content large-modal">
         <h4>Editar Información del Cliente</h4>
-        <table class="client-info-table">
-          <tr>
-            <td><b>ID Llamada:</b></td>
-            <td><input v-model="clienteTemp.idLlamada" /></td>
-          </tr>
-          <tr>
-            <td><b>T. Documento:</b></td>
-            <td><input v-model="clienteTemp.tipoDocumento" /></td>
-          </tr>
-          <tr>
-            <td><b>Doc. No.:</b></td>
-            <td><input v-model="clienteTemp.cedula" /></td>
-          </tr>
-          <tr>
-            <td><b>Teléfono:</b></td>
-            <td><input v-model="clienteTemp.telefono" /></td>
-          </tr>
-          <tr>
-            <td><b>Correo:</b></td>
-            <td><input v-model="clienteTemp.correo" /></td>
-          </tr>
-          <tr>
-            <td><b>Departamento:</b></td>
-            <td><input v-model="clienteTemp.departamento" /></td>
-          </tr>
-          <tr>
-            <td><b>Municipio:</b></td>
-            <td><input v-model="clienteTemp.municipio" /></td>
-          </tr>
-        </table>
+        <div class="client-form-grid">
+          <div class="form-group">
+            <label><b>ID Llamada:</b></label>
+            <input v-model="clienteTemp.idLlamada" />
+          </div>
+          
+          <div class="form-group">
+            <label><b>Tipo de Identificación:</b></label>
+            <select v-model="clienteTemp.tipoDocumento">
+              <option value="">Seleccione...</option>
+              <option value="Cédula de ciudadanía">Cédula de ciudadanía</option>
+              <option value="Cédula de extranjería">Cédula de extranjería</option>
+              <option value="Tarjeta de identidad">Tarjeta de identidad</option>
+              <option value="Pasaporte">Pasaporte</option>
+              <option value="Permiso temporal de permanencia">Permiso temporal de permanencia</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label><b>No. de Identificación:</b></label>
+            <input v-model="clienteTemp.cedula" />
+          </div>
+          
+          <div class="form-group">
+            <label><b>Nombres:</b></label>
+            <input v-model="clienteTemp.nombres" />
+          </div>
+          
+          <div class="form-group">
+            <label><b>Apellidos:</b></label>
+            <input v-model="clienteTemp.apellidos" />
+          </div>
+          
+          <div class="form-group">
+            <label><b>Fecha de nacimiento:</b></label>
+            <input type="date" v-model="clienteTemp.fechaNacimiento" />
+          </div>
+          
+          <div class="form-group">
+            <label><b>País de residencia:</b></label>
+            <input v-model="clienteTemp.pais" />
+          </div>
+          
+          <div class="form-group">
+            <label><b>Departamento:</b></label>
+            <input v-model="clienteTemp.departamento" />
+          </div>
+          
+          <div class="form-group">
+            <label><b>Ciudad:</b></label>
+            <input v-model="clienteTemp.ciudad" />
+          </div>
+          
+          <div class="form-group">
+            <label><b>Correo electrónico:</b></label>
+            <input type="email" v-model="clienteTemp.correo" />
+          </div>
+          
+          <div class="form-group">
+            <label><b>Teléfono de contacto:</b></label>
+            <input v-model="clienteTemp.telefono" />
+          </div>
+          
+          <div class="form-group full-width">
+            <label><b>Dirección:</b></label>
+            <input v-model="clienteTemp.direccion" />
+          </div>
+          
+          <div class="form-group">
+            <label><b>Sexo:</b></label>
+            <select v-model="clienteTemp.sexo">
+              <option value="">Seleccione...</option>
+              <option value="Hombre">Hombre</option>
+              <option value="Mujer">Mujer</option>
+              <option value="Intersexual">Intersexual</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label><b>Nivel de escolaridad:</b></label>
+            <select v-model="clienteTemp.nivelEscolaridad">
+              <option value="">Seleccione...</option>
+              <option value="Prescolar">Prescolar</option>
+              <option value="Básica primaria (1 a 5)">Básica primaria (1 a 5)</option>
+              <option value="Básica Secundaria (6 a 9)">Básica Secundaria (6 a 9)</option>
+              <option value="Media (10-11)">Media (10-11)</option>
+              <option value="Técnico">Técnico</option>
+              <option value="Tecnólogo">Tecnólogo</option>
+              <option value="Universitario (pregrado)">Universitario (pregrado)</option>
+              <option value="Postgrado (Especialización)">Postgrado (Especialización)</option>
+              <option value="Postgrado (Maestría)">Postgrado (Maestría)</option>
+              <option value="Postgrado (Doctorado)">Postgrado (Doctorado)</option>
+              <option value="Postgrado (post Doctorado)">Postgrado (post Doctorado)</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label><b>Grupo étnico:</b></label>
+            <select v-model="clienteTemp.grupoEtnico">
+              <option value="">Seleccione...</option>
+              <option value="Indígena">Indígena</option>
+              <option value="Raizal">Raizal</option>
+              <option value="Palenquero/a">Palenquero/a</option>
+              <option value="Gitano/a ROM">Gitano/a ROM</option>
+              <option value="Negro/a, Mulato/a, Afrodescendiente">Negro/a, Mulato/a, Afrodescendiente</option>
+              <option value="Ningún grupo étnico">Ningún grupo étnico</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label><b>Discapacidad:</b></label>
+            <select v-model="clienteTemp.discapacidad">
+              <option value="">Seleccione...</option>
+              <option value="Ninguna">Ninguna</option>
+              <option value="Física">Física</option>
+              <option value="Visual">Visual</option>
+              <option value="Auditiva">Auditiva</option>
+              <option value="Múltiple">Múltiple</option>
+              <option value="Intelectual - Cognitiva">Intelectual - Cognitiva</option>
+              <option value="Psicosocial">Psicosocial</option>
+              <option value="Sordoceguera">Sordoceguera</option>
+            </select>
+          </div>
+        </div>
         <div style="margin-top: 16px; text-align: right;">
           <button class="btn-save" @click="guardarCliente">Guardar</button>
           <button class="btn-cancel" @click="cancelarEdicionCliente">Cancelar</button>
@@ -311,14 +453,37 @@ export default {
       mqttCallback: null, // Para guardar el callback y poder limpiarlo
       editandoCliente: false,
       mostrarModalCliente: false,
+      // Campos del cliente
+      nombres: '',
+      apellidos: '',
+      fechaNacimiento: '',
+      pais: '',
+      departamento: '',
+      ciudad: '',
+      correo: '',
+      telefono: '',
+      direccion: '',
+      sexo: '',
+      nivelEscolaridad: '',
+      grupoEtnico: '',
+      discapacidad: '',
       clienteTemp: {
         idLlamada: '',
         tipoDocumento: '',
         cedula: '',
+        nombres: '',
+        apellidos: '',
+        fechaNacimiento: '',
+        pais: '',
+        departamento: '',
+        ciudad: '',
         telefono: '',
         correo: '',
-        departamento: '',
-        municipio: ''
+        direccion: '',
+        sexo: '',
+        nivelEscolaridad: '',
+        grupoEtnico: '',
+        discapacidad: ''
       },
       tipificacionActiva: false,
     };
@@ -416,23 +581,39 @@ export default {
           const found = options.find(opt => opt.value === value);
           return found ? found.label : value;
         };
-        // Preparar los datos para actualizar la tipificación
-        const params = {
-          idLlamada: this.idLlamada,
-          cedula: this.cedula,
-          tipoDocumento: this.tipoDocumento,
-          observacion: this.observacion,
-          nivel1: getLabel(this.nivel1Options, this.nivel1),
-          nivel2: getLabel(this.nivel2Options, this.nivel2),
-          nivel3: getLabel(this.nivel3Options, this.nivel3),
-          nivel4: getLabel(this.nivel4Options, this.nivel4),
-          nivel5: getLabel(this.nivel5Options, this.nivel5),
+        
+        // Llamar al endpoint de actualización con body parameters
+        const response = await axios.post('/tipificacion/actualizar', {
+          idLlamada: this.idLlamada || '',
+          cedula: this.cedula || '',
+          tipoDocumento: this.tipoDocumento || '',
+          observacion: this.observacion || '',
+          // Campos del cliente
+          nombres: this.nombres || '',
+          apellidos: this.apellidos || '',
+          fechaNacimiento: this.fechaNacimiento || '',
+          pais: this.pais || '',
+          departamento: this.departamento || '',
+          ciudad: this.ciudad || '',
+          telefono: this.telefono || '',
+          correo: this.correo || '',
+          direccion: this.direccion || '',
+          sexo: this.sexo || '',
+          nivelEscolaridad: this.nivelEscolaridad || '',
+          grupoEtnico: this.grupoEtnico || '',
+          discapacidad: this.discapacidad || '',
+          // Niveles de tipificación
+          nivel1: getLabel(this.nivel1Options, this.nivel1) || '',
+          nivel2: getLabel(this.nivel2Options, this.nivel2) || '',
+          nivel3: getLabel(this.nivel3Options, this.nivel3) || '',
+          nivel4: getLabel(this.nivel4Options, this.nivel4) || '',
+          nivel5: getLabel(this.nivel5Options, this.nivel5) || '',
+          // Usuario asignado
+          assignedTo: this.$store.state.user?._id || this.$store.state.user?.id || '',
+          // Historial y árbol
           historial: this.historial,
-          arbol: this.arbol,
-          assignedTo: this.$store.state.user?._id || this.$store.state.user?.id
-        };
-        // Llamar al endpoint de actualización
-        const response = await axios.post('/tipificacion/actualizar', params);
+          arbol: this.arbol
+        });
         if (response.data.success) {
           // Limpiar campos y cerrar formulario/modal
           this.nivel1 = '';
@@ -444,6 +625,19 @@ export default {
           this.idLlamada = '';
           this.cedula = '';
           this.tipoDocumento = '';
+          this.nombres = '';
+          this.apellidos = '';
+          this.fechaNacimiento = '';
+          this.pais = '';
+          this.departamento = '';
+          this.ciudad = '';
+          this.telefono = '';
+          this.correo = '';
+          this.direccion = '';
+          this.sexo = '';
+          this.nivelEscolaridad = '';
+          this.grupoEtnico = '';
+          this.discapacidad = '';
           this.historial = [];
           this.arbol = [];
           this.tipificacionActiva = false;
@@ -538,16 +732,43 @@ export default {
            });
          }
          
-         // Actualizar datos del formulario
-         this.cedula = data.cedula || '';
-         this.idLlamada = data.idLlamada || '';
-         this.tipoDocumento = data.tipoDocumento || '';
-         this.observacion = data.observacion || '';
+        // Actualizar datos del formulario - Campos básicos
+        this.cedula = data.cedula || '';
+        this.idLlamada = data.idLlamada || '';
+        this.tipoDocumento = data.tipoDocumento || '';
+        this.observacion = data.observacion || '';
+        
+        // Actualizar datos del cliente - Información personal
+        this.nombres = data.nombres || '';
+        this.apellidos = data.apellidos || '';
+        this.fechaNacimiento = data.fechaNacimiento || '';
+        
+        // Ubicación
+        this.pais = data.pais || '';
+        this.departamento = data.departamento || '';
+        this.ciudad = data.ciudad || '';
+        this.direccion = data.direccion || '';
+        
+        // Contacto
+        this.telefono = data.telefono || '';
+        this.correo = data.correo || '';
+        
+        // Demográficos
+        this.sexo = data.sexo || '';
+        this.nivelEscolaridad = data.nivelEscolaridad || '';
+        this.grupoEtnico = data.grupoEtnico || '';
+        this.discapacidad = data.discapacidad || '';
          
          console.log('📝 Datos del formulario actualizados:');
          console.log(`   - ID Llamada: ${this.idLlamada}`);
          console.log(`   - Cédula: ${this.cedula}`);
          console.log(`   - Tipo Doc: ${this.tipoDocumento}`);
+         console.log(`   - Nombres: ${this.nombres}`);
+         console.log(`   - Apellidos: ${this.apellidos}`);
+         console.log(`   - Teléfono: ${this.telefono}`);
+         console.log(`   - Correo: ${this.correo}`);
+         console.log(`   - Departamento: ${this.departamento}`);
+         console.log(`   - Ciudad: ${this.ciudad}`);
          
          // Actualizar historial
          if (Array.isArray(data.historial)) {
@@ -576,7 +797,11 @@ export default {
         this.modalData = {
           idLlamada: data.idLlamada || '',
           tipoDocumento: data.tipoDocumento || '',
-          cedula: data.cedula || ''
+          cedula: data.cedula || '',
+          nombres: data.nombres || '',
+          apellidos: data.apellidos || '',
+          telefono: data.telefono || '',
+          correo: data.correo || ''
         };
         
         this.showModal = true;
@@ -609,20 +834,38 @@ export default {
         idLlamada: this.idLlamada || '',
         tipoDocumento: this.tipoDocumento || '',
         cedula: this.cedula || '',
+        nombres: this.nombres || '',
+        apellidos: this.apellidos || '',
+        fechaNacimiento: this.fechaNacimiento || '',
+        pais: this.pais || '',
+        departamento: this.departamento || '',
+        ciudad: this.ciudad || '',
         telefono: this.telefono || '',
         correo: this.correo || '',
-        departamento: this.departamento || '',
-        municipio: this.municipio || ''
+        direccion: this.direccion || '',
+        sexo: this.sexo || '',
+        nivelEscolaridad: this.nivelEscolaridad || '',
+        grupoEtnico: this.grupoEtnico || '',
+        discapacidad: this.discapacidad || ''
       };
     },
     guardarCliente() {
       this.idLlamada = this.clienteTemp.idLlamada;
       this.tipoDocumento = this.clienteTemp.tipoDocumento;
       this.cedula = this.clienteTemp.cedula;
+      this.nombres = this.clienteTemp.nombres;
+      this.apellidos = this.clienteTemp.apellidos;
+      this.fechaNacimiento = this.clienteTemp.fechaNacimiento;
+      this.pais = this.clienteTemp.pais;
+      this.departamento = this.clienteTemp.departamento;
+      this.ciudad = this.clienteTemp.ciudad;
       this.telefono = this.clienteTemp.telefono;
       this.correo = this.clienteTemp.correo;
-      this.departamento = this.clienteTemp.departamento;
-      this.municipio = this.clienteTemp.municipio;
+      this.direccion = this.clienteTemp.direccion;
+      this.sexo = this.clienteTemp.sexo;
+      this.nivelEscolaridad = this.clienteTemp.nivelEscolaridad;
+      this.grupoEtnico = this.clienteTemp.grupoEtnico;
+      this.discapacidad = this.clienteTemp.discapacidad;
       this.mostrarModalCliente = false;
     },
     cancelarEdicionCliente() {
@@ -633,7 +876,19 @@ export default {
       this.idLlamada = '';
       this.tipoDocumento = '';
       this.observacion = '';
-      // ... limpia otros campos si es necesario ...
+      this.nombres = '';
+      this.apellidos = '';
+      this.fechaNacimiento = '';
+      this.pais = '';
+      this.departamento = '';
+      this.ciudad = '';
+      this.telefono = '';
+      this.correo = '';
+      this.direccion = '';
+      this.sexo = '';
+      this.nivelEscolaridad = '';
+      this.grupoEtnico = '';
+      this.discapacidad = '';
     },
     async cancelarTipificacion() {
       // Lógica para cancelar la tipificación pendiente en el backend
@@ -661,6 +916,19 @@ export default {
       this.idLlamada = '';
       this.cedula = '';
       this.tipoDocumento = '';
+      this.nombres = '';
+      this.apellidos = '';
+      this.fechaNacimiento = '';
+      this.pais = '';
+      this.departamento = '';
+      this.ciudad = '';
+      this.telefono = '';
+      this.correo = '';
+      this.direccion = '';
+      this.sexo = '';
+      this.nivelEscolaridad = '';
+      this.grupoEtnico = '';
+      this.discapacidad = '';
       this.historial = [];
       this.arbol = [];
       
@@ -780,6 +1048,13 @@ export default {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
+.large-modal {
+  min-width: 800px;
+  max-width: 1000px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
 .modal-content h4 {
   margin-bottom: 16px;
   color: #1976d2;
@@ -791,6 +1066,21 @@ export default {
   padding: 16px;
   background: #f8f9fa;
   border-radius: 8px;
+}
+
+.modal-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.modal-info-section h5 {
+  margin: 0 0 12px 0;
+  color: #1976d2;
+  font-size: 1rem;
+  font-weight: 600;
+  border-bottom: 2px solid #e3f2fd;
+  padding-bottom: 4px;
 }
 
 .modal-info p {
@@ -830,6 +1120,46 @@ export default {
 
 .btn-cancel:hover {
   background: #5a6268;
+}
+
+/* Estilos para el formulario de cliente */
+.client-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.form-group label {
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.form-group input,
+.form-group select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: border-color 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
 }
 
 /* Sidebar Styles */
@@ -1189,6 +1519,11 @@ export default {
     min-width: 320px;
     margin: 20px;
   }
+  
+  .modal-info-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
 }
 
 @media (max-width: 768px) {
@@ -1206,6 +1541,17 @@ export default {
   
   .btn-save, .btn-clear {
     width: 100%;
+  }
+  
+  .client-form-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .large-modal {
+    min-width: 320px;
+    max-width: 95vw;
+    margin: 20px;
   }
 }
 </style> 

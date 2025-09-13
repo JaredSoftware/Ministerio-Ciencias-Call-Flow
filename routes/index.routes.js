@@ -22,6 +22,12 @@ router.post("/api/addUser", login.makeUser);
 
 router.post("/api/updateUser", login.updateUser);
 
+router.post("/api/checkUser", login.checkUser);
+
+router.get("/api/listUsers", login.listUsers);
+
+router.get("/api/checkUser/:id", login.checkUserById);
+
 router.post("/api/deleteUser", login.deletUser);
 
 router.post("/api/token", login.userToken);
@@ -222,11 +228,19 @@ router.post("/api/websocket/init", (req, res) => {
   }
 });
 
-// 🚀 Endpoint para tipificación - SOLO MQTT/StateManager (NO BASE DE DATOS PARA ESTADOS)
+// 🚀 Endpoint para tipificación - ASIGNACIÓN DIRECTA POR IDAGENT DEL SISTEMA TELEFÓNICO
 router.get('/api/tipificacion/formulario', async (req, res) => {
   try {
     const params = req.query;
     console.log('📞 Nueva solicitud de tipificación:', params);
+    
+    // 🚨 VALIDACIÓN OBLIGATORIA: idAgent es requerido
+    if (!params.idAgent) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'El parámetro idAgent es obligatorio' 
+      });
+    }
     
     // 🎯 DETERMINAR PRIORIDAD AUTOMÁTICAMENTE
     let priority = 1; // Por defecto: prioridad baja
@@ -253,107 +267,210 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     console.log(`🎯 Prioridad asignada: ${priority} (${priority === 5 ? 'CRÍTICA' : priority === 4 ? 'ALTA' : priority === 3 ? 'MEDIA' : priority === 2 ? 'NORMAL' : 'BAJA'})`);
     console.log(`👤 Segmento cliente: ${customerSegment}`);
     console.log(`⏱️ Tiempo estimado: ${estimatedTime} minutos`);
+    console.log(`🎯 ID Agent del sistema telefónico: ${params.idAgent}`);
     
-    // 🚨 CAMBIO: OBTENER USUARIOS ACTIVOS DIRECTAMENTE DE LA BASE DE DATOS
-    // No depender del stateManager que puede estar vacío
-    const StatusType = require('../models/statusType');
-    const UserStatus = require('../models/userStatus');
+    // 🚨 BUSCAR AGENTE POR IDAGENT EN LA BASE DE DATOS
     const User = require('../models/users');
+    const UserStatus = require('../models/userStatus');
     
-    // 🚀 OPTIMIZACIÓN: Una sola query para obtener todos los StatusTypes de categoría 'work'
-    const workStatusTypes = await StatusType.find({ category: 'work', isActive: true }).lean();
-    const workStatusValues = workStatusTypes.map(st => st.value);
+    // 🎯 BUSCAR AGENTE ESPECÍFICO POR IDAGENT
+    const assignedAgent = await User.findOne({ 
+      idAgent: params.idAgent,
+      active: true 
+    }).lean();
     
-    console.log('🎯 Estados de trabajo disponibles:', workStatusValues);
+    if (!assignedAgent) {
+      return res.status(404).json({ 
+        success: false, 
+        message: `No se encontró un agente activo con idAgent: ${params.idAgent}` 
+      });
+    }
     
-    // 🚨 BUSCAR USUARIOS ACTIVOS CON ESTADOS DE TRABAJO DIRECTAMENTE EN BD
-    const activeUserStatuses = await UserStatus.find({ 
-      isActive: true,
-      status: { $in: workStatusValues }
-    }).populate('userId').lean();
+    console.log(`✅ Agente encontrado: ${assignedAgent.name} (${assignedAgent.correo})`);
     
-    console.log(`👥 Usuarios activos encontrados: ${activeUserStatuses.length}`);
+    // Obtener estado actual del agente
+    const userStatus = await UserStatus.findOne({ 
+      userId: assignedAgent._id 
+    }).lean();
     
-    // Transformar a formato compatible
-    const availableUsers = [];
-    for (const userStatus of activeUserStatuses) {
-      if (userStatus.userId) {
-        availableUsers.push({
-          userId: userStatus.userId._id,
-          name: userStatus.userId.name,
-          email: userStatus.userId.correo,
-          status: userStatus.status,
-          socketId: userStatus.socketId,
-          sessionId: userStatus.sessionId
+    if (!userStatus) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `El agente ${assignedAgent.name} no tiene estado registrado en el sistema`,
+        agentInfo: {
+          idAgent: params.idAgent,
+          agentName: assignedAgent.name,
+          agentEmail: assignedAgent.correo,
+          reason: 'no_status_registered'
+        }
+      });
+    }
+    
+    // Verificar que el agente esté activo
+    if (!userStatus.isActive) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `El agente ${assignedAgent.name} no está activo en la plataforma`,
+        agentInfo: {
+          idAgent: params.idAgent,
+          agentName: assignedAgent.name,
+          agentEmail: assignedAgent.correo,
+          currentStatus: userStatus.status,
+          reason: 'agent_inactive'
+        }
+      });
+    }
+    
+    // Verificar que el agente esté en un estado de trabajo
+    const StatusType = require('../models/statusType');
+    const statusType = await StatusType.findOne({ 
+      value: userStatus.status, 
+      isActive: true 
+    }).lean();
+    
+    if (!statusType) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `El estado '${userStatus.status}' del agente ${assignedAgent.name} no es válido`,
+        agentInfo: {
+          idAgent: params.idAgent,
+          agentName: assignedAgent.name,
+          agentEmail: assignedAgent.correo,
+          currentStatus: userStatus.status,
+          reason: 'invalid_status'
+        }
+      });
+    }
+    
+    let statusAutoChanged = false;
+    let previousStatus = null;
+    
+    if (statusType.category !== 'work') {
+      console.log(`🔄 Agente ${assignedAgent.name} está en estado '${statusType.label}' (${statusType.category})`);
+      console.log(`🚀 CAMBIANDO AUTOMÁTICAMENTE A ESTADO DE TRABAJO...`);
+      
+      // Guardar estado anterior
+      previousStatus = userStatus.status;
+      statusAutoChanged = true;
+      
+      // Buscar el mejor estado de trabajo disponible
+      const workStatusTypes = await StatusType.find({ 
+        category: 'work', 
+        isActive: true 
+      }).sort({ order: 1 }).lean();
+      
+      if (workStatusTypes.length === 0) {
+        return res.status(500).json({ 
+          success: false, 
+          message: `No hay estados de trabajo disponibles para cambiar al agente ${assignedAgent.name}`,
+          agentInfo: {
+            idAgent: params.idAgent,
+            agentName: assignedAgent.name,
+            agentEmail: assignedAgent.correo,
+            currentStatus: userStatus.status,
+            reason: 'no_work_states_available'
+          }
+        });
+      }
+      
+      // Seleccionar estado de trabajo (preferir 'busy' cuando recibe llamada)
+      let targetWorkStatus = workStatusTypes.find(st => st.value === 'busy') || 
+                            workStatusTypes.find(st => st.value === 'on_call') ||
+                            workStatusTypes.find(st => st.value === 'available') ||
+                            workStatusTypes[0];
+      
+      console.log(`🎯 Cambiando estado de '${userStatus.status}' a '${targetWorkStatus.value}' (${targetWorkStatus.label})`);
+      
+      try {
+        // Actualizar el estado del usuario
+        const updatedUserStatus = await UserStatus.findOneAndUpdate(
+          { userId: assignedAgent._id },
+          { 
+            status: targetWorkStatus.value,
+            isActive: true,
+            lastSeen: new Date(),
+            color: targetWorkStatus.color,
+            label: targetWorkStatus.label
+          },
+          { new: true }
+        );
+        
+        if (!updatedUserStatus) {
+          return res.status(500).json({ 
+            success: false, 
+            message: `Error actualizando estado del agente ${assignedAgent.name}`,
+            agentInfo: {
+              idAgent: params.idAgent,
+              agentName: assignedAgent.name,
+              reason: 'status_update_failed'
+            }
+          });
+        }
+        
+        console.log(`✅ Estado del agente ${assignedAgent.name} cambiado exitosamente a '${targetWorkStatus.label}'`);
+        
+        // Publicar cambio de estado por MQTT
+        const mqttService = req.app.get('mqttService');
+        if (mqttService) {
+          // Publicar cambio de estado general
+          mqttService.publishUserStatusChange(assignedAgent._id, assignedAgent.name, targetWorkStatus.value, targetWorkStatus.label, targetWorkStatus.color);
+          
+          // Publicar evento específico para cambio automático al usuario
+          const statusChangeData = {
+            userId: assignedAgent._id,
+            userName: assignedAgent.name,
+            oldStatus: userStatus.status,
+            newStatus: targetWorkStatus.value,
+            newLabel: targetWorkStatus.label,
+            newColor: targetWorkStatus.color,
+            changedBy: 'system_auto_assignment',
+            reason: 'incoming_call',
+            timestamp: new Date().toISOString()
+          };
+          
+          const userSpecificTopic = `telefonia/users/status-change/${assignedAgent._id}`;
+          mqttService.publish(userSpecificTopic, statusChangeData);
+          
+          console.log(`📡 Evento de cambio automático publicado en: ${userSpecificTopic}`);
+        }
+        
+        // Actualizar la variable local para continuar con el flujo
+        userStatus.status = targetWorkStatus.value;
+        userStatus.isActive = true;
+        
+      } catch (error) {
+        console.error(`❌ Error cambiando estado del agente ${assignedAgent.name}:`, error);
+        return res.status(500).json({ 
+          success: false, 
+          message: `Error interno cambiando estado del agente ${assignedAgent.name}`,
+          agentInfo: {
+            idAgent: params.idAgent,
+            agentName: assignedAgent.name,
+            reason: 'status_change_error',
+            error: error.message
+          }
         });
       }
     }
-
-    // Solo log crítico sin detalles
-    if (availableUsers.length === 0) {
-      console.warn('⚠️ No hay agentes disponibles para asignar');
-    }
-
-    // 🎯 Seleccionar agente disponible
-    if (!availableUsers || availableUsers.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'No hay agentes disponibles para trabajar' 
-      });
-    }
-
-    // 🔄 SISTEMA DE BALANCEO DE CARGA INTELIGENTE
     
-    // Obtener carga de trabajo actual de cada agente (tipificaciones pendientes)
-    const agentWorkloads = await Promise.all(
-      availableUsers.map(async (user) => {
-        let userIdPlano;
-        if (user.userId && typeof user.userId === 'object') {
-          userIdPlano = user.userId._id;
-        } else {
-          userIdPlano = user.userId || user._id;
-        }
-        
-        const pendingCount = await Tipificacion.countDocuments({ 
-          assignedTo: userIdPlano, 
-          status: 'pending' 
-        });
-        
-        return {
-          agent: user,
-          userId: userIdPlano,
-          pendingCount,
-          name: user.name || user.userId
-        };
-      })
-    );
-
-    if (agentWorkloads.length === 0) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Error: No se pudo calcular carga de agentes'
-      });
-    }
-
-    // 🎯 ALGORITMO DE SELECCIÓN: Round Robin inteligente (SIN LOGS)
-    const sortedAgents = agentWorkloads.sort((a, b) => a.pendingCount - b.pendingCount);
-    const minLoad = sortedAgents[0].pendingCount;
-    const agentsWithMinLoad = sortedAgents.filter(agent => agent.pendingCount === minLoad);
+    console.log(`📊 Estado del agente: ${userStatus.status} (${statusType.label}) - ✅ VÁLIDO PARA TRABAJO`);
     
-    // Si hay múltiples agentes con la misma carga mínima, usar Round Robin
-    let selectedAgent;
-    if (agentsWithMinLoad.length > 1) {
-      roundRobinCounter++;
-      const rotationIndex = roundRobinCounter % agentsWithMinLoad.length;
-      selectedAgent = agentsWithMinLoad[rotationIndex];
+    // Verificar conexión MQTT/WebSocket (opcional pero recomendado)
+    const hasConnection = userStatus.socketId || userStatus.sessionId;
+    if (!hasConnection) {
+      console.warn(`⚠️ El agente ${assignedAgent.name} no tiene conexión MQTT/WebSocket activa`);
+      // No bloquear la asignación, pero advertir
     } else {
-      selectedAgent = agentsWithMinLoad[0];
+      console.log(`🔌 Agente conectado - SocketId: ${userStatus.socketId || 'N/A'}, SessionId: ${userStatus.sessionId || 'N/A'}`);
     }
-    const assignedAgent = selectedAgent.agent;
     
-    // Agente seleccionado (sin logs)
+    // Calcular carga de trabajo del agente
+    const pendingCount = await Tipificacion.countDocuments({ 
+      assignedTo: assignedAgent._id, 
+      status: 'pending' 
+    });
     
-    // ✅ Sistema de colas sin limitación - asignar a agente con menor carga
+    console.log(`📋 Carga de trabajo actual: ${pendingCount} tipificaciones pendientes`);
     
     // 🌳 Buscar árbol de tipificaciones desde BD
     const Tree = require('../models/tree');
@@ -377,8 +494,8 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     
     // 📡 ENVIAR POR MQTT AL AGENTE ASIGNADO
     const mqttService = req.app.get('mqttService');
-    // Usar el userId ya calculado del sistema de balanceo
-    const userIdPlano = selectedAgent.userId;
+    // Usar el userId del agente encontrado por idAgent
+    const userIdPlano = assignedAgent._id;
     console.log('DEBUG assignedAgent:', assignedAgent);
     console.log('DEBUG userIdPlano:', userIdPlano);
     const topic = `telefonia/tipificacion/nueva/${userIdPlano}`;
@@ -393,7 +510,28 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       assignedTo: userIdPlano,
       assignedToName: assignedAgent.name || 'Usuario',
       timestamp: new Date().toISOString(),
-      type: 'nueva_tipificacion'
+      type: 'nueva_tipificacion',
+      
+      // CAMPOS DEL CLIENTE - INFORMACIÓN PERSONAL
+      nombres: params.nombres || '',
+      apellidos: params.apellidos || '',
+      fechaNacimiento: params.fechaNacimiento || '',
+      
+      // UBICACIÓN
+      pais: params.pais || '',
+      departamento: params.departamento || '',
+      ciudad: params.ciudad || '',
+      direccion: params.direccion || '',
+      
+      // CONTACTO
+      telefono: params.telefono || '',
+      correo: params.correo || '',
+      
+      // DEMOGRÁFICOS
+      sexo: params.sexo || '',
+      nivelEscolaridad: params.nivelEscolaridad || '',
+      grupoEtnico: params.grupoEtnico || '',
+      discapacidad: params.discapacidad || ''
     };
     
     console.log('📤 Enviando tipificación por MQTT:');
@@ -424,10 +562,32 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
         historial: historialNuevo, // Solo el item actual
         arbol: arbolTipificaciones,
         assignedTo: userIdPlano,
-        assignedToName: selectedAgent.name || 'Usuario',
+        assignedToName: assignedAgent.name || 'Usuario',
         status: 'pending',
         timestamp: new Date(),
         type: 'nueva_tipificacion',
+        
+        // CAMPOS DEL CLIENTE - INFORMACIÓN PERSONAL
+        nombres: params.nombres || '',
+        apellidos: params.apellidos || '',
+        fechaNacimiento: params.fechaNacimiento ? new Date(params.fechaNacimiento) : null,
+        
+        // UBICACIÓN
+        pais: params.pais || '',
+        departamento: params.departamento || '',
+        ciudad: params.ciudad || '',
+        direccion: params.direccion || '',
+        
+        // CONTACTO
+        telefono: params.telefono || '',
+        correo: params.correo || '',
+        
+        // DEMOGRÁFICOS
+        sexo: params.sexo || '',
+        nivelEscolaridad: params.nivelEscolaridad || '',
+        grupoEtnico: params.grupoEtnico || '',
+        discapacidad: params.discapacidad || '',
+        
         // NUEVOS CAMPOS DE GESTIÓN DE COLAS
         priority: priority,
         customerSegment: customerSegment,
@@ -480,14 +640,18 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     res.json({ 
       success: true, 
       assignedTo: userIdPlano,
-      assignedToName: selectedAgent.name,
+      assignedToName: assignedAgent.name,
       historial: historialPrevio,
-      message: `Tipificación enviada por MQTT a ${selectedAgent.name}`,
-      method: 'StateManager + MQTT + Balanceo de Carga',
-      queueInfo: {
-        agentPendingCount: selectedAgent.pendingCount,
-        totalAgents: availableUsers.length,
-        totalPending: agentWorkloads.reduce((sum, agent) => sum + agent.pendingCount, 0)
+      message: `Tipificación enviada por MQTT a ${assignedAgent.name}${statusAutoChanged ? ' (estado cambiado automáticamente)' : ''}`,
+      method: 'Asignación directa por idAgent del sistema telefónico',
+      agentInfo: {
+        idAgent: params.idAgent,
+        agentName: assignedAgent.name,
+        agentEmail: assignedAgent.correo,
+        agentStatus: userStatus ? userStatus.status : 'sin_estado',
+        pendingCount: pendingCount,
+        statusAutoChanged: statusAutoChanged,
+        previousStatus: previousStatus
       }
     });
     
@@ -504,13 +668,21 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
 // Endpoint para actualizar tipificación (desde el frontend)
 router.post('/api/tipificacion/actualizar', async (req, res) => {
   try {
-    const { idLlamada, cedula, tipoDocumento, observacion, historial, arbol, assignedTo, nivel1, nivel2, nivel3, nivel4, nivel5 } = req.body;
+    const { 
+      idLlamada, cedula, tipoDocumento, observacion, historial, arbol, assignedTo, 
+      nivel1, nivel2, nivel3, nivel4, nivel5,
+      // Campos del cliente
+      nombres, apellidos, fechaNacimiento, pais, departamento, ciudad, direccion,
+      telefono, correo, sexo, nivelEscolaridad, grupoEtnico, discapacidad
+    } = req.body;
+    
     // Buscar la tipificación pendiente por idLlamada y assignedTo
     const tip = await Tipificacion.findOne({ idLlamada, assignedTo, status: 'pending' });
     if (!tip) {
       return res.status(404).json({ success: false, message: 'Tipificación no encontrada' });
     }
-    // Actualizar campos y marcar como success
+    
+    // Actualizar campos básicos
     tip.cedula = cedula;
     tip.tipoDocumento = tipoDocumento;
     tip.observacion = observacion;
@@ -521,6 +693,22 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
     tip.nivel5 = nivel5;
     tip.historial = historial || tip.historial;
     tip.arbol = arbol || tip.arbol;
+    
+    // Actualizar campos del cliente
+    tip.nombres = nombres || tip.nombres;
+    tip.apellidos = apellidos || tip.apellidos;
+    tip.fechaNacimiento = fechaNacimiento ? new Date(fechaNacimiento) : tip.fechaNacimiento;
+    tip.pais = pais || tip.pais;
+    tip.departamento = departamento || tip.departamento;
+    tip.ciudad = ciudad || tip.ciudad;
+    tip.direccion = direccion || tip.direccion;
+    tip.telefono = telefono || tip.telefono;
+    tip.correo = correo || tip.correo;
+    tip.sexo = sexo || tip.sexo;
+    tip.nivelEscolaridad = nivelEscolaridad || tip.nivelEscolaridad;
+    tip.grupoEtnico = grupoEtnico || tip.grupoEtnico;
+    tip.discapacidad = discapacidad || tip.discapacidad;
+    
     tip.status = 'success';
     await tip.save();
     res.json({ success: true, message: 'Tipificación actualizada', tipificacion: tip });

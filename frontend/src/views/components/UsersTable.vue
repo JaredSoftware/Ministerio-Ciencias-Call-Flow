@@ -18,6 +18,7 @@
             <tr>
               <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Nombre</th>
               <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Email</th>
+              <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">ID Agente</th>
               <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Rol</th>
               <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Estado</th>
               <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Acciones</th>
@@ -38,6 +39,13 @@
                     <p class="text-xs text-secondary mb-0">{{ user.correo || 'Sin email' }}</p>
                   </div>
                 </div> 
+              </td>
+              <td>
+                <div class="d-flex px-2 py-1">
+                  <div class="d-flex flex-column justify-content-center">
+                    <span class="badge badge-info text-xs">{{ user.idAgent || 'Sin ID' }}</span>
+                  </div>
+                </div>
               </td>
               <td>
                 <div class="d-flex px-2 py-1">
@@ -151,6 +159,20 @@
                 </div>
               </div>
               <div class="mb-3">
+                <label class="form-label">ID Agente (opcional)</label>
+                <input 
+                  type="text" 
+                  class="form-control" 
+                  :class="{ 'is-invalid': validationErrors.create.idAgent }"
+                  v-model="newUser.idAgent" 
+                  placeholder="Ej: AGENT001"
+                >
+                <div v-if="validationErrors.create.idAgent" class="invalid-feedback">
+                  {{ validationErrors.create.idAgent }}
+                </div>
+                <small class="form-text text-muted">Identificador único del agente (se puede agregar después)</small>
+              </div>
+              <div class="mb-3">
                 <label class="form-label">Contraseña *</label>
                 <input 
                   type="password" 
@@ -257,6 +279,20 @@
                 </div>
               </div>
               <div class="mb-3">
+                <label class="form-label">ID Agente (opcional)</label>
+                <input 
+                  type="text" 
+                  class="form-control" 
+                  :class="{ 'is-invalid': validationErrors.edit.idAgent }"
+                  v-model="editingUser.idAgent" 
+                  placeholder="Ej: AGENT001"
+                >
+                <div v-if="validationErrors.edit.idAgent" class="invalid-feedback">
+                  {{ validationErrors.edit.idAgent }}
+                </div>
+                <small class="form-text text-muted">Identificador único del agente (se puede agregar después)</small>
+              </div>
+              <div class="mb-3">
                 <label class="form-label">Nueva Contraseña (opcional)</label>
                 <input 
                   type="password" 
@@ -359,6 +395,7 @@ export default {
       newUser: {
         name: '',
         email: '',
+        idAgent: '',
         password: '',
         role: '',
         active: true
@@ -367,6 +404,7 @@ export default {
         _id: '',
         name: '',
         correo: '',
+        idAgent: '',
         password: ''
       },
       // Estados de validación
@@ -374,11 +412,13 @@ export default {
         create: {
           name: '',
           email: '',
+          idAgent: '',
           password: ''
         },
         edit: {
           name: '',
           email: '',
+          idAgent: '',
           password: ''
         }
       },
@@ -419,6 +459,20 @@ export default {
     'editingUser.correo': {
       handler(newEmail) {
         this.validateEmailInRealTime(newEmail, 'edit');
+      },
+      immediate: false
+    },
+    // Validar idAgent en tiempo real al crear usuario
+    'newUser.idAgent': {
+      handler(newIdAgent) {
+        this.validateIdAgentInRealTime(newIdAgent, 'create');
+      },
+      immediate: false
+    },
+    // Validar idAgent en tiempo real al editar usuario
+    'editingUser.idAgent': {
+      handler(newIdAgent) {
+        this.validateIdAgentInRealTime(newIdAgent, 'edit');
       },
       immediate: false
     }
@@ -610,6 +664,30 @@ export default {
       }
     },
 
+    // Validar idAgent en tiempo real
+    async validateIdAgentInRealTime(idAgent, formType) {
+      // Limpiar error anterior
+      this.validationErrors[formType].idAgent = '';
+      
+      if (!idAgent || idAgent.trim() === '') {
+        return; // No validar si está vacío
+      }
+
+      // Verificar si ya existe en la lista actual de usuarios
+      const existingUser = this.users.find(u => u.idAgent === idAgent.trim());
+      
+      if (formType === 'create') {
+        if (existingUser) {
+          this.validationErrors[formType].idAgent = 'Este ID Agente ya está registrado';
+        }
+      } else if (formType === 'edit') {
+        // Para editar, verificar si existe en otro usuario
+        if (existingUser && existingUser._id !== this.editingUser._id) {
+          this.validationErrors[formType].idAgent = 'Este ID Agente ya está registrado por otro usuario';
+        }
+      }
+    },
+
     async createUser() {
       if (!this.newUser.name || !this.newUser.email || !this.newUser.password) {
         this.showError('Por favor completa todos los campos obligatorios');
@@ -617,7 +695,7 @@ export default {
       }
 
       // Verificar si hay errores de validación
-      if (this.validationErrors.create.name || this.validationErrors.create.email || this.validationErrors.create.password) {
+      if (this.validationErrors.create.name || this.validationErrors.create.email || this.validationErrors.create.idAgent || this.validationErrors.create.password) {
         this.showError('Por favor corrige los errores en el formulario');
         return;
       }
@@ -628,6 +706,7 @@ export default {
         const response = await axios.post('/addUser', {
           name: this.newUser.name,
           email: this.newUser.email,
+          idAgent: this.newUser.idAgent,
           password: this.newUser.password,
           role: this.newUser.role || null,
           active: this.newUser.active
@@ -654,12 +733,14 @@ export default {
         _id: user._id,
         name: user.name,
         correo: user.correo,
+        idAgent: user.idAgent || '',
         password: ''
       };
       // Limpiar errores de validación
       this.validationErrors.edit = {
         name: '',
         email: '',
+        idAgent: '',
         password: ''
       };
       this.showEditModal = true;
@@ -672,7 +753,7 @@ export default {
       }
 
       // Verificar si hay errores de validación
-      if (this.validationErrors.edit.name || this.validationErrors.edit.email || this.validationErrors.edit.password) {
+      if (this.validationErrors.edit.name || this.validationErrors.edit.email || this.validationErrors.edit.idAgent || this.validationErrors.edit.password) {
         this.showError('Por favor corrige los errores en el formulario');
         return;
       }
@@ -683,7 +764,8 @@ export default {
         const updateData = {
           id: this.editingUser._id,
           name: this.editingUser.name,
-          email: this.editingUser.correo
+          email: this.editingUser.correo,
+          idAgent: this.editingUser.idAgent
         };
 
         if (this.editingUser.password) {
@@ -747,6 +829,7 @@ export default {
       this.newUser = {
         name: '',
         email: '',
+        idAgent: '',
         password: '',
         role: '',
         active: true
@@ -755,6 +838,7 @@ export default {
       this.validationErrors.create = {
         name: '',
         email: '',
+        idAgent: '',
         password: ''
       };
     },
@@ -807,6 +891,11 @@ export default {
 
 .badge-secondary {
   background-color: #6c757d;
+  color: white;
+}
+
+.badge-info {
+  background-color: #17a2b8;
   color: white;
 }
 

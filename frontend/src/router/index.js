@@ -166,7 +166,7 @@ const routes = [
           console.log('✅ Auto-login exitoso en /signin');
           isLoggedIn = "true";
           sessionStorage.setItem("isLoggedIn", "true");
-          store.dispatch("login", localStorage.getItem("token"));
+          store.dispatch("login", { token: localStorage.getItem("token"), user: autoLoginResult.user });
         }
       }
       
@@ -254,7 +254,7 @@ router.beforeEach(async (to, from, next) => {
       console.log('✅ Auto-login exitoso desde cookie en router guard');
       // Actualizar estados
       sessionStorage.setItem("isLoggedIn", "true");
-      store.dispatch("login", localStorage.getItem("token"));
+      store.dispatch("login", { token: localStorage.getItem("token"), user: autoLoginResult.user });
     }
   }
   
