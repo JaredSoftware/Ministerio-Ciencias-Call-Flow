@@ -34,10 +34,10 @@ const tipificacionSchema = new mongoose.Schema({
   correo: { type: String },
   
   // DEMOGRÁFICOS
-  sexo: { type: String, enum: ['Hombre', 'Mujer', 'Intersexual'] },
-  nivelEscolaridad: { type: String },
-  grupoEtnico: { type: String },
-  discapacidad: { type: String },
+  sexo: { type: String, enum: ['', 'Hombre', 'Mujer', 'Intersexual'], default: '' },
+  nivelEscolaridad: { type: String, default: '' },
+  grupoEtnico: { type: String, default: '' },
+  discapacidad: { type: String, default: '' },
   
   // NUEVOS CAMPOS PARA GESTIÓN DE COLAS
   priority: { type: Number, default: 1, min: 1, max: 5 }, // 1=Baja, 5=Crítica

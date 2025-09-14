@@ -4,6 +4,22 @@
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
       <div class="modal-content">
         <h4>📞 Nueva Tipificación Asignada</h4>
+        
+        <!-- 🎯 INDICADOR CRM -->
+        <div v-if="modalData.esClienteExistente" class="crm-indicator">
+          <div class="crm-badge existing">
+            <span class="crm-icon">👤</span>
+            <span class="crm-text">Cliente Existente</span>
+            <span class="crm-count">{{ modalData.totalInteracciones }} interacciones</span>
+          </div>
+        </div>
+        <div v-else class="crm-indicator">
+          <div class="crm-badge new">
+            <span class="crm-icon">🆕</span>
+            <span class="crm-text">Cliente Nuevo</span>
+          </div>
+        </div>
+        
         <div class="modal-info">
           <div class="modal-info-grid">
             <div class="modal-info-section">
@@ -18,6 +34,14 @@
               <p v-if="modalData.apellidos"><strong>Apellidos:</strong> {{ modalData.apellidos }}</p>
               <p v-if="modalData.telefono"><strong>Teléfono:</strong> {{ modalData.telefono }}</p>
               <p v-if="modalData.correo"><strong>Correo:</strong> {{ modalData.correo }}</p>
+              <!-- 🎯 INFORMACIÓN CRM ADICIONAL -->
+              <div v-if="modalData.esClienteExistente" class="crm-info">
+                <p><strong>Total Interacciones:</strong> {{ modalData.totalInteracciones }}</p>
+                <p v-if="modalData.fechaUltimaInteraccion">
+                  <strong>Última Interacción:</strong> 
+                  {{ formatDate(modalData.fechaUltimaInteraccion) }}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -804,6 +828,27 @@ export default {
           correo: data.correo || ''
         };
         
+        // 🎯 MOSTRAR INFORMACIÓN CRM EN EL MODAL
+        console.log('🔍 DEBUG CRM Frontend:');
+        console.log(`   - data.clienteExistente: ${data.clienteExistente}`);
+        console.log(`   - data.totalInteracciones: ${data.totalInteracciones}`);
+        console.log(`   - data.fechaUltimaInteraccion: ${data.fechaUltimaInteraccion}`);
+        
+        // Determinar si es cliente existente (puede ser true/false o undefined)
+        const esClienteExistente = data.clienteExistente === true;
+        const totalInteracciones = data.totalInteracciones || 0;
+        
+        if (esClienteExistente && totalInteracciones > 0) {
+          console.log(`👤 Cliente existente detectado - Total interacciones: ${totalInteracciones}`);
+          this.modalData.esClienteExistente = true;
+          this.modalData.totalInteracciones = totalInteracciones;
+          this.modalData.fechaUltimaInteraccion = data.fechaUltimaInteraccion;
+        } else {
+          console.log('🆕 Cliente nuevo detectado');
+          this.modalData.esClienteExistente = false;
+          this.modalData.totalInteracciones = 0;
+        }
+        
         this.showModal = true;
         // ✅ ASEGURAR QUE EL FORMULARIO SE ACTIVE CUANDO LLEGUE NUEVA TIPIFICACIÓN
         this.tipificacionActiva = true;
@@ -1037,6 +1082,63 @@ export default {
   justify-content: center;
   align-items: center;
   z-index: 1000;
+}
+
+/* 🎯 ESTILOS CRM */
+.crm-indicator {
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.crm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.crm-badge.existing {
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+}
+
+.crm-badge.new {
+  background: linear-gradient(135deg, #007bff, #6610f2);
+  color: white;
+}
+
+.crm-icon {
+  font-size: 1.2rem;
+}
+
+.crm-text {
+  font-weight: 600;
+}
+
+.crm-count {
+  background: rgba(255,255,255,0.2);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.crm-info {
+  margin-top: 12px;
+  padding: 12px;
+  background: #e8f5e8;
+  border-radius: 8px;
+  border-left: 4px solid #28a745;
+}
+
+.crm-info p {
+  margin: 4px 0;
+  font-size: 0.9rem;
+  color: #155724;
 }
 
 .modal-content {

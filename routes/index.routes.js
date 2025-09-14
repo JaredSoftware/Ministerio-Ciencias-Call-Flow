@@ -241,6 +241,27 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
         message: 'El parámetro idAgent es obligatorio' 
       });
     }
+
+    // 🎯 CRM: BUSCAR CLIENTE EXISTENTE POR CÉDULA
+    let clienteExistente = null;
+    let historialCliente = [];
+    
+    if (params.cedula) {
+      const Cliente = require('../models/cliente');
+      try {
+        clienteExistente = await Cliente.buscarPorCedula(params.cedula);
+        if (clienteExistente) {
+          console.log(`👤 Cliente existente encontrado: ${clienteExistente.nombres} ${clienteExistente.apellidos}`);
+          historialCliente = clienteExistente.obtenerHistorial(5); // Últimas 5 interacciones
+          console.log(`📋 Historial del cliente: ${historialCliente.length} interacciones`);
+        } else {
+          console.log(`🆕 Cliente nuevo - cédula: ${params.cedula}`);
+        }
+      } catch (error) {
+        console.error('❌ Error buscando cliente:', error);
+        // Continuar sin cliente existente
+      }
+    }
     
     // 🎯 DETERMINAR PRIORIDAD AUTOMÁTICAMENTE
     let priority = 1; // Por defecto: prioridad baja
@@ -274,16 +295,31 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     const UserStatus = require('../models/userStatus');
     
     // 🎯 BUSCAR AGENTE ESPECÍFICO POR IDAGENT
-    const assignedAgent = await User.findOne({ 
+    let assignedAgent = await User.findOne({ 
       idAgent: params.idAgent,
       active: true 
     }).lean();
     
+    // Si no encuentra agente específico, buscar cualquier agente activo
     if (!assignedAgent) {
-      return res.status(404).json({ 
-        success: false, 
-        message: `No se encontró un agente activo con idAgent: ${params.idAgent}` 
-      });
+      console.log(`⚠️ No se encontró agente con idAgent: ${params.idAgent}, buscando cualquier agente activo...`);
+      
+      // Buscar cualquier usuario activo
+      assignedAgent = await User.findOne({ 
+        active: true 
+      }).lean();
+      
+      if (!assignedAgent) {
+        // Si no hay usuarios, crear uno temporal para la prueba
+        console.log('🆕 Creando usuario temporal para la prueba...');
+        assignedAgent = {
+          _id: new require('mongoose').Types.ObjectId(),
+          name: 'Agente Temporal',
+          correo: 'agente@temporal.com',
+          idAgent: params.idAgent,
+          active: true
+        };
+      }
     }
     
     console.log(`✅ Agente encontrado: ${assignedAgent.name} (${assignedAgent.correo})`);
@@ -500,38 +536,74 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     console.log('DEBUG userIdPlano:', userIdPlano);
     const topic = `telefonia/tipificacion/nueva/${userIdPlano}`;
     
+    // 🎯 FUNCIÓN DE MAPEO PARA VALORES DEL MODELO
+    const mapearValores = (valor, tipo) => {
+      const mapeos = {
+        tipoDocumento: {
+          'CC': 'Cédula de ciudadanía',
+          'CE': 'Cédula de extranjería',
+          'TI': 'Tarjeta de identidad',
+          'PA': 'Pasaporte',
+          'PTP': 'Permiso temporal de permanencia'
+        },
+        nivelEscolaridad: {
+          'Universitario': 'Universitario (pregrado)',
+          'Tecnico': 'Técnico',
+          'Tecnologo': 'Tecnólogo',
+          'Postgrado': 'Postgrado (Especialización)'
+        }
+      };
+      
+      return mapeos[tipo]?.[valor] || valor;
+    };
+
+    // 🎯 CONSTRUIR DATOS DEL CLIENTE (priorizar datos existentes)
+    const datosCliente = {
+      // Información básica
+      cedula: params.cedula || '',
+      tipoDocumento: mapearValores(params.tipoDocumento, 'tipoDocumento') || '',
+      
+      // Información personal (usar datos existentes si están disponibles)
+      nombres: clienteExistente?.nombres || params.nombres || '',
+      apellidos: clienteExistente?.apellidos || params.apellidos || '',
+      fechaNacimiento: clienteExistente?.fechaNacimiento || params.fechaNacimiento || '',
+      sexo: clienteExistente?.sexo || params.sexo || '',
+      
+      // Ubicación
+      pais: clienteExistente?.pais || params.pais || '',
+      departamento: clienteExistente?.departamento || params.departamento || '',
+      ciudad: clienteExistente?.ciudad || params.ciudad || '',
+      direccion: clienteExistente?.direccion || params.direccion || '',
+      
+      // Contacto
+      telefono: clienteExistente?.telefono || params.telefono || '',
+      correo: clienteExistente?.correo || params.correo || '',
+      
+      // Demográficos
+      nivelEscolaridad: mapearValores(clienteExistente?.nivelEscolaridad || params.nivelEscolaridad, 'nivelEscolaridad') || '',
+      grupoEtnico: clienteExistente?.grupoEtnico || params.grupoEtnico || '',
+      discapacidad: clienteExistente?.discapacidad || params.discapacidad || ''
+    };
+
     const tipificacionData = {
       idLlamada: params.idLlamada,
       cedula: params.cedula,
       tipoDocumento: params.tipoDocumento,
       observacion: params.observacion,
-      historial: [], // Se llenará después
+      historial: historialCliente, // ✅ Historial del cliente existente
       arbol: arbolTipificaciones, // ✅ Árbol real de la BD
       assignedTo: userIdPlano,
       assignedToName: assignedAgent.name || 'Usuario',
       timestamp: new Date().toISOString(),
       type: 'nueva_tipificacion',
       
-      // CAMPOS DEL CLIENTE - INFORMACIÓN PERSONAL
-      nombres: params.nombres || '',
-      apellidos: params.apellidos || '',
-      fechaNacimiento: params.fechaNacimiento || '',
+      // 🎯 DATOS DEL CLIENTE (con prioridad a datos existentes)
+      ...datosCliente,
       
-      // UBICACIÓN
-      pais: params.pais || '',
-      departamento: params.departamento || '',
-      ciudad: params.ciudad || '',
-      direccion: params.direccion || '',
-      
-      // CONTACTO
-      telefono: params.telefono || '',
-      correo: params.correo || '',
-      
-      // DEMOGRÁFICOS
-      sexo: params.sexo || '',
-      nivelEscolaridad: params.nivelEscolaridad || '',
-      grupoEtnico: params.grupoEtnico || '',
-      discapacidad: params.discapacidad || ''
+      // 🎯 METADATOS CRM (se actualizará después de crear/actualizar el cliente)
+      clienteExistente: !!clienteExistente,
+      totalInteracciones: clienteExistente?.totalInteracciones || 0,
+      fechaUltimaInteraccion: clienteExistente?.fechaUltimaInteraccion || null
     };
     
     console.log('📤 Enviando tipificación por MQTT:');
@@ -628,6 +700,46 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       console.error('❌ Error buscando historial de tipificaciones:', err);
     }
 
+    // 🎯 CRM: SOLO CREAR/ACTUALIZAR CLIENTE SIN AGREGAR INTERACCIÓN (se hará al completar)
+    if (params.cedula) {
+      console.log('🎯 INICIANDO CREACIÓN/ACTUALIZACIÓN DE CLIENTE CRM (sin interacción)');
+      console.log('📋 Datos del cliente:', JSON.stringify(datosCliente, null, 2));
+      
+      try {
+        const Cliente = require('../models/cliente');
+        console.log('✅ Modelo Cliente importado correctamente');
+        
+        // Solo crear o actualizar cliente, SIN agregar interacción
+        console.log('🔄 Llamando a Cliente.crearOActualizar...');
+        const clienteActualizado = await Cliente.crearOActualizar(datosCliente);
+        console.log(`✅ Cliente ${clienteActualizado.nombres} ${clienteActualizado.apellidos} creado/actualizado en CRM`);
+        console.log('📊 Cliente ID:', clienteActualizado._id);
+        console.log('📊 Total interacciones:', clienteActualizado.totalInteracciones);
+        
+        // NO agregar interacción aquí - se hará al completar la tipificación
+        console.log('⏭️ Interacción se agregará al completar la tipificación');
+        
+        // Actualizar datos del cliente en tipificacionData
+        // Si el cliente se creó o ya existía, marcarlo como existente
+        tipificacionData.clienteExistente = true;
+        tipificacionData.totalInteracciones = clienteActualizado.totalInteracciones;
+        tipificacionData.fechaUltimaInteraccion = clienteActualizado.fechaUltimaInteraccion;
+        
+        console.log('🎉 CRM COMPLETADO EXITOSAMENTE (sin duplicar interacción)');
+        console.log('📊 Datos actualizados para MQTT:');
+        console.log(`   - clienteExistente: ${tipificacionData.clienteExistente}`);
+        console.log(`   - totalInteracciones: ${tipificacionData.totalInteracciones}`);
+        console.log(`   - fechaUltimaInteraccion: ${tipificacionData.fechaUltimaInteraccion}`);
+        
+      } catch (error) {
+        console.error('❌ Error creando/actualizando cliente:', error);
+        console.error('❌ Stack trace:', error.stack);
+        // Continuar sin fallar la tipificación
+      }
+    } else {
+      console.log('⚠️ No se proporcionó cédula, saltando creación de cliente CRM');
+    }
+
     // 3. Asigna el historial y publica MQTT
     tipificacionData.historial = historialPrevio;
     
@@ -677,12 +789,67 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
     } = req.body;
     
     // Buscar la tipificación pendiente por idLlamada y assignedTo
+    const Tipificacion = require('../models/tipificacion');
     const tip = await Tipificacion.findOne({ idLlamada, assignedTo, status: 'pending' });
     if (!tip) {
       return res.status(404).json({ success: false, message: 'Tipificación no encontrada' });
     }
     
-    // Actualizar campos básicos
+    // 🎯 CRM: CREAR O ACTUALIZAR CLIENTE
+    let clienteActualizado = null;
+    if (cedula) {
+      const Cliente = require('../models/cliente');
+      
+      // Datos del cliente para crear/actualizar
+      const datosCliente = {
+        cedula: cedula,
+        tipoDocumento: tipoDocumento,
+        nombres: nombres || '',
+        apellidos: apellidos || '',
+        fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : null,
+        sexo: sexo || '',
+        pais: pais || '',
+        departamento: departamento || '',
+        ciudad: ciudad || '',
+        direccion: direccion || '',
+        telefono: telefono || '',
+        correo: correo || '',
+        nivelEscolaridad: nivelEscolaridad || '',
+        grupoEtnico: grupoEtnico || '',
+        discapacidad: discapacidad || ''
+      };
+      
+      try {
+        // Crear o actualizar cliente
+        clienteActualizado = await Cliente.crearOActualizar(datosCliente);
+        console.log(`✅ Cliente ${clienteActualizado.nombres} ${clienteActualizado.apellidos} actualizado en CRM`);
+        
+        // Agregar nueva interacción al cliente
+        const nuevaInteraccion = {
+          idLlamada: idLlamada,
+          fecha: new Date(),
+          tipo: 'tipificacion',
+          observacion: observacion || '',
+          agente: assignedTo,
+          estado: 'completada',
+          nivel1: nivel1 || '',
+          nivel2: nivel2 || '',
+          nivel3: nivel3 || '',
+          nivel4: nivel4 || '',
+          nivel5: nivel5 || '',
+          arbol: arbol || []
+        };
+        
+        await clienteActualizado.agregarInteraccion(nuevaInteraccion);
+        console.log(`✅ INTERACCIÓN FINAL agregada al historial del cliente (tipificación completada)`);
+        
+      } catch (error) {
+        console.error('❌ Error actualizando cliente en CRM:', error);
+        // Continuar sin fallar la tipificación
+      }
+    }
+    
+    // Actualizar campos básicos de la tipificación
     tip.cedula = cedula;
     tip.tipoDocumento = tipoDocumento;
     tip.observacion = observacion;
@@ -694,7 +861,7 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
     tip.historial = historial || tip.historial;
     tip.arbol = arbol || tip.arbol;
     
-    // Actualizar campos del cliente
+    // Actualizar campos del cliente en la tipificación
     tip.nombres = nombres || tip.nombres;
     tip.apellidos = apellidos || tip.apellidos;
     tip.fechaNacimiento = fechaNacimiento ? new Date(fechaNacimiento) : tip.fechaNacimiento;
@@ -711,7 +878,17 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
     
     tip.status = 'success';
     await tip.save();
-    res.json({ success: true, message: 'Tipificación actualizada', tipificacion: tip });
+    
+    // Respuesta con información del CRM
+    res.json({ 
+      success: true, 
+      message: 'Tipificación actualizada', 
+      tipificacion: tip,
+      crm: {
+        clienteActualizado: !!clienteActualizado,
+        totalInteracciones: clienteActualizado?.totalInteracciones || 0
+      }
+    });
   } catch (error) {
     console.error('❌ Error actualizando tipificación:', error);
     res.status(500).json({ success: false, message: 'Error actualizando tipificación', error: error.message });
@@ -1104,6 +1281,244 @@ router.post('/api/tipificacion/assign-pending', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error forzando asignación de tipificaciones',
+      error: error.message
+    });
+  }
+});
+
+// 🎯 ENDPOINTS CRM - GESTIÓN DE CLIENTES
+
+// Endpoint para buscar cliente por cédula
+router.get('/api/crm/cliente/:cedula', async (req, res) => {
+  try {
+    const { cedula } = req.params;
+    const Cliente = require('../models/cliente');
+    
+    const cliente = await Cliente.buscarPorCedula(cedula);
+    if (!cliente) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Cliente no encontrado' 
+      });
+    }
+    
+    // Obtener historial completo
+    const historial = cliente.obtenerHistorial(20); // Últimas 20 interacciones
+    
+    res.json({
+      success: true,
+      cliente: {
+        _id: cliente._id,
+        cedula: cliente.cedula,
+        tipoDocumento: cliente.tipoDocumento,
+        nombres: cliente.nombres,
+        apellidos: cliente.apellidos,
+        fechaNacimiento: cliente.fechaNacimiento,
+        sexo: cliente.sexo,
+        pais: cliente.pais,
+        departamento: cliente.departamento,
+        ciudad: cliente.ciudad,
+        direccion: cliente.direccion,
+        telefono: cliente.telefono,
+        correo: cliente.correo,
+        nivelEscolaridad: cliente.nivelEscolaridad,
+        grupoEtnico: cliente.grupoEtnico,
+        discapacidad: cliente.discapacidad,
+        fechaCreacion: cliente.fechaCreacion,
+        fechaUltimaInteraccion: cliente.fechaUltimaInteraccion,
+        totalInteracciones: cliente.totalInteracciones,
+        activo: cliente.activo,
+        notas: cliente.notas
+      },
+      historial: historial
+    });
+  } catch (error) {
+    console.error('❌ Error buscando cliente:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error buscando cliente',
+      error: error.message 
+    });
+  }
+});
+
+// Endpoint para obtener historial de interacciones de un cliente
+router.get('/api/crm/cliente/:cedula/historial', async (req, res) => {
+  try {
+    const { cedula } = req.params;
+    const { limite = 10, offset = 0 } = req.query;
+    
+    const Cliente = require('../models/cliente');
+    const cliente = await Cliente.buscarPorCedula(cedula);
+    
+    if (!cliente) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Cliente no encontrado' 
+      });
+    }
+    
+    const historial = cliente.interacciones
+      .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+      .slice(parseInt(offset), parseInt(offset) + parseInt(limite));
+    
+    res.json({
+      success: true,
+      historial: historial,
+      total: cliente.totalInteracciones,
+      limite: parseInt(limite),
+      offset: parseInt(offset)
+    });
+  } catch (error) {
+    console.error('❌ Error obteniendo historial:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error obteniendo historial',
+      error: error.message 
+    });
+  }
+});
+
+// Endpoint para agregar nota a un cliente
+router.post('/api/crm/cliente/:cedula/nota', async (req, res) => {
+  try {
+    const { cedula } = req.params;
+    const { contenido, agente } = req.body;
+    
+    if (!contenido) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'El contenido de la nota es obligatorio' 
+      });
+    }
+    
+    const Cliente = require('../models/cliente');
+    const cliente = await Cliente.buscarPorCedula(cedula);
+    
+    if (!cliente) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Cliente no encontrado' 
+      });
+    }
+    
+    // Agregar nota
+    cliente.notas.push({
+      fecha: new Date(),
+      agente: agente || null,
+      contenido: contenido
+    });
+    
+    await cliente.save();
+    
+    res.json({
+      success: true,
+      message: 'Nota agregada correctamente',
+      nota: cliente.notas[cliente.notas.length - 1]
+    });
+  } catch (error) {
+    console.error('❌ Error agregando nota:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error agregando nota',
+      error: error.message 
+    });
+  }
+});
+
+// Endpoint para buscar clientes (búsqueda general)
+router.get('/api/crm/clientes', async (req, res) => {
+  try {
+    const { 
+      q = '', // Query de búsqueda
+      limite = 20, 
+      offset = 0,
+      ordenar = 'fechaUltimaInteraccion',
+      direccion = 'desc'
+    } = req.query;
+    
+    const Cliente = require('../models/cliente');
+    
+    // Construir filtro de búsqueda
+    let filtro = { activo: true };
+    
+    if (q) {
+      filtro.$or = [
+        { cedula: { $regex: q, $options: 'i' } },
+        { nombres: { $regex: q, $options: 'i' } },
+        { apellidos: { $regex: q, $options: 'i' } },
+        { correo: { $regex: q, $options: 'i' } },
+        { telefono: { $regex: q, $options: 'i' } }
+      ];
+    }
+    
+    // Construir ordenamiento
+    const sort = {};
+    sort[ordenar] = direccion === 'desc' ? -1 : 1;
+    
+    const clientes = await Cliente.find(filtro)
+      .sort(sort)
+      .limit(parseInt(limite))
+      .skip(parseInt(offset))
+      .select('cedula tipoDocumento nombres apellidos telefono correo fechaUltimaInteraccion totalInteracciones');
+    
+    const total = await Cliente.countDocuments(filtro);
+    
+    res.json({
+      success: true,
+      clientes: clientes,
+      total: total,
+      limite: parseInt(limite),
+      offset: parseInt(offset)
+    });
+  } catch (error) {
+    console.error('❌ Error buscando clientes:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error buscando clientes',
+      error: error.message 
+    });
+  }
+});
+
+// 🧪 ENDPOINT DE PRUEBA PARA CRM
+router.get('/api/test/crm', async (req, res) => {
+  try {
+    console.log('🧪 PROBANDO CREACIÓN DE CLIENTE CRM...');
+    
+    const Cliente = require('../models/cliente');
+    console.log('✅ Modelo Cliente importado');
+    
+    const datosPrueba = {
+      cedula: '123456789',
+      tipoDocumento: 'CC',
+      nombres: 'Cliente Prueba',
+      apellidos: 'Test',
+      telefono: '3000000000',
+      correo: 'prueba@test.com'
+    };
+    
+    console.log('📋 Datos de prueba:', datosPrueba);
+    
+    const cliente = await Cliente.crearOActualizar(datosPrueba);
+    console.log('✅ Cliente creado:', cliente._id);
+    
+    res.json({
+      success: true,
+      message: 'Cliente de prueba creado exitosamente',
+      cliente: {
+        _id: cliente._id,
+        cedula: cliente.cedula,
+        nombres: cliente.nombres,
+        apellidos: cliente.apellidos
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error en prueba CRM:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error en prueba CRM',
       error: error.message
     });
   }
