@@ -51,13 +51,34 @@
         </div>
         <div class="row">
           <div class="col-lg-7 mb-lg">
-            <!-- line chart -->
+            <!-- Gráfica de Tipificaciones por Hora -->
             <div class="card z-index-2">
-              <gradient-line-chart />
+              <div class="card-header pb-0">
+                <h6>📈 Tipificaciones por Hora - Hoy</h6>
+                <p class="text-sm">
+                  <span class="font-weight-bold">{{ tipificacionesPorHora.reduce((a, b) => a + b.count, 0) }} llamadas</span> procesadas hoy
+                </p>
+              </div>
+              <div class="card-body p-3">
+                <div class="chart">
+                  <canvas id="chart-tipificaciones-hora" class="chart-canvas" height="300"></canvas>
+                </div>
+              </div>
             </div>
           </div>
           <div class="col-lg-5">
-            <carousel />
+            <!-- Gráfica de Distribución por Nivel 1 -->
+            <div class="card">
+              <div class="card-header pb-0">
+                <h6>🎯 Distribución de Tipificaciones</h6>
+                <p class="text-sm">Por categoría principal (Nivel 1)</p>
+              </div>
+              <div class="card-body p-3">
+                <div class="chart">
+                  <canvas id="chart-distribucion-nivel1" class="chart-canvas" height="300"></canvas>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="row mt-4">
@@ -160,21 +181,16 @@
 <script>
 /* eslint-disable vue/no-unused-components */
 import Card from "@/examples/Cards/Card.vue";
-import GradientLineChart from "@/examples/Charts/chart.vue";
-import Carousel from "./components/Carousel.vue";
-import CategoriesCard from "./components/CategoriesCard.vue";
 import websocketService from '@/router/services/websocketService';
 import sessionSync from '@/router/services/sessionSync';
 import StatusValidation from "@/components/StatusValidation.vue";
 import { mqttService } from '@/router/services/mqttService';
+import Chart from 'chart.js/auto';
 
 export default {
   name: "dashboard-default",
   components: {
     Card,
-    GradientLineChart,
-    Carousel,
-    CategoriesCard,
     StatusValidation
   },
   data() {
@@ -218,6 +234,10 @@ export default {
       statsInterval: null,
       topAgentes: [],
       estadosAgentes: [],
+      tipificacionesPorHora: [],
+      distribucionNivel1: [],
+      chartHora: null,
+      chartDistribucion: null,
     };
   },
   async mounted() {
@@ -396,11 +416,174 @@ export default {
       
       // Estados de Agentes
       this.estadosAgentes = data.estadosAgentes || [];
+      
+      // Tipificaciones por Hora
+      this.tipificacionesPorHora = data.tipificacionesPorHora || [];
+      this.renderChartHora();
+      
+      // Distribución por Nivel 1
+      this.distribucionNivel1 = data.distribucionNivel1 || [];
+      this.renderChartDistribucion();
     },
     
     getBadgeColor(index) {
       const colors = ['bg-gradient-warning', 'bg-gradient-info', 'bg-gradient-success', 'bg-gradient-primary', 'bg-gradient-secondary'];
       return colors[index] || 'bg-gradient-secondary';
+    },
+    
+    renderChartHora() {
+      const ctx = document.getElementById('chart-tipificaciones-hora');
+      if (!ctx) return;
+      
+      // Destruir gráfica anterior si existe
+      if (this.chartHora) {
+        this.chartHora.destroy();
+      }
+      
+      const labels = this.tipificacionesPorHora.map(item => `${item.hora}:00`);
+      const data = this.tipificacionesPorHora.map(item => item.count);
+      
+      this.chartHora = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Tipificaciones',
+            data: data,
+            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+            borderColor: 'rgba(102, 126, 234, 1)',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: 'rgba(102, 126, 234, 1)',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              padding: 12,
+              titleColor: '#fff',
+              bodyColor: '#fff',
+              callbacks: {
+                label: function(context) {
+                  return `${context.parsed.y} tipificaciones`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                stepSize: 1,
+                color: '#666'
+              },
+              grid: {
+                color: 'rgba(0, 0, 0, 0.05)'
+              }
+            },
+            x: {
+              ticks: {
+                color: '#666'
+              },
+              grid: {
+                display: false
+              }
+            }
+          }
+        }
+      });
+    },
+    
+    renderChartDistribucion() {
+      const ctx = document.getElementById('chart-distribucion-nivel1');
+      if (!ctx) return;
+      
+      // Destruir gráfica anterior si existe
+      if (this.chartDistribucion) {
+        this.chartDistribucion.destroy();
+      }
+      
+      const labels = this.distribucionNivel1.map(item => item.nivel1 || 'Sin categoría');
+      const data = this.distribucionNivel1.map(item => item.count);
+      const colors = [
+        'rgba(102, 126, 234, 0.8)',
+        'rgba(72, 187, 120, 0.8)',
+        'rgba(237, 137, 54, 0.8)',
+        'rgba(245, 101, 101, 0.8)',
+        'rgba(159, 122, 234, 0.8)',
+        'rgba(66, 153, 225, 0.8)',
+        'rgba(236, 201, 75, 0.8)',
+        'rgba(237, 100, 166, 0.8)'
+      ];
+      
+      this.chartDistribucion = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{
+            data: data,
+            backgroundColor: colors.slice(0, data.length),
+            borderWidth: 2,
+            borderColor: '#fff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                padding: 15,
+                font: {
+                  size: 12
+                },
+                generateLabels: function(chart) {
+                  const data = chart.data;
+                  if (data.labels.length && data.datasets.length) {
+                    return data.labels.map((label, i) => {
+                      const value = data.datasets[0].data[i];
+                      const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                      const percentage = ((value / total) * 100).toFixed(1);
+                      return {
+                        text: `${label}: ${value} (${percentage}%)`,
+                        fillStyle: data.datasets[0].backgroundColor[i],
+                        hidden: false,
+                        index: i
+                      };
+                    });
+                  }
+                  return [];
+                }
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              padding: 12,
+              titleColor: '#fff',
+              bodyColor: '#fff',
+              callbacks: {
+                label: function(context) {
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = ((context.parsed / total) * 100).toFixed(1);
+                  return `${context.parsed} llamadas (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
     }
   },
   beforeUnmount() {

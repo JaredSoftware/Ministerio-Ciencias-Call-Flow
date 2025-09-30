@@ -1008,6 +1008,53 @@ mqttService.connect('mqtt://localhost:1884')
                 : 0
             })).sort((a, b) => b.count - a.count);
             
+            // 7. Tipificaciones por Hora del Día
+            const tipificacionesPorHora = [];
+            for (let hora = 0; hora < 24; hora++) {
+              const horaInicio = new Date(hoy);
+              horaInicio.setHours(hora, 0, 0, 0);
+              const horaFin = new Date(hoy);
+              horaFin.setHours(hora, 59, 59, 999);
+              
+              const count = await Tipificacion.countDocuments({
+                createdAt: { $gte: horaInicio, $lte: horaFin },
+                status: 'success'
+              });
+              
+              tipificacionesPorHora.push({
+                hora: hora,
+                count: count
+              });
+            }
+            
+            // 8. Distribución por Nivel 1 (Top 8 categorías)
+            const distribucionNivel1Data = await Tipificacion.aggregate([
+              {
+                $match: {
+                  createdAt: { $gte: hoy, $lte: hoyFin },
+                  status: 'success',
+                  nivel1: { $exists: true, $ne: '' }
+                }
+              },
+              {
+                $group: {
+                  _id: '$nivel1',
+                  count: { $sum: 1 }
+                }
+              },
+              {
+                $sort: { count: -1 }
+              },
+              {
+                $limit: 8
+              }
+            ]);
+            
+            const distribucionNivel1 = distribucionNivel1Data.map(item => ({
+              nivel1: item._id,
+              count: item.count
+            }));
+            
             console.log(`📊 Estadísticas calculadas:`);
             console.log(`   - Agentes Conectados: ${agentesConectados}`);
             console.log(`   - Total Clientes: ${totalClientes}`);
@@ -1015,6 +1062,8 @@ mqttService.connect('mqtt://localhost:1884')
             console.log(`   - Llamadas en Cola: ${llamadasEnCola}`);
             console.log(`   - Top Agentes: ${topAgentes.length}`);
             console.log(`   - Estados: ${estadosAgentes.length}`);
+            console.log(`   - Tipificaciones por Hora: ${tipificacionesPorHora.length} horas`);
+            console.log(`   - Distribución Nivel 1: ${distribucionNivel1.length} categorías`);
             
             // Publicar estadísticas
             mqttService.publish(`crm/estadisticas/respuesta/${userId}`, {
@@ -1027,6 +1076,8 @@ mqttService.connect('mqtt://localhost:1884')
               llamadasEnCola,
               topAgentes,
               estadosAgentes,
+              tipificacionesPorHora,
+              distribucionNivel1,
               timestamp: new Date().toISOString()
             });
             
