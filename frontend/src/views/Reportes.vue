@@ -1,150 +1,413 @@
 <template>
-  <div class="reportes-container">
-    <h2 class="reportes-title">📊 Reportes</h2>
-    <div class="reportes-filtros">
-      <div class="filtro-fecha">
-        <label class="filtro-label">
-          <i class="ni ni-calendar-grid-58 icono-fecha"></i>
-          Fecha inicio
+  <div class="reportes-container bg-white">
+    <h2 class="reportes-title text-dark">📊 Consulta de Clientes CRM</h2>
+    
+    <!-- SELECTOR DE TIPO DE BÚSQUEDA -->
+    <div class="tipo-busqueda">
+      <button 
+        @click="tipoBusqueda = 'cedula'" 
+        :class="['btn-tipo', { active: tipoBusqueda === 'cedula' }]"
+      >
+        🔍 Buscar por Cédula
+      </button>
+      <button 
+        @click="tipoBusqueda = 'fechas'" 
+        :class="['btn-tipo', { active: tipoBusqueda === 'fechas' }]"
+      >
+        📅 Buscar por Fechas
+      </button>
+    </div>
+    
+    <!-- FILTRO POR CÉDULA -->
+    <div v-if="tipoBusqueda === 'cedula'" class="filtros-cedula">
+      <div class="filtro-grupo">
+        <label class="filtro-label text-dark">
+          <i class="ni ni-badge icono-filtro"></i>
+          Cédula del Cliente
         </label>
-        <input type="date" v-model="fechaInicio" class="input-fecha" />
+        <input 
+          type="text" 
+          v-model="cedulaBusqueda" 
+          class="input-filtro bg-white text-dark"
+          placeholder="Ingrese la cédula..."
+          @keyup.enter="buscarClientes"
+        />
       </div>
-      <div class="filtro-fecha">
-        <label class="filtro-label">
-          <i class="ni ni-calendar-grid-58 icono-fecha"></i>
-          Fecha fin
+      <button class="btn-buscar" @click="buscarClientes" :disabled="!cedulaBusqueda">
+        <i class="ni ni-zoom-split-in"></i>
+        Buscar
+      </button>
+    </div>
+    
+    <!-- FILTRO POR FECHAS -->
+    <div v-if="tipoBusqueda === 'fechas'" class="filtros-fechas">
+      <div class="filtro-grupo">
+        <label class="filtro-label text-dark">
+          <i class="ni ni-calendar-grid-58 icono-filtro"></i>
+          Fecha Inicio
         </label>
-        <input type="date" v-model="fechaFin" class="input-fecha" />
+        <input 
+          type="date" 
+          v-model="fechaInicio" 
+          class="input-filtro bg-white text-dark"
+        />
+      </div>
+      <div class="filtro-grupo">
+        <label class="filtro-label text-dark">
+          <i class="ni ni-calendar-grid-58 icono-filtro"></i>
+          Fecha Fin
+        </label>
+        <input 
+          type="date" 
+          v-model="fechaFin" 
+          class="input-filtro bg-white text-dark"
+        />
+      </div>
+      <button class="btn-buscar" @click="buscarClientes" :disabled="!fechaInicio || !fechaFin">
+        <i class="ni ni-zoom-split-in"></i>
+        Buscar
+      </button>
+    </div>
+    
+    <!-- LOADING -->
+    <div v-if="loading" class="loading-estado text-dark">
+      <div class="spinner"></div>
+      Buscando clientes...
+    </div>
+    
+    <!-- RESULTADOS -->
+    <div v-if="!loading && clientes.length > 0" class="resultados-container">
+      <div class="resultados-header">
+        <h4 class="text-dark">
+          📋 Resultados: {{ clientes.length }} cliente{{ clientes.length > 1 ? 's' : '' }} encontrado{{ clientes.length > 1 ? 's' : '' }}
+        </h4>
+        <button class="btn-exportar" @click="exportarCSV">
+          <i class="ni ni-archive-2"></i>
+          Exportar CSV
+        </button>
+      </div>
+      
+      <!-- TABLA DE CLIENTES -->
+      <div class="tabla-scroll">
+        <table class="tabla-clientes bg-white">
+          <thead>
+            <tr>
+              <th class="text-dark">Cédula</th>
+              <th class="text-dark">Tipo Documento</th>
+              <th class="text-dark">Nombres</th>
+              <th class="text-dark">Apellidos</th>
+              <th class="text-dark">Teléfono</th>
+              <th class="text-dark">Correo</th>
+              <th class="text-dark">Ciudad</th>
+              <th class="text-dark">Total Interacciones</th>
+              <th class="text-dark">Última Interacción</th>
+              <th class="text-dark">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="cliente in clientes" :key="cliente._id" class="fila-cliente">
+              <td class="text-dark"><b>{{ cliente.cedula }}</b></td>
+              <td class="text-dark">{{ cliente.tipoDocumento || 'No especificado' }}</td>
+              <td class="text-dark">{{ cliente.nombres || '-' }}</td>
+              <td class="text-dark">{{ cliente.apellidos || '-' }}</td>
+              <td class="text-dark">{{ cliente.telefono || '-' }}</td>
+              <td class="text-dark">{{ cliente.correo || '-' }}</td>
+              <td class="text-dark">{{ cliente.ciudad || '-' }}</td>
+              <td class="text-dark">
+                <span class="badge-interacciones">{{ cliente.totalInteracciones || 0 }}</span>
+              </td>
+              <td class="text-dark">{{ formatFecha(cliente.fechaUltimaInteraccion) }}</td>
+              <td>
+                <button class="btn-detalle" @click="verDetalles(cliente)">
+                  <i class="ni ni-bold-right"></i>
+                  Ver Detalles
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- PAGINACIÓN -->
+      <div v-if="hasMore && !loading" class="paginacion">
+        <button class="btn-cargar-mas" @click="cargarMas">
+          <i class="ni ni-bold-down"></i>
+          Cargar Más ({{ clientes.length }} de {{ totalClientes }})
+        </button>
+      </div>
+      
+      <div v-if="totalClientes > 0" class="total-info text-dark">
+        Mostrando {{ clientes.length }} de {{ totalClientes }} clientes
       </div>
     </div>
-    <div class="nombre-archivo-bloque">
-      <label class="nombre-archivo-label">
-        <i class="ni ni-single-copy-04 icono-archivo"></i>
-        Nombre del archivo:
-      </label>
-      <input
-        v-model="nombreArchivoEditable"
-        @input="validarNombreArchivo"
-        class="input-nombre-archivo"
-        :class="{ error: errorNombreArchivo }"
-        maxlength="50"
-        placeholder="Ej: reporte_2025-07-25_xxxxxxxx.csv"
-      />
-      <span v-if="errorNombreArchivo" class="error-nombre">Solo letras, números, guiones y guiones bajos permitidos.</span>
-      <button class="btn-generar" :disabled="errorNombreArchivo || !nombreArchivoEditable || !fechaInicio || !fechaFin" @click="generarArchivo">Generar archivo</button>
+    
+    <!-- SIN RESULTADOS -->
+    <div v-if="!loading && busquedaRealizada && clientes.length === 0" class="sin-resultados">
+      <i class="ni ni-fat-remove icono-sin-resultados"></i>
+      <p class="text-dark">No se encontraron clientes con los criterios especificados</p>
     </div>
-    <div v-if="nombreArchivoMostrado" class="nombre-archivo-generado">
-      <i class="ni ni-check-bold icono-ok"></i>
-      <b>Archivo generado:</b> <span class="archivo-nombre-ok">{{ nombreArchivoMostrado }}</span>
-    </div>
-    <div class="reportes-tabla">
-      <h4 class="tabla-titulo">Historial de reportes solicitados</h4>
-      <table v-if="reportes.length > 0" class="tabla-reportes">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Fecha inicio</th>
-            <th>Fecha fin</th>
-            <th>Fecha solicitud</th>
-            <th>Estado</th>
-            <th>Descargar</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in reportes" :key="r._id">
-            <td>{{ r.nombreArchivo }}</td>
-            <td>{{ formatFecha(r.fechaInicio) }}</td>
-            <td>{{ formatFecha(r.fechaFin) }}</td>
-            <td>{{ formatFecha(r.createdAt || r.fechaCreacion) }}</td>
-            <td>
-              <span :class="['badge-estado', r.status]">
-                {{ estadoLabel(r.status) }}
-              </span>
-            </td>
-            <td>
-              <a v-if="r.status === 'generado' && r.archivoUrl" :href="r.archivoUrl" target="_blank" class="link-descarga">Descargar</a>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div v-else class="tabla-vacia">No has solicitado reportes aún.</div>
-    </div>
+    
+    <!-- 🎯 COMPONENTE CRM DEL CLIENTE -->
+    <ClienteCRM
+      v-if="clienteSeleccionado"
+      :cliente="clienteSeleccionado"
+      @cerrar="clienteSeleccionado = null"
+      @cliente-actualizado="handleClienteActualizado"
+    />
   </div>
 </template>
 
 <script>
-import axiosInstance from '@/router/services/axios';
+import { mqttService } from '@/router/services/mqttService';
+import ClienteCRM from '@/components/ClienteCRM.vue';
+
 export default {
   name: 'Reportes',
+  components: {
+    ClienteCRM
+  },
   data() {
     return {
+      tipoBusqueda: 'cedula', // 'cedula' o 'fechas'
+      cedulaBusqueda: '',
       fechaInicio: '',
       fechaFin: '',
-      nombreArchivo: '',
-      nombreArchivoEditable: '',
-      nombreArchivoMostrado: '',
-      errorNombreArchivo: false,
-      reportes: [],
+      clientes: [],
+      loading: false,
+      busquedaRealizada: false,
+      clienteSeleccionado: null,
+      mqttTopic: '',
+      mqttCallback: null,
+      currentPage: 1,
+      totalClientes: 0,
+      hasMore: false
     };
   },
   async mounted() {
-    // Generar nombre aleatorio por defecto al cargar
-    const random = Math.random().toString(36).substring(2, 10);
-    const fecha = new Date().toISOString().slice(0,10);
-    this.nombreArchivoEditable = `reporte_${fecha}_${random}.csv`;
-    this.validarNombreArchivo();
-    await this.cargarReportes();
+    await this.setupMQTT();
+  },
+  beforeUnmount() {
+    // Limpiar listener MQTT
+    if (this.mqttTopic && this.mqttCallback) {
+      mqttService.off(this.mqttTopic, this.mqttCallback);
+    }
   },
   methods: {
-    async generarArchivo() {
-      if (this.errorNombreArchivo || !this.nombreArchivoEditable || !this.fechaInicio || !this.fechaFin) return;
+    async setupMQTT() {
       try {
-        const res = await axiosInstance.post('/api/reportes/solicitar', {
-          fechaInicio: this.fechaInicio,
-          fechaFin: this.fechaFin,
-          nombreArchivo: this.nombreArchivoEditable
-        });
-        if (res.data && res.data.success) {
-          this.nombreArchivoMostrado = this.nombreArchivoEditable;
-          await this.cargarReportes();
+        const userId = this.$store.state.user?.id || this.$store.state.user?._id;
+        if (!userId) {
+          console.warn('⚠️ No hay usuario para configurar MQTT');
+          return;
         }
-      } catch (e) {
-        alert('Error solicitando el reporte');
+        
+        this.mqttTopic = `crm/clientes/resultado/${userId}`;
+        
+        // Asegurar conexión MQTT
+        if (!mqttService.isConnected) {
+          await mqttService.connect('ws://localhost:9001', userId, this.$store.state.user?.name);
+        }
+        
+        // Callback para resultados
+        this.mqttCallback = (data) => {
+          console.log('📥 Resultados recibidos por MQTT:', data);
+          this.handleResultados(data);
+        };
+        
+        mqttService.on(this.mqttTopic, this.mqttCallback);
+        console.log('✅ MQTT configurado para reportes:', this.mqttTopic);
+        
+      } catch (error) {
+        console.error('❌ Error configurando MQTT:', error);
       }
     },
-    validarNombreArchivo() {
-      const regex = /^[a-zA-Z0-9_-]+(\.csv)?$/;
-      let nombre = this.nombreArchivoEditable.replace(/\.csv$/, '');
-      if (!regex.test(nombre)) {
-        this.errorNombreArchivo = true;
+    
+    async buscarClientes() {
+      this.loading = true;
+      this.busquedaRealizada = false;
+      this.clientes = [];
+      this.currentPage = 1;
+      
+      try {
+        const userId = this.$store.state.user?.id || this.$store.state.user?._id;
+        
+        console.log('🔍 Usuario ID:', userId);
+        console.log('🔍 Store user:', this.$store.state.user);
+        
+        if (!userId) {
+          alert('❌ Debes iniciar sesión para buscar clientes');
+          this.loading = false;
+          return;
+        }
+        
+        if (this.tipoBusqueda === 'cedula') {
+          // 📡 Publicar solicitud por MQTT - Búsqueda por cédula
+          const topicBusqueda = `crm/clientes/buscar/cedula/${userId}`;
+          mqttService.publish(topicBusqueda, {
+            cedula: this.cedulaBusqueda,
+            timestamp: new Date().toISOString()
+          });
+          console.log(`📡 Solicitud de búsqueda por cédula publicada en: ${topicBusqueda}`);
+        } else {
+          // 📡 Publicar solicitud por MQTT - Búsqueda por fechas
+          const topicBusqueda = `crm/clientes/buscar/fechas/${userId}`;
+          mqttService.publish(topicBusqueda, {
+            fechaInicio: this.fechaInicio,
+            fechaFin: this.fechaFin,
+            page: this.currentPage,
+            limit: 50,
+            timestamp: new Date().toISOString()
+          });
+          console.log(`📡 Solicitud de búsqueda por fechas publicada en: ${topicBusqueda}`);
+        }
+        
+        console.log('✅ Solicitud de búsqueda enviada por MQTT, esperando resultados...');
+      } catch (error) {
+        console.error('❌ Error solicitando búsqueda:', error);
+        this.loading = false;
+        this.busquedaRealizada = true;
+      }
+    },
+    
+    handleResultados(data) {
+      this.loading = false;
+      this.busquedaRealizada = true;
+      
+      if (data.success && data.clientes) {
+        if (data.page === 1) {
+          this.clientes = data.clientes;
+        } else {
+          this.clientes.push(...data.clientes);
+        }
+        
+        this.totalClientes = data.total || data.count;
+        this.hasMore = data.hasMore || false;
+        
+        console.log(`✅ ${this.clientes.length} clientes en memoria`);
       } else {
-        this.errorNombreArchivo = false;
-        if (!this.nombreArchivoEditable.endsWith('.csv')) {
-          this.nombreArchivoEditable = nombre + '.csv';
-        }
-        this.nombreArchivo = this.nombreArchivoEditable;
+        this.clientes = [];
+        this.totalClientes = 0;
       }
     },
-    async cargarReportes() {
-      try {
-        const res = await axiosInstance.get('/api/reportes/mis-reportes');
-        if (res.data && res.data.success) {
-          this.reportes = res.data.reportes;
-        }
-      } catch (e) {
-        this.reportes = [];
-      }
+    
+    async cargarMas() {
+      if (!this.hasMore || this.loading) return;
+      
+      this.currentPage++;
+      this.loading = true;
+      
+      const userId = this.$store.state.user?.id || this.$store.state.user?._id;
+      
+      // 📡 Publicar solicitud de siguiente página por MQTT
+      const topicBusqueda = `crm/clientes/buscar/fechas/${userId}`;
+      mqttService.publish(topicBusqueda, {
+        fechaInicio: this.fechaInicio,
+        fechaFin: this.fechaFin,
+        page: this.currentPage,
+        limit: 50,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log(`📡 Solicitud de página ${this.currentPage} publicada por MQTT`);
     },
+    
+    verDetalles(cliente) {
+      this.clienteSeleccionado = cliente;
+    },
+    
+    handleClienteActualizado(datosActualizados) {
+      // Actualizar el cliente en la lista
+      const index = this.clientes.findIndex(c => c.cedula === datosActualizados.cedula);
+      if (index !== -1) {
+        this.clientes[index] = { ...this.clientes[index], ...datosActualizados };
+        this.clienteSeleccionado = this.clientes[index];
+      }
+      console.log('✅ Cliente actualizado en la lista');
+    },
+    
+    exportarCSV() {
+      if (this.clientes.length === 0) return;
+      
+      // Crear CSV
+      const headers = [
+        'Cédula',
+        'Tipo Documento',
+        'Nombres',
+        'Apellidos',
+        'Teléfono',
+        'Correo',
+        'País',
+        'Departamento',
+        'Ciudad',
+        'Dirección',
+        'Sexo',
+        'Nivel Escolaridad',
+        'Grupo Étnico',
+        'Discapacidad',
+        'Total Interacciones',
+        'Última Interacción',
+        'Fecha Creación'
+      ];
+      
+      const rows = this.clientes.map(c => [
+        c.cedula || '',
+        c.tipoDocumento || '',
+        c.nombres || '',
+        c.apellidos || '',
+        c.telefono || '',
+        c.correo || '',
+        c.pais || '',
+        c.departamento || '',
+        c.ciudad || '',
+        c.direccion || '',
+        c.sexo || '',
+        c.nivelEscolaridad || '',
+        c.grupoEtnico || '',
+        c.discapacidad || '',
+        c.totalInteracciones || 0,
+        this.formatFechaHora(c.fechaUltimaInteraccion),
+        this.formatFechaHora(c.fechaCreacion)
+      ]);
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(field => `"${field}"`).join(','))
+      ].join('\n');
+      
+      // Descargar archivo
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      const fecha = new Date().toISOString().slice(0, 10);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `clientes_${this.tipoBusqueda}_${fecha}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    },
+    
     formatFecha(f) {
       if (!f) return '-';
       const d = new Date(f);
-      return d.toLocaleDateString('es-CO', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      return d.toLocaleDateString('es-CO', { 
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit' 
+      });
     },
-    estadoLabel(status) {
-      if (status === 'pendiente') return 'Pendiente';
-      if (status === 'generado') return 'Generado';
-      if (status === 'error') return 'Error';
-      return status;
+    
+    formatFechaHora(f) {
+      if (!f) return '-';
+      const d = new Date(f);
+      return d.toLocaleString('es-CO', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
     }
   }
 };
@@ -155,211 +418,455 @@ export default {
   background: #fff;
   border-radius: 12px;
   padding: 32px;
-  margin: 32px auto;
-  max-width: 1100px;
+  margin: 24px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.07);
 }
+
 .reportes-title {
   font-size: 2rem;
-  color: #1976d2;
   margin-bottom: 24px;
   font-weight: 700;
+  text-align: center;
 }
-.reportes-filtros {
-  margin-bottom: 32px;
-  background: #fff;
-  padding: 24px 32px;
-  border-radius: 12px;
+
+/* TIPO DE BÚSQUEDA */
+.tipo-busqueda {
   display: flex;
-  align-items: flex-end;
-  gap: 32px;
-  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.06);
+  gap: 16px;
   justify-content: center;
+  margin-bottom: 32px;
 }
-.filtro-fecha {
+
+.btn-tipo {
+  background: #e0e0e0;
+  color: #666;
+  border: 2px solid transparent;
+  padding: 12px 32px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-tipo.active {
+  background: #1976d2;
+  color: white;
+  border-color: #1976d2;
+}
+
+.btn-tipo:hover:not(.active) {
+  background: #d0d0d0;
+}
+/* FILTROS */
+.filtros-cedula, .filtros-fechas {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  align-items: flex-end;
+  margin-bottom: 32px;
+  background: #f8f9fa;
+  padding: 24px;
+  border-radius: 12px;
+}
+
+.filtro-grupo {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 8px;
 }
+
 .filtro-label {
-  color: #1976d2;
-  font-size: 1.08rem;
   font-weight: 600;
-  margin-bottom: 2px;
+  font-size: 0.95rem;
   display: flex;
   align-items: center;
   gap: 6px;
 }
-.icono-fecha {
-  font-size: 1.15em;
+
+.icono-filtro {
+  font-size: 1.1em;
   color: #1976d2;
-  margin-right: 2px;
 }
-.input-fecha {
+
+.input-filtro {
   padding: 10px 16px;
   border-radius: 6px;
-  border: 1.5px solid #bdbdbd;
-  font-size: 1.08rem;
-  background: #f8f9fa;
-  color: #333;
-  width: 210px;
-  box-sizing: border-box;
-  transition: border 0.2s, background 0.2s;
+  border: 1.5px solid #ddd;
+  font-size: 1rem;
+  min-width: 250px;
+  transition: all 0.2s;
 }
-.input-fecha:focus {
+
+.input-filtro:focus {
   border-color: #1976d2;
-  background: #fff;
   outline: none;
+  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
 }
-.nombre-archivo-bloque {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background: #e8f5e9;
-  border-radius: 10px;
-  padding: 24px 32px 20px 32px;
-  margin: 0 auto 24px auto;
-  max-width: 480px;
-  box-shadow: 0 2px 8px rgba(56, 142, 60, 0.07);
-}
-.nombre-archivo-label {
-  color: #388e3c;
-  font-size: 1.15rem;
-  font-weight: 700;
-  margin-bottom: 10px;
+
+.btn-buscar {
+  background: #1976d2;
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
+  transition: all 0.2s;
 }
-.icono-archivo {
-  font-size: 1.3em;
-  color: #43a047;
-  margin-right: 4px;
+
+.btn-buscar:hover:not(:disabled) {
+  background: #1565c0;
+  transform: translateY(-1px);
 }
-.input-nombre-archivo {
-  padding: 12px 18px;
-  border-radius: 6px;
-  border: 1.5px solid #bdbdbd;
-  font-size: 1.1rem;
-  margin: 0 0 10px 0;
-  width: 100%;
-  max-width: 350px;
-  box-sizing: border-box;
-  transition: border 0.2s, background 0.2s;
-}
-.input-nombre-archivo.error {
-  border-color: #e53935;
-  background: #ffebee;
-}
-.error-nombre {
-  color: #e53935;
-  font-size: 0.98em;
-  margin-bottom: 10px;
-}
-.btn-generar {
-  background: linear-gradient(90deg, #43e97b 0%, #38f9d7 100%);
-  color: #155724;
-  border: none;
-  border-radius: 6px;
-  padding: 12px 32px;
-  font-weight: 700;
-  font-size: 1.1rem;
-  margin-top: 8px;
-  cursor: pointer;
-  box-shadow: 0 1px 4px rgba(56, 142, 60, 0.08);
-  transition: background 0.2s, color 0.2s;
-}
-.btn-generar:disabled {
-  background: #bdbdbd;
-  color: #fff;
+
+.btn-buscar:disabled {
+  background: #ccc;
   cursor: not-allowed;
 }
-.btn-generar:hover:not(:disabled) {
-  background: linear-gradient(90deg, #38f9d7 0%, #43e97b 100%);
-  color: #1b5e20;
+
+/* LOADING */
+.loading-estado {
+  text-align: center;
+  padding: 40px;
+  font-size: 1.1rem;
+  font-weight: 600;
 }
-.nombre-archivo-generado {
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #1976d2;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* RESULTADOS */
+.resultados-container {
+  margin-top: 32px;
+}
+
+.resultados-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.resultados-header h4 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.btn-exportar {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+
+.btn-exportar:hover {
+  background: #218838;
+}
+
+/* TABLA DE CLIENTES */
+.tabla-scroll {
+  overflow-x: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.tabla-clientes {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1200px;
+}
+
+.tabla-clientes thead tr {
+  background: #1976d2;
+}
+
+.tabla-clientes th {
+  padding: 14px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: white !important;
+  border-bottom: 2px solid #1565c0;
+}
+
+.tabla-clientes tbody tr {
+  border-bottom: 1px solid #e0e0e0;
+  transition: all 0.2s;
+}
+
+.tabla-clientes tbody tr:hover {
+  background: #f5f5f5;
+}
+
+.tabla-clientes td {
+  padding: 12px;
+  font-size: 0.9rem;
+}
+
+.badge-interacciones {
+  background: #1976d2;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.btn-detalle {
+  background: #1976d2;
+  color: white;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.btn-detalle:hover {
+  background: #1565c0;
+}
+
+/* SIN RESULTADOS */
+.sin-resultados {
+  text-align: center;
+  padding: 60px 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  margin-top: 32px;
+}
+
+.icono-sin-resultados {
+  font-size: 4rem;
+  color: #ccc;
+  display: block;
+  margin-bottom: 16px;
+}
+
+.sin-resultados p {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+/* PAGINACIÓN */
+.paginacion {
+  text-align: center;
+  margin: 24px 0;
+}
+
+.btn-cargar-mas {
+  background: #1976d2;
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+  font-size: 1rem;
+}
+
+.btn-cargar-mas:hover {
+  background: #1565c0;
+  transform: translateY(-1px);
+}
+
+.total-info {
+  text-align: center;
+  margin-top: 16px;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+/* MODAL DE DETALLES */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-detalle {
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.btn-cerrar {
+  background: #dc3545;
+  color: white;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #388e3c;
-  font-size: 1.1rem;
-  margin-bottom: 24px;
-  gap: 8px;
+  transition: all 0.2s;
 }
-.icono-ok {
-  color: #43a047;
-  font-size: 1.3em;
-  margin-right: 4px;
+
+.btn-cerrar:hover {
+  background: #c82333;
+  transform: rotate(90deg);
 }
-.archivo-nombre-ok {
-  background: #e8f5e9;
-  border-radius: 4px;
-  padding: 2px 10px;
-  font-weight: 600;
-  color: #1b5e20;
-  margin-left: 4px;
-}
-.reportes-tabla {
-  min-height: 200px;
-  background: #f4f6fb;
-  border-radius: 8px;
+
+.modal-body {
   padding: 24px;
-  text-align: center;
-  color: #888;
 }
-.tabla-titulo {
-  color: #1976d2;
-  font-size: 1.15rem;
-  margin-bottom: 12px;
-  font-weight: 700;
-}
-.tabla-reportes {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
+
+.seccion-detalle {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f8f9fa;
   border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 4px rgba(25, 118, 210, 0.06);
+  border-left: 4px solid #1976d2;
 }
-.tabla-reportes th, .tabla-reportes td {
-  padding: 10px 14px;
-  text-align: left;
-  border-bottom: 1px solid #e3e3e3;
-}
-.tabla-reportes th {
-  background: #f4f6fb;
-  color: #1976d2;
-  font-weight: 700;
-}
-.tabla-reportes tr:last-child td {
-  border-bottom: none;
-}
-.badge-estado {
-  border-radius: 8px;
-  padding: 4px 14px;
-  font-size: 0.98em;
+
+.seccion-detalle h5 {
+  margin: 0 0 16px 0;
+  font-size: 1.1rem;
   font-weight: 600;
-  color: #fff;
-  display: inline-block;
 }
-.badge-estado.pendiente { background: #ff9800; }
-.badge-estado.generado { background: #43a047; }
-.badge-estado.error { background: #e53935; }
-.tabla-vacia {
-  color: #888;
+
+.detalle-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.detalle-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detalle-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.detalle-valor {
+  font-size: 0.95rem;
+}
+
+/* INTERACCIONES */
+.interacciones-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.interaccion-item {
+  padding: 12px 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: white;
+}
+
+.interaccion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.badge-estado-interaccion {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+}
+
+.badge-estado-interaccion.completada {
+  background: #28a745;
+}
+
+.badge-estado-interaccion.pendiente {
+  background: #ffc107;
+  color: #000;
+}
+
+.badge-estado-interaccion.cancelada {
+  background: #dc3545;
+}
+
+.interaccion-item p {
+  margin: 4px 0;
+  font-size: 0.9rem;
+}
+
+.sin-interacciones {
   text-align: center;
-  padding: 32px 0;
+  padding: 20px;
   font-style: italic;
+  color: #999;
 }
-.link-descarga {
-  color: #1976d2;
-  font-weight: 600;
-  text-decoration: underline;
-  transition: color 0.2s;
-}
-.link-descarga:hover {
-  color: #125ea7;
+
+/* MODO OSCURO */
+h4.text-dark,
+h5.text-dark,
+h3.text-dark,
+label.text-dark,
+span.text-dark,
+p.text-dark,
+td.text-dark,
+th.text-dark,
+b.text-dark {
+  color: #000000 !important;
 }
 </style> 

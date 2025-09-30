@@ -696,10 +696,18 @@ const mqttService = new MQTTService();
 mqttService.connect('mqtt://localhost:1884')
   .then(() => {
     console.log('✅ Servicio MQTT inicializado correctamente');
-    // Suscribirse al topic de heartbeat
+    // Suscribirse a topics necesarios
     if (mqttService.client) {
+      // Topic de heartbeat
       mqttService.client.subscribe('telefonia/users/heartbeat/+');
+      
+      // Topics de búsqueda de clientes CRM
+      mqttService.client.subscribe('crm/clientes/buscar/cedula/+');
+      mqttService.client.subscribe('crm/clientes/buscar/fechas/+');
+      mqttService.client.subscribe('crm/clientes/actualizar/+');
+      
       mqttService.client.on('message', async (topic, message) => {
+        // Heartbeat
         if (topic.startsWith('telefonia/users/heartbeat/')) {
           try {
             const data = JSON.parse(message.toString());
@@ -714,6 +722,146 @@ mqttService.connect('mqtt://localhost:1884')
             }
           } catch (err) {
             console.error('❌ Error procesando heartbeat MQTT:', err);
+          }
+        }
+        
+        // 🔍 Búsqueda por cédula
+        if (topic.startsWith('crm/clientes/buscar/cedula/')) {
+          try {
+            const data = JSON.parse(message.toString());
+            const userId = topic.split('/').pop();
+            const { cedula } = data;
+            
+            console.log(`🔍 MQTT: Búsqueda por cédula: ${cedula} para usuario: ${userId}`);
+            
+            const Cliente = require('./models/cliente');
+            const cliente = await Cliente.findOne({ cedula: cedula, activo: true });
+            
+            const resultTopic = `crm/clientes/resultado/${userId}`;
+            
+            if (cliente) {
+              console.log(`✅ Cliente encontrado: ${cliente.nombres} ${cliente.apellidos}`);
+              mqttService.publish(resultTopic, {
+                success: true,
+                tipoBusqueda: 'cedula',
+                clientes: [cliente],
+                count: 1,
+                timestamp: new Date().toISOString()
+              });
+            } else {
+              console.log(`❌ Cliente no encontrado con cédula: ${cedula}`);
+              mqttService.publish(resultTopic, {
+                success: false,
+                tipoBusqueda: 'cedula',
+                clientes: [],
+                count: 0,
+                message: 'Cliente no encontrado',
+                timestamp: new Date().toISOString()
+              });
+            }
+          } catch (err) {
+            console.error('❌ Error en búsqueda por cédula MQTT:', err);
+          }
+        }
+        
+        // 🔍 Búsqueda por fechas
+        if (topic.startsWith('crm/clientes/buscar/fechas/')) {
+          try {
+            const data = JSON.parse(message.toString());
+            const userId = topic.split('/').pop();
+            const { fechaInicio, fechaFin, page = 1, limit = 50 } = data;
+            
+            console.log(`🔍 MQTT: Búsqueda por fechas: ${fechaInicio} a ${fechaFin} (página ${page})`);
+            
+            const Cliente = require('./models/cliente');
+            
+            // Convertir fechas
+            const inicio = new Date(fechaInicio);
+            inicio.setHours(0, 0, 0, 0);
+            
+            const fin = new Date(fechaFin);
+            fin.setHours(23, 59, 59, 999);
+            
+            // Buscar con paginación
+            const skip = (page - 1) * limit;
+            const clientes = await Cliente.find({
+              activo: true,
+              'interacciones.fecha': {
+                $gte: inicio,
+                $lte: fin
+              }
+            })
+            .sort({ fechaUltimaInteraccion: -1 })
+            .skip(skip)
+            .limit(limit);
+            
+            const total = await Cliente.countDocuments({
+              activo: true,
+              'interacciones.fecha': {
+                $gte: inicio,
+                $lte: fin
+              }
+            });
+            
+            console.log(`✅ Clientes encontrados: ${clientes.length} de ${total} total`);
+            
+            const resultTopic = `crm/clientes/resultado/${userId}`;
+            mqttService.publish(resultTopic, {
+              success: true,
+              tipoBusqueda: 'fechas',
+              clientes: clientes,
+              count: clientes.length,
+              total: total,
+              page: page,
+              limit: limit,
+              hasMore: total > (page * limit),
+              timestamp: new Date().toISOString()
+            });
+          } catch (err) {
+            console.error('❌ Error en búsqueda por fechas MQTT:', err);
+          }
+        }
+        
+        // 🔄 Actualización de cliente
+        if (topic.startsWith('crm/clientes/actualizar/')) {
+          try {
+            const data = JSON.parse(message.toString());
+            const userId = topic.split('/').pop();
+            const { cedula, datosActualizados } = data;
+            
+            console.log(`🔄 MQTT: Actualizar cliente: ${cedula} para usuario: ${userId}`);
+            
+            const Cliente = require('./models/cliente');
+            const cliente = await Cliente.findOne({ cedula: cedula, activo: true });
+            
+            if (!cliente) {
+              console.log(`❌ Cliente no encontrado con cédula: ${cedula}`);
+              mqttService.publish(`crm/clientes/actualizado/${userId}`, {
+                success: false,
+                message: 'Cliente no encontrado',
+                timestamp: new Date().toISOString()
+              });
+              return;
+            }
+            
+            // Actualizar campos
+            Object.keys(datosActualizados).forEach(key => {
+              if (key !== 'cedula' && key !== '_id' && datosActualizados[key] !== undefined) {
+                cliente[key] = datosActualizados[key];
+              }
+            });
+            
+            await cliente.save();
+            
+            console.log(`✅ Cliente actualizado: ${cliente.nombres} ${cliente.apellidos}`);
+            
+            mqttService.publish(`crm/clientes/actualizado/${userId}`, {
+              success: true,
+              cliente: cliente,
+              timestamp: new Date().toISOString()
+            });
+          } catch (err) {
+            console.error('❌ Error en actualización de cliente MQTT:', err);
           }
         }
       });
