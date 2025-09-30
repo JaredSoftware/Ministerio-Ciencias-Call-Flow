@@ -238,6 +238,16 @@
         
         <!-- TAB: HISTORIAL -->
         <div v-show="tabActiva === 'historial'" class="tab-content">
+          <!-- HEADER CON BOTÓN DE DESCARGA -->
+          <div v-if="cliente.interacciones && cliente.interacciones.length > 0" class="historial-header-acciones">
+            <h6 class="text-dark historial-titulo">
+              📊 Total de Interacciones: <span class="badge-count">{{ cliente.interacciones.length }}</span>
+            </h6>
+            <button @click="descargarHistorialExcel" class="btn-descargar-excel">
+              📥 Descargar en Excel
+            </button>
+          </div>
+          
           <div v-if="cliente.interacciones && cliente.interacciones.length > 0" class="historial-lista">
             <div 
               v-for="(interaccion, idx) in cliente.interacciones" 
@@ -389,6 +399,77 @@ export default {
       if (!fecha) return '';
       const date = new Date(fecha);
       return date.toISOString().split('T')[0];
+    },
+    
+    descargarHistorialExcel() {
+      if (!this.cliente.interacciones || this.cliente.interacciones.length === 0) {
+        alert('No hay interacciones para descargar');
+        return;
+      }
+      
+      // Crear CSV del historial
+      const headers = [
+        'N°',
+        'ID Llamada',
+        'Fecha',
+        'Hora',
+        'Tipo',
+        'Estado',
+        'Nivel 1',
+        'Nivel 2',
+        'Nivel 3',
+        'Nivel 4',
+        'Nivel 5',
+        'Observación'
+      ];
+      
+      const rows = this.cliente.interacciones.map((interaccion, idx) => {
+        const fecha = new Date(interaccion.fecha);
+        return [
+          idx + 1,
+          interaccion.idLlamada || '',
+          fecha.toLocaleDateString('es-ES'),
+          fecha.toLocaleTimeString('es-ES'),
+          interaccion.tipo || '',
+          interaccion.estado || '',
+          interaccion.nivel1 || '',
+          interaccion.nivel2 || '',
+          interaccion.nivel3 || '',
+          interaccion.nivel4 || '',
+          interaccion.nivel5 || '',
+          interaccion.observacion || ''
+        ];
+      });
+      
+      // Construir CSV
+      let csv = headers.join(',') + '\n';
+      rows.forEach(row => {
+        csv += row.map(cell => {
+          // Escapar comillas y comas
+          const cellStr = String(cell).replace(/"/g, '""');
+          return cellStr.includes(',') || cellStr.includes('\n') ? `"${cellStr}"` : cellStr;
+        }).join(',') + '\n';
+      });
+      
+      // Agregar información del cliente al inicio
+      const infoCliente = `Historial de Interacciones - Cliente: ${this.cliente.nombres} ${this.cliente.apellidos}\nCédula: ${this.cliente.cedula}\nTotal Interacciones: ${this.cliente.interacciones.length}\nFecha de Descarga: ${new Date().toLocaleString('es-ES')}\n\n`;
+      csv = infoCliente + csv;
+      
+      // Descargar archivo
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      const nombreArchivo = `Historial_${this.cliente.cedula}_${new Date().toISOString().split('T')[0]}.csv`;
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', nombreArchivo);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      console.log(`✅ Historial descargado: ${nombreArchivo}`);
     }
   }
 };
@@ -681,6 +762,61 @@ export default {
 }
 
 /* 📞 TAB HISTORIAL */
+.historial-header-acciones {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 2px solid #e2e8f0;
+}
+
+.historial-titulo {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge-count {
+  background: #667eea;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.btn-descargar-excel {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 8px rgba(72, 187, 120, 0.3);
+}
+
+.btn-descargar-excel:hover {
+  background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+}
+
+.btn-descargar-excel:active {
+  transform: translateY(0);
+}
+
 .historial-lista {
   display: flex;
   flex-direction: column;

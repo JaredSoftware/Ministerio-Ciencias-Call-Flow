@@ -324,8 +324,14 @@ this.$emit('cliente-actualizado', datosActualizados);
 #### Tab 3: Historial
 - Lista de todas las interacciones
 - Detalles de cada tipificación
-- Árbol de niveles
+- Árbol de niveles de tipificación completos
 - Fechas y observaciones
+- **📥 Botón de descarga en Excel/CSV** con:
+  - Información del cliente en el header
+  - Todas las interacciones en formato tabular
+  - Niveles de tipificación (1-5)
+  - Estados y observaciones
+  - Formato de archivo: `Historial_[CEDULA]_[FECHA].csv`
 
 **Métodos Principales:**
 
@@ -357,6 +363,54 @@ formatFecha(fecha) {
 
 formatFechaHora(fecha) {
   return new Date(fecha).toLocaleString('es-ES');
+}
+
+// Descargar historial en Excel/CSV
+descargarHistorialExcel() {
+  // Crear CSV con información del cliente
+  const headers = ['N°', 'ID Llamada', 'Fecha', 'Hora', 'Tipo', 'Estado', 
+                   'Nivel 1', 'Nivel 2', 'Nivel 3', 'Nivel 4', 'Nivel 5', 'Observación'];
+  
+  const rows = this.cliente.interacciones.map((interaccion, idx) => {
+    const fecha = new Date(interaccion.fecha);
+    return [
+      idx + 1,
+      interaccion.idLlamada || '',
+      fecha.toLocaleDateString('es-ES'),
+      fecha.toLocaleTimeString('es-ES'),
+      interaccion.tipo || '',
+      interaccion.estado || '',
+      interaccion.nivel1 || '',
+      interaccion.nivel2 || '',
+      interaccion.nivel3 || '',
+      interaccion.nivel4 || '',
+      interaccion.nivel5 || '',
+      interaccion.observacion || ''
+    ];
+  });
+  
+  // Construir CSV con header del cliente
+  const infoCliente = `Historial de Interacciones - Cliente: ${this.cliente.nombres} ${this.cliente.apellidos}\n` +
+                      `Cédula: ${this.cliente.cedula}\n` +
+                      `Total Interacciones: ${this.cliente.interacciones.length}\n\n`;
+  
+  let csv = infoCliente + headers.join(',') + '\n';
+  rows.forEach(row => {
+    csv += row.map(cell => {
+      const cellStr = String(cell).replace(/"/g, '""');
+      return cellStr.includes(',') ? `"${cellStr}"` : cellStr;
+    }).join(',') + '\n';
+  });
+  
+  // Descargar
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  const nombreArchivo = `Historial_${this.cliente.cedula}_${new Date().toISOString().split('T')[0]}.csv`;
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', nombreArchivo);
+  link.click();
 }
 ```
 
@@ -539,12 +593,16 @@ mqttService.client.on('message', async (topic, message) => {
 2. Se abre el modal CRM con 3 tabs:
    - **📋 Información**: Ver todos los datos
    - **✏️ Editar**: Modificar campos
-   - **📞 Historial**: Ver interacciones
+   - **📞 Historial**: Ver interacciones y descargar Excel
 3. Para editar:
    - Cambiar a tab **"Editar"**
    - Modificar los campos necesarios
    - Hacer clic en **"💾 Guardar Cambios"**
-4. Para cerrar: Hacer clic en **"×"** o fuera del modal
+4. Para descargar historial:
+   - Cambiar a tab **"📞 Historial"**
+   - Hacer clic en **"📥 Descargar en Excel"**
+   - Se descarga archivo CSV con todas las interacciones
+5. Para cerrar: Hacer clic en **"×"** o fuera del modal
 
 #### 4. Exportar Resultados
 
