@@ -1032,13 +1032,21 @@ mqttService.connect('mqtt://localhost:1884')
               {
                 $match: {
                   createdAt: { $gte: hoy, $lte: hoyFin },
-                  status: 'success',
-                  nivel1: { $exists: true, $ne: '' }
+                  status: 'success'
                 }
               },
               {
                 $group: {
-                  _id: '$nivel1',
+                  _id: {
+                    $cond: [
+                      { $or: [
+                        { $eq: ['$nivel1', ''] },
+                        { $eq: ['$nivel1', null] }
+                      ]},
+                      'Sin categoría',
+                      '$nivel1'
+                    ]
+                  },
                   count: { $sum: 1 }
                 }
               },
@@ -1051,9 +1059,11 @@ mqttService.connect('mqtt://localhost:1884')
             ]);
             
             const distribucionNivel1 = distribucionNivel1Data.map(item => ({
-              nivel1: item._id,
+              nivel1: item._id || 'Sin categoría',
               count: item.count
             }));
+            
+            console.log(`📊 Distribución Nivel 1 detalle:`, distribucionNivel1);
             
             console.log(`📊 Estadísticas calculadas:`);
             console.log(`   - Agentes Conectados: ${agentesConectados}`);
