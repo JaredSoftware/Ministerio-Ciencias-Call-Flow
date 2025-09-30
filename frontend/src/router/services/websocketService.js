@@ -1,4 +1,5 @@
 import { io } from 'socket.io-client';
+import environmentConfig from '@/config/environment';
 
 class WebSocketService {
   constructor() {
@@ -16,12 +17,15 @@ class WebSocketService {
     }
 
     try {
+      const websocketUrl = environmentConfig.getWebSocketUrl();
       console.log('🔌 Conectando WebSocket...');
+      console.log('   - URL:', websocketUrl);
       console.log('   - Con credenciales: true');
       console.log('   - Usuario info:', userInfo);
+      console.log('   - Entorno:', environmentConfig.isDevelopment ? 'development' : 'production');
       
       // CONEXIÓN CON LOGGING DETALLADO
-      this.socket = io('http://localhost:9035', {
+      this.socket = io(websocketUrl, {
         withCredentials: true,
         transports: ['websocket', 'polling'],
         forceNew: true,

@@ -169,13 +169,13 @@
   </div>
   
   <!-- Componente de Estado de Usuario -->
-  <!--<div class="user-status-container">
+  <div class="user-status-container">
     <h6 class="status-section-title">
       <i class="fas fa-circle text-success"></i>
       Estados de Usuario
     </h6>
     <UserStatusSelector />
-  </div>-->
+  </div>
   
   <!--<div class="pt-3 mx-3 mt-3 sidenav-footer">
     <sidenav-card
@@ -190,7 +190,7 @@
 import SidenavItem from "./SidenavItem.vue";
 import permissions from '@/router/services/permissions';
 import statusTypes from '@/router/services/statusTypes';
-//import UserStatusSelector from "@/components/UserStatusSelector.vue";
+import UserStatusSelector from "@/components/UserStatusSelector.vue";
 //import SidenavCard from "./SidenavCard.vue";
 
 export default {
@@ -211,7 +211,7 @@ export default {
   },
   components: {
     SidenavItem,
-    //UserStatusSelector,
+    UserStatusSelector,
     //SidenavCard
   },
   computed: {

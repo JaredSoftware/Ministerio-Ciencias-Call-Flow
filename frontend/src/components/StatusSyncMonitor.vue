@@ -23,7 +23,7 @@
 </template>
 
 <script>
-// Eliminar importación y uso de statusSyncService
+import axios from '@/router/services/axios';
 
 export default {
   name: 'StatusSyncMonitor',
@@ -90,28 +90,39 @@ export default {
           return;
         }
 
-        // Obtener estado actual del usuario desde el backend
-        const response = await fetch('/api/user-status/my-status', {
-          credentials: 'include'
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success && data.status) {
-            this.currentStatus = data.status;
+        // Verificar si hay usuario en el store antes de hacer la petición
+        if (!this.$store.state.user || !this.$store.state.user._id) {
+          console.log('⚠️ No hay usuario en el store, saltando actualización de estado');
+          this.isConnected = false;
+          return;
+        }
+
+        // Obtener estado actual del usuario desde el backend usando axios
+        try {
+          const response = await axios.get('/user-status/my-status', {
+            withCredentials: true
+          });
+          
+          if (response.data.success && response.data.status) {
+            this.currentStatus = response.data.status;
             this.lastSyncTime = new Date();
             this.isConnected = true;
-            this.sessionId = data.status.sessionId || 'Activo';
+            this.sessionId = response.data.status.sessionId || 'Activo';
             
             // Actualizar el store con el estado actual
-            this.$store.commit('setUserStatus', data.status);
+            this.$store.commit('setUserStatus', response.data.status);
           } else {
             this.isConnected = false;
             this.currentStatus = null;
           }
-        } else {
+        } catch (error) {
           this.isConnected = false;
           this.currentStatus = null;
+          if (error.response?.status === 401) {
+            console.log('⚠️ No autenticado - StatusSyncMonitor deshabilitado');
+          } else {
+            console.error('❌ Error obteniendo estado:', error);
+          }
         }
       } catch (error) {
         console.error('Error actualizando estado de sincronización:', error);

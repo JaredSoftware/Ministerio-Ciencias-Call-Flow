@@ -1,10 +1,12 @@
 // Configuración Centralizada de MQTT
 // Este archivo centraliza toda la configuración MQTT del frontend
 
+import environmentConfig from '@/config/environment';
+
 export const MQTT_CONFIG = {
   // Configuración del broker
   broker: {
-    url: 'ws://localhost:9001',
+    url: environmentConfig.getMQTTBrokerUrl(),
     connectTimeout: 4000,
     reconnectPeriod: 1000,
     keepalive: 60,
@@ -149,25 +151,25 @@ export const MQTT_UTILS = {
   }
 };
 
-// Configuración por entorno
+// Configuración por entorno (ahora usa configuración dinámica)
 export const getMQTTConfig = (environment = 'development') => {
   const baseConfig = { ...MQTT_CONFIG };
   
+  // Usar configuración dinámica basada en la URL actual
+  baseConfig.broker.url = environmentConfig.getMQTTBrokerUrl();
+  
   switch (environment) {
     case 'production':
-      baseConfig.broker.url = process.env.VUE_APP_MQTT_BROKER_URL || 'wss://mqtt.yourdomain.com:9001';
-      baseConfig.security.useTLS = true;
+      baseConfig.security.useTLS = !environmentConfig.isDevelopment;
       baseConfig.logging.level = 'warn';
       break;
       
     case 'staging':
-      baseConfig.broker.url = process.env.VUE_APP_MQTT_BROKER_URL || 'wss://staging-mqtt.yourdomain.com:9001';
       baseConfig.logging.level = 'info';
       break;
       
     case 'development':
     default:
-      baseConfig.broker.url = process.env.VUE_APP_MQTT_BROKER_URL || 'ws://localhost:9001';
       baseConfig.logging.level = 'debug';
       break;
   }

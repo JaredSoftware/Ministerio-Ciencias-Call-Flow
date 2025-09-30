@@ -70,22 +70,24 @@
 </template>
 
 <script>
-import websocketService from '@/services/websocketService';
+import websocketService from '@/router/services/websocketService';
+import axios from '@/router/services/axios';
 
 export default {
   name: 'UserStatusSelector',
   data() {
     return {
       showStatusModal: false,
-      currentStatus: 'online',
+      currentStatus: 'offline',
       customStatus: '',
-      currentStatusColor: '#28a745',
-      currentStatusLabel: 'Conectado',
+      currentStatusColor: '#6c757d',
+      currentStatusLabel: 'Desconectado',
       lastSeen: new Date(),
       activeUsers: [],
       currentUserId: null,
       debug: true, // Habilitar debug
       availableStatuses: [
+        { value: 'offline', label: 'Desconectado', color: '#6c757d', icon: 'fas fa-times-circle' },
         { value: 'online', label: 'Conectado', color: '#28a745' },
         { value: 'busy', label: 'Ocupado', color: '#dc3545' },
         { value: 'away', label: 'Ausente', color: '#ffc107' },
@@ -115,8 +117,9 @@ export default {
   },
   mounted() {
     console.log('UserStatusSelector mounted');
-    // NO inicializar WebSocket automáticamente
-    // Solo cargar datos si están disponibles
+    // Cargar estados disponibles del backend
+    this.loadAvailableStatuses();
+    // Cargar datos si están disponibles
     this.loadCurrentStatus();
     this.loadActiveUsers();
     
@@ -171,14 +174,11 @@ export default {
     async loadCurrentStatus() {
       try {
         console.log('Cargando estado actual...');
-        const response = await fetch('/api/user-status/my-status', {
-          credentials: 'include'
-        });
-        const data = await response.json();
-        console.log('Respuesta estado:', data);
+        const response = await axios.get('/user-status/my-status');
+        console.log('Respuesta estado:', response.data);
         
-        if (data.success && data.status) {
-          this.updateOwnStatus(data.status);
+        if (response.data.success && response.data.status) {
+          this.updateOwnStatus(response.data.status);
         }
       } catch (error) {
         console.error('Error cargando estado:', error);
@@ -188,14 +188,11 @@ export default {
     async loadActiveUsers() {
       try {
         console.log('Cargando usuarios activos...');
-        const response = await fetch('/api/user-status/active-users', {
-          credentials: 'include'
-        });
-        const data = await response.json();
-        console.log('Respuesta usuarios:', data);
+        const response = await axios.get('/user-status/active-users');
+        console.log('Respuesta usuarios:', response.data);
         
-        if (data.success) {
-          this.activeUsers = data.users;
+        if (response.data.success) {
+          this.activeUsers = response.data.users;
         }
       } catch (error) {
         console.error('Error cargando usuarios activos:', error);
@@ -215,20 +212,12 @@ export default {
         this.showStatusModal = false;
         
         // También hacer la llamada HTTP como respaldo
-        const response = await fetch('/api/user-status/change-status', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            status,
-            customStatus
-          })
+        const response = await axios.post('/user-status/change-status', {
+          status,
+          customStatus
         });
         
-        const data = await response.json();
-        console.log('Respuesta cambio estado:', data);
+        console.log('Respuesta cambio estado:', response.data);
         
       } catch (error) {
         console.error('❌ Error cambiando estado:', error);
@@ -267,12 +256,31 @@ export default {
       try {
         console.log('🔄 Asignando estado por defecto en UserStatusSelector...');
         
-        // Cambiar al estado por defecto (available)
-        await this.changeStatus('available');
+        // Obtener el estado por defecto del backend
+        const response = await axios.get('/status-types/default', {
+          withCredentials: true
+        });
         
-        console.log('✅ Estado por defecto asignado exitosamente en UserStatusSelector');
+        if (response.data.success && response.data.status) {
+          const defaultStatus = response.data.status.value;
+          console.log('📡 Estado por defecto obtenido del backend:', defaultStatus);
+          
+          // Cambiar al estado por defecto real del backend
+          await this.changeStatus(defaultStatus);
+          
+          console.log('✅ Estado por defecto asignado exitosamente en UserStatusSelector:', defaultStatus);
+        } else {
+          console.log('⚠️ No se pudo obtener estado por defecto del backend, usando offline');
+          await this.changeStatus('offline');
+        }
       } catch (error) {
         console.error('❌ Error asignando estado por defecto en UserStatusSelector:', error);
+        // Fallback a offline si hay error
+        try {
+          await this.changeStatus('offline');
+        } catch (fallbackError) {
+          console.error('❌ Error en fallback:', fallbackError);
+        }
       }
     }
   }

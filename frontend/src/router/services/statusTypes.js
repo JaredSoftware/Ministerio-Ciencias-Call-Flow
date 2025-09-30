@@ -101,8 +101,8 @@ class StatusTypesService {
     return {
       value: value,
       label: value, // Usar el valor como label
-      color: '#00d25b', // Color por defecto
-      icon: 'fas fa-circle',
+      color: '#6c757d', // Color por defecto (gris para offline)
+      icon: 'fas fa-times-circle',
       category: 'custom'
     };
   }
@@ -135,19 +135,19 @@ class StatusTypesService {
   // Obtener color por valor
   getColorByValue(value) {
     const status = this.getStatusByValue(value);
-    return status ? status.color : '#00d25b';
+    return status ? status.color : '#6c757d';
   }
 
   // Obtener label por valor
   getLabelByValue(value) {
     const status = this.getStatusByValue(value);
-    return status ? status.label : value || 'Disponible';
+    return status ? status.label : value || 'Desconectado';
   }
 
   // Obtener icono por valor
   getIconByValue(value) {
     const status = this.getStatusByValue(value);
-    return status ? status.icon : 'fas fa-circle';
+    return status ? status.icon : 'fas fa-times-circle';
   }
 
   // Inicializar el servicio

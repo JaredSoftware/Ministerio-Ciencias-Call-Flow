@@ -53,6 +53,7 @@ import StatusSyncMonitor from "@/components/StatusSyncMonitor.vue";
 import { mapMutations } from "vuex";
 import { mqttService } from '@/router/services/mqttService';
 import websocketService from '@/router/services/websocketService';
+import environmentConfig from '@/config/environment';
 
 export default {
   name: "App",
@@ -83,7 +84,10 @@ export default {
       handler(isLoggedIn) {
         if (isLoggedIn && this.$store.state.user && this.$store.state.user._id) {
           if (!mqttService.isConnected) {
-            mqttService.connect('ws://localhost:9001', this.$store.state.user._id, this.$store.state.user.name);
+            // Usar configuración dinámica para MQTT
+            const mqttUrl = environmentConfig.getMQTTBrokerUrl();
+            console.log('🔌 App.vue: Conectando MQTT a:', mqttUrl);
+            mqttService.connect(mqttUrl, this.$store.state.user._id, this.$store.state.user.name);
           }
           if (!websocketService.isConnected) {
             websocketService.connect({
@@ -102,7 +106,10 @@ export default {
       handler(user) {
         if (this.$store.state.isLoggedIn && user && user._id) {
           if (!mqttService.isConnected) {
-            mqttService.connect('ws://localhost:9001', user._id, user.name);
+            // Usar configuración dinámica para MQTT
+            const mqttUrl = environmentConfig.getMQTTBrokerUrl();
+            console.log('🔌 App.vue: Conectando MQTT a:', mqttUrl);
+            mqttService.connect(mqttUrl, user._id, user.name);
           }
           if (!websocketService.isConnected) {
             websocketService.connect({
@@ -120,6 +127,7 @@ export default {
   beforeMount() {
     this.$store.state.isTransparent = "bg-transparent";
     this.checkAuthStatus();
+    this.logEnvironmentInfo();
   },
   methods: {
     ...mapMutations(["toggleConfigurator", "navbarMinimize"]),
@@ -136,6 +144,18 @@ export default {
         console.log('🔄 Token encontrado pero isLoggedIn es false - Restaurando estado...');
         this.$store.commit('makelogin');
       }
+    },
+    
+    logEnvironmentInfo() {
+      // Log información del entorno para debug
+      const envInfo = environmentConfig.getDebugInfo();
+      console.log('🌐 Información del entorno:');
+      console.log('   - URL Base:', envInfo.baseUrl);
+      console.log('   - Es desarrollo:', envInfo.isDevelopment);
+      console.log('   - WebSocket URL:', envInfo.websocketUrl);
+      console.log('   - MQTT Broker URL:', envInfo.mqttBrokerUrl);
+      console.log('   - API URL:', envInfo.apiUrl);
+      console.log('   - URL actual:', envInfo.userAgent);
     },
     
     setupAutoStatusChangeListeners() {

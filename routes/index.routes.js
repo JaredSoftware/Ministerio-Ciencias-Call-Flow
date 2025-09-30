@@ -242,6 +242,30 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       });
     }
 
+    // 🔧 DECODIFICAR IDAGENT DEL SISTEMA TELEFÓNICO
+    // El sistema telefónico envía: 7621%287621%29 -> necesitamos extraer: 7621
+    let idAgentReal = params.idAgent;
+    try {
+      // Primero decodificar URL
+      const decodedIdAgent = decodeURIComponent(params.idAgent);
+      console.log('🔍 idAgent decodificado:', decodedIdAgent);
+      
+      // Extraer el primer número del formato: 7621(7621) o similar
+      const match = decodedIdAgent.match(/^(\d+)/);
+      if (match && match[1]) {
+        idAgentReal = match[1];
+        console.log('✅ ID Agent extraído:', idAgentReal);
+      } else {
+        console.log('⚠️ No se pudo extraer ID numérico, usando valor original:', params.idAgent);
+      }
+    } catch (error) {
+      console.error('❌ Error decodificando idAgent:', error);
+      // Continuar con el valor original si hay error
+    }
+    
+    // Actualizar params con el ID real
+    params.idAgent = idAgentReal;
+
     // 🎯 CRM: BUSCAR CLIENTE EXISTENTE POR CÉDULA
     let clienteExistente = null;
     let historialCliente = [];
@@ -249,13 +273,17 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     if (params.cedula) {
       const Cliente = require('../models/cliente');
       try {
+        console.log(`🔍 Buscando cliente con cédula: "${params.cedula}"`);
         clienteExistente = await Cliente.buscarPorCedula(params.cedula);
         if (clienteExistente) {
-          console.log(`👤 Cliente existente encontrado: ${clienteExistente.nombres} ${clienteExistente.apellidos}`);
+          console.log(`👤 ✅ Cliente existente encontrado: ${clienteExistente.nombres} ${clienteExistente.apellidos}`);
+          console.log(`   - Cédula en BD: "${clienteExistente.cedula}"`);
+          console.log(`   - Total Interacciones: ${clienteExistente.totalInteracciones}`);
+          console.log(`   - Última interacción: ${clienteExistente.fechaUltimaInteraccion}`);
           historialCliente = clienteExistente.obtenerHistorial(5); // Últimas 5 interacciones
           console.log(`📋 Historial del cliente: ${historialCliente.length} interacciones`);
         } else {
-          console.log(`🆕 Cliente nuevo - cédula: ${params.cedula}`);
+          console.log(`🆕 ❌ Cliente NO encontrado en BD - Se creará uno nuevo`);
         }
       } catch (error) {
         console.error('❌ Error buscando cliente:', error);
@@ -300,26 +328,31 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       active: true 
     }).lean();
     
-    // Si no encuentra agente específico, buscar cualquier agente activo
+    // Si no encuentra agente específico, retornar error
     if (!assignedAgent) {
-      console.log(`⚠️ No se encontró agente con idAgent: ${params.idAgent}, buscando cualquier agente activo...`);
+      console.log(`🚨 CRÍTICO: No se encontró agente con idAgent: ${params.idAgent}`);
+      console.log(`🔍 Agentes disponibles en la BD:`);
       
-      // Buscar cualquier usuario activo
-      assignedAgent = await User.findOne({ 
-        active: true 
-      }).lean();
+      // Listar todos los agentes disponibles para debug
+      const allAgents = await User.find({ active: true }).select('name idAgent correo').lean();
+      allAgents.forEach(agent => {
+        console.log(`   - ${agent.name}: idAgent="${agent.idAgent}" (${agent.correo})`);
+      });
       
-      if (!assignedAgent) {
-        // Si no hay usuarios, crear uno temporal para la prueba
-        console.log('🆕 Creando usuario temporal para la prueba...');
-        assignedAgent = {
-          _id: new require('mongoose').Types.ObjectId(),
-          name: 'Agente Temporal',
-          correo: 'agente@temporal.com',
-          idAgent: params.idAgent,
-          active: true
-        };
-      }
+      // TODO: Implementar lógica de fallback cuando se defina el comportamiento deseado
+      // Por ahora, retornar error 404 cuando no se encuentra el agente específico
+      
+      return res.status(404).json({
+        success: false,
+        message: `No se pudo asignar agente con idAgent: ${params.idAgent}`,
+        error: 'AGENT_NOT_FOUND',
+        requestedAgentId: params.idAgent,
+        availableAgents: allAgents.map(agent => ({
+          name: agent.name,
+          idAgent: agent.idAgent,
+          email: agent.correo
+        }))
+      });
     }
     
     console.log(`✅ Agente encontrado: ${assignedAgent.name} (${assignedAgent.correo})`);
@@ -594,6 +627,7 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       arbol: arbolTipificaciones, // ✅ Árbol real de la BD
       assignedTo: userIdPlano,
       assignedToName: assignedAgent.name || 'Usuario',
+      assignedAgentId: assignedAgent.idAgent || '', // 🎯 ID del agente del sistema telefónico
       timestamp: new Date().toISOString(),
       type: 'nueva_tipificacion',
       
@@ -611,6 +645,7 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     console.log(`   - Agente: ${assignedAgent.name}`);
     console.log(`   - ID Llamada: ${params.idLlamada}`);
     console.log(`   - Árbol: ${arbolTipificaciones.length} nodos`);
+    console.log(`   - 🎯 CRM: clienteExistente=${tipificacionData.clienteExistente}, totalInteracciones=${tipificacionData.totalInteracciones}`);
     
     // 1. Crear la nueva tipificación (pending)
     let tipificacionDoc = null;
@@ -758,6 +793,8 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       method: 'Asignación directa por idAgent del sistema telefónico',
       agentInfo: {
         idAgent: params.idAgent,
+        idAgentOriginal: req.query.idAgent, // ID original recibido del sistema telefónico
+        idAgentDecoded: idAgentReal, // ID decodificado y procesado
         agentName: assignedAgent.name,
         agentEmail: assignedAgent.correo,
         agentStatus: userStatus ? userStatus.status : 'sin_estado',

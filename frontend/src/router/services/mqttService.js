@@ -1,6 +1,7 @@
 // MQTT Service Centralizado para Frontend
 import mqtt from 'mqtt'
 import { MQTT_UTILS, getMQTTConfig } from './mqttConfig'
+import environmentConfig from '@/config/environment'
 
 class MQTTService {
   constructor() {
@@ -12,7 +13,8 @@ class MQTTService {
     this.userName = null;
     
     // Configuración centralizada desde archivo de configuración
-    this.config = getMQTTConfig(process.env.NODE_ENV || 'development');
+    // Usar configuración dinámica basada en el entorno actual
+    this.config = getMQTTConfig(environmentConfig.isDevelopment ? 'development' : 'production');
     
     // Topics centralizados desde configuración
     this.topics = {

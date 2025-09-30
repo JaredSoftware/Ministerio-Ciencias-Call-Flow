@@ -9,6 +9,7 @@ const tipificacionSchema = new mongoose.Schema({
   arbol: { type: Array, default: [] },
   assignedTo: { type: String },
   assignedToName: { type: String },
+  assignedAgentId: { type: String }, // ID del agente del sistema telefónico
   status: { type: String, enum: ['pending', 'success', 'cancelada_por_agente'], default: 'pending' },
   timestamp: { type: Date, default: Date.now },
   type: { type: String },

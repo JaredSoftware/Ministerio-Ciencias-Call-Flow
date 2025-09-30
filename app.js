@@ -73,8 +73,8 @@ const sessionMiddleware = session({
     secure: false,
     maxAge: 24 * 60 * 60 * 1000,
     httpOnly: false,
-    sameSite: 'lax',
-    domain: 'localhost' // Especificar dominio
+    sameSite: 'lax'
+    // Sin domain para que funcione en cualquier dominio/IP
   },
   name: 'ministerio_educacion_session'
 });
@@ -120,7 +120,24 @@ io.use((socket, next) => {
 
 // Configurar CORS para permitir credenciales
 app.use(cors({
-  origin: "http://localhost:8080", // URL del frontend Vue
+  origin: function (origin, callback) {
+    // Permitir localhost y la IP del servidor
+    const allowedOrigins = [
+      'http://localhost:8080',
+      'http://localhost:9035',
+      'http://172.16.116.10:9035',
+      'http://172.16.116.10:8080'
+    ];
+    
+    // Permitir requests sin origin (como Postman, apps móviles, etc)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Permitir todos por ahora
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true, // Permitir cookies y credentials
   allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"]

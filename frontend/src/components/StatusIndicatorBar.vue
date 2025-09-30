@@ -25,9 +25,9 @@ export default {
   name: 'StatusIndicatorBar',
   data() {
     return {
-      currentStatus: 'available',
-      statusColor: '#00d25b',
-      statusLabel: 'Disponible',
+      currentStatus: 'offline',
+      statusColor: '#6c757d',
+      statusLabel: 'Desconectado',
       showAnimation: false,
       showTooltip: false
     };
@@ -58,9 +58,9 @@ export default {
         } else {
           console.log('🚪 Usuario deslogueado detectado en StatusIndicatorBar');
           // Limpiar estado
-          this.currentStatus = 'available';
-          this.statusColor = '#00d25b';
-          this.statusLabel = 'Disponible';
+          this.currentStatus = 'offline';
+          this.statusColor = '#6c757d';
+          this.statusLabel = 'Desconectado';
         }
       },
       immediate: true
@@ -131,9 +131,9 @@ export default {
         // Si hay error de autenticación, limpiar estado
         if (error.response && error.response.status === 401) {
           console.log('⚠️ Usuario no autenticado, limpiando estado del indicador');
-          this.currentStatus = 'available';
-          this.statusColor = '#00d25b';
-          this.statusLabel = 'Disponible';
+          this.currentStatus = 'offline';
+          this.statusColor = '#6c757d';
+          this.statusLabel = 'Desconectado';
         }
       }
     },
@@ -144,7 +144,7 @@ export default {
       // Verificar que data no sea null o undefined
       if (!data || !data.status) {
         console.log('⚠️ Datos inválidos, usando estado por defecto');
-        data = { status: 'available' };
+        data = { status: 'offline' };
       }
       
       console.log('   - Estado actual:', this.currentStatus);
@@ -164,9 +164,9 @@ export default {
       if (!selectedStatus) {
         console.log('⚠️ Error: servicio no devolvió estado, usando valores por defecto');
         selectedStatus = {
-          color: '#00d25b',
-          label: data.status || 'Disponible',
-          icon: 'fas fa-circle'
+          color: '#6c757d',
+          label: data.status || 'Desconectado',
+          icon: 'fas fa-times-circle'
         };
       }
       

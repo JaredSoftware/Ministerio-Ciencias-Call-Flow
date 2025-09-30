@@ -99,10 +99,10 @@ export default {
   data() {
     return {
       showStatusModal: false,
-      currentStatus: 'available',
+      currentStatus: 'offline',
       customStatus: '',
-      currentStatusColor: '#00d25b',
-      currentStatusLabel: 'Disponible',
+      currentStatusColor: '#6c757d',
+      currentStatusLabel: 'Desconectado',
       lastSeen: new Date(),
       isChangingStatus: false,
       showStatusAnimation: false,
@@ -227,14 +227,14 @@ export default {
         // Estados de fallback si no se pueden cargar desde el servidor
         console.log('🔄 Usando estados de fallback...');
         this.availableStatuses = [
+          { value: 'offline', label: 'Desconectado', color: '#6c757d', category: 'out', icon: 'fas fa-times-circle' },
           { value: 'available', label: 'Disponible', color: '#00d25b', category: 'work', icon: 'fas fa-circle' },
           { value: 'busy', label: 'Ocupado', color: '#2196f3', category: 'work', icon: 'fas fa-clock' },
           { value: 'on_call', label: 'En llamada', color: '#1976d2', category: 'work', icon: 'fas fa-phone' },
           { value: 'break', label: 'Descanso', color: '#ff9800', category: 'break', icon: 'fas fa-coffee' },
           { value: 'lunch', label: 'Almuerzo', color: '#ff5722', category: 'break', icon: 'fas fa-utensils' },
           { value: 'meeting', label: 'En reunión', color: '#ffa726', category: 'break', icon: 'fas fa-users' },
-          { value: 'away', label: 'Ausente', color: '#f44336', category: 'out', icon: 'fas fa-user-clock' },
-          { value: 'offline', label: 'Desconectado', color: '#6c757d', category: 'out', icon: 'fas fa-times-circle' }
+          { value: 'away', label: 'Ausente', color: '#f44336', category: 'out', icon: 'fas fa-user-clock' }
         ];
         
         this.categories = ['work', 'break', 'out'];
@@ -254,14 +254,14 @@ export default {
     loadFallbackStatuses() {
       console.log('🔄 Cargando estados de fallback...');
       this.availableStatuses = [
+        { value: 'offline', label: 'Desconectado', color: '#6c757d', category: 'out', icon: 'fas fa-times-circle' },
         { value: 'available', label: 'Disponible', color: '#00d25b', category: 'work', icon: 'fas fa-circle' },
         { value: 'busy', label: 'Ocupado', color: '#2196f3', category: 'work', icon: 'fas fa-clock' },
         { value: 'on_call', label: 'En llamada', color: '#1976d2', category: 'work', icon: 'fas fa-phone' },
         { value: 'break', label: 'Descanso', color: '#ff9800', category: 'break', icon: 'fas fa-coffee' },
         { value: 'lunch', label: 'Almuerzo', color: '#ff5722', category: 'break', icon: 'fas fa-utensils' },
         { value: 'meeting', label: 'En reunión', color: '#ffa726', category: 'break', icon: 'fas fa-users' },
-        { value: 'away', label: 'Ausente', color: '#f44336', category: 'out', icon: 'fas fa-user-clock' },
-        { value: 'offline', label: 'Desconectado', color: '#6c757d', category: 'out', icon: 'fas fa-times-circle' }
+        { value: 'away', label: 'Ausente', color: '#f44336', category: 'out', icon: 'fas fa-user-clock' }
       ];
       
       this.categories = ['work', 'break', 'out'];

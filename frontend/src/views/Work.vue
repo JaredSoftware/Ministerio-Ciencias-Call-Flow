@@ -2,8 +2,8 @@
   <div class="work-container">
     <!-- Modal para nueva tipificación -->
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-      <div class="modal-content">
-        <h4>📞 Nueva Tipificación Asignada</h4>
+      <div class="modal-content bg-white">
+        <h4 class="text-dark">📞 Nueva Tipificación Asignada</h4>
         
         <!-- 🎯 INDICADOR CRM -->
         <div v-if="modalData.esClienteExistente" class="crm-indicator">
@@ -20,20 +20,20 @@
           </div>
         </div>
         
-        <div class="modal-info">
+        <div class="modal-info bg-white">
           <div class="modal-info-grid">
             <div class="modal-info-section">
-              <h5>Información de la Llamada</h5>
-              <p><strong>ID Llamada:</strong> {{ modalData.idLlamada }}</p>
-              <p><strong>Tipo Documento:</strong> {{ modalData.tipoDocumento }}</p>
-              <p><strong>Cédula:</strong> {{ modalData.cedula }}</p>
+              <h5 class="text-dark">Información de la Llamada</h5>
+              <p class="text-dark"><strong class="text-dark">ID Llamada:</strong> {{ modalData.idLlamada }}</p>
+              <p class="text-dark"><strong class="text-dark">Tipo Documento:</strong> {{ modalData.tipoDocumento }}</p>
+              <p class="text-dark"><strong class="text-dark">Cédula:</strong> {{ modalData.cedula }}</p>
             </div>
             <div class="modal-info-section" v-if="modalData.nombres || modalData.apellidos">
-              <h5>Información del Cliente</h5>
-              <p v-if="modalData.nombres"><strong>Nombres:</strong> {{ modalData.nombres }}</p>
-              <p v-if="modalData.apellidos"><strong>Apellidos:</strong> {{ modalData.apellidos }}</p>
-              <p v-if="modalData.telefono"><strong>Teléfono:</strong> {{ modalData.telefono }}</p>
-              <p v-if="modalData.correo"><strong>Correo:</strong> {{ modalData.correo }}</p>
+              <h5 class="text-dark">Información del Cliente</h5>
+              <p class="text-dark" v-if="modalData.nombres"><strong class="text-dark">Nombres:</strong> {{ modalData.nombres }}</p>
+              <p class="text-dark" v-if="modalData.apellidos"><strong class="text-dark">Apellidos:</strong> {{ modalData.apellidos }}</p>
+              <p class="text-dark" v-if="modalData.telefono"><strong class="text-dark">Teléfono:</strong> {{ modalData.telefono }}</p>
+              <p class="text-dark" v-if="modalData.correo"><strong class="text-dark">Correo:</strong> {{ modalData.correo }}</p>
               <!-- 🎯 INFORMACIÓN CRM ADICIONAL -->
               <div v-if="modalData.esClienteExistente" class="crm-info">
                 <p><strong>Total Interacciones:</strong> {{ modalData.totalInteracciones }}</p>
@@ -52,72 +52,72 @@
       </div>
     </div>
 
-    <div v-if="tipificacionActiva" class="client-info">
-      <h5>INFORMACIÓN DEL CLIENTE</h5>
+    <div v-if="tipificacionActiva" class="client-info bg-white">
+      <h5 class="text-dark">INFORMACIÓN DEL CLIENTE</h5>
       <table class="client-info-table">
         <tr>
-          <td><b>ID Llamada:</b></td>
-          <td>{{ idLlamada || 'Sin asignar' }}</td>
+          <td class="text-dark"><b class="text-dark">ID Llamada:</b></td>
+          <td class="text-dark">{{ idLlamada || 'Sin asignar' }}</td>
         </tr>
         <tr>
-          <td><b>T. Documento:</b></td>
-          <td>{{ tipoDocumento || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">T. Documento:</b></td>
+          <td class="text-dark">{{ tipoDocumento || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Doc. No.:</b></td>
-          <td>{{ cedula || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Doc. No.:</b></td>
+          <td class="text-dark">{{ cedula || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Nombres:</b></td>
-          <td>{{ nombres || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Nombres:</b></td>
+          <td class="text-dark">{{ nombres || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Apellidos:</b></td>
-          <td>{{ apellidos || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Apellidos:</b></td>
+          <td class="text-dark">{{ apellidos || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Fecha Nacimiento:</b></td>
-          <td>{{ fechaNacimiento || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Fecha Nacimiento:</b></td>
+          <td class="text-dark">{{ fechaNacimiento || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>País:</b></td>
-          <td>{{ pais || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">País:</b></td>
+          <td class="text-dark">{{ pais || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Departamento:</b></td>
-          <td>{{ departamento || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Departamento:</b></td>
+          <td class="text-dark">{{ departamento || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Ciudad:</b></td>
-          <td>{{ ciudad || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Ciudad:</b></td>
+          <td class="text-dark">{{ ciudad || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Correo:</b></td>
-          <td>{{ correo || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Correo:</b></td>
+          <td class="text-dark">{{ correo || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Teléfono:</b></td>
-          <td>{{ telefono || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Teléfono:</b></td>
+          <td class="text-dark">{{ telefono || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Dirección:</b></td>
-          <td>{{ direccion || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Dirección:</b></td>
+          <td class="text-dark">{{ direccion || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Sexo:</b></td>
-          <td>{{ sexo || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Sexo:</b></td>
+          <td class="text-dark">{{ sexo || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Nivel Escolaridad:</b></td>
-          <td>{{ nivelEscolaridad || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Nivel Escolaridad:</b></td>
+          <td class="text-dark">{{ nivelEscolaridad || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Grupo Étnico:</b></td>
-          <td>{{ grupoEtnico || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Grupo Étnico:</b></td>
+          <td class="text-dark">{{ grupoEtnico || 'No Info' }}</td>
         </tr>
         <tr>
-          <td><b>Discapacidad:</b></td>
-          <td>{{ discapacidad || 'No Info' }}</td>
+          <td class="text-dark"><b class="text-dark">Discapacidad:</b></td>
+          <td class="text-dark">{{ discapacidad || 'No Info' }}</td>
         </tr>
       </table>
       <div>
@@ -260,18 +260,18 @@
       </div>
     </div>
     
-    <div class="work-main">
+    <div class="work-main bg-white">
       <div class="tipificacion-header">
         <button class="tab-active">TIPIFICACIONES</button>
       </div>
       
       <!-- Envolver el formulario principal con v-if="tipificacionActiva" -->
       <div class="tipificacion-form" v-if="tipificacionActiva">
-        <h4>📞 Formulario de Tipificación</h4>
+        <h4 class="text-dark">📞 Formulario de Tipificación</h4>
         
         <div class="form-row" v-if="nivel1Options.length > 0">
-          <label for="nivel1">Nivel 1</label>
-          <select id="nivel1" v-model="nivel1" @change="nivel2 = ''; nivel3 = ''; nivel4 = ''; nivel5 = ''">
+          <label for="nivel1" class="text-dark">Nivel 1</label>
+          <select id="nivel1" v-model="nivel1" @change="nivel2 = ''; nivel3 = ''; nivel4 = ''; nivel5 = ''" class="bg-white text-dark">
             <option value="">Selecciona una opción...</option>
             <option v-for="option in nivel1Options" :key="option.value" :value="option.value">
               {{ option.label }}
@@ -280,8 +280,8 @@
         </div>
         
         <div class="form-row" v-if="nivel2Options.length > 0">
-          <label for="nivel2">Nivel 2</label>
-          <select id="nivel2" v-model="nivel2" @change="nivel3 = ''; nivel4 = ''; nivel5 = ''">
+          <label for="nivel2" class="text-dark">Nivel 2</label>
+          <select id="nivel2" v-model="nivel2" @change="nivel3 = ''; nivel4 = ''; nivel5 = ''" class="bg-white text-dark">
             <option value="">Selecciona una opción...</option>
             <option v-for="option in nivel2Options" :key="option.value" :value="option.value">
               {{ option.label }}
@@ -290,8 +290,8 @@
         </div>
         
         <div class="form-row" v-if="nivel3Options.length > 0">
-          <label for="nivel3">Nivel 3</label>
-          <select id="nivel3" v-model="nivel3" @change="nivel4 = ''; nivel5 = ''">
+          <label for="nivel3" class="text-dark">Nivel 3</label>
+          <select id="nivel3" v-model="nivel3" @change="nivel4 = ''; nivel5 = ''" class="bg-white text-dark">
             <option value="">Selecciona una opción...</option>
             <option v-for="option in nivel3Options" :key="option.value" :value="option.value">
               {{ option.label }}
@@ -300,8 +300,8 @@
         </div>
         
         <div class="form-row" v-if="nivel4Options.length > 0">
-          <label for="nivel4">Nivel 4</label>
-          <select id="nivel4" v-model="nivel4" @change="nivel5 = ''">
+          <label for="nivel4" class="text-dark">Nivel 4</label>
+          <select id="nivel4" v-model="nivel4" @change="nivel5 = ''" class="bg-white text-dark">
             <option value="">Selecciona una opción...</option>
             <option v-for="option in nivel4Options" :key="option.value" :value="option.value">
               {{ option.label }}
@@ -310,8 +310,8 @@
         </div>
         
         <div class="form-row" v-if="nivel5Options.length > 0">
-          <label for="nivel5">Nivel 5</label>
-          <select id="nivel5" v-model="nivel5">
+          <label for="nivel5" class="text-dark">Nivel 5</label>
+          <select id="nivel5" v-model="nivel5" class="bg-white text-dark">
             <option value="">Selecciona una opción...</option>
             <option v-for="option in nivel5Options" :key="option.value" :value="option.value">
               {{ option.label }}
@@ -320,12 +320,13 @@
         </div>
         
         <div class="form-row">
-          <label for="observaciones">Observaciones</label>
+          <label for="observaciones" class="text-dark">Observaciones</label>
           <textarea 
             id="observaciones" 
             v-model="observacion"
             placeholder="Escribe tus observaciones aquí..."
-            rows="4">
+            rows="4"
+            class="bg-white text-dark">
           </textarea>
         </div>
         
@@ -341,49 +342,49 @@
       </div>
       
       <!-- MENSAJE CUANDO NO HAY FORMULARIO ACTIVO -->
-      <div v-else class="no-active-form" style="text-align: center; padding: 40px; color: #6c757d;">
-        <h4>📋 Esperando Nueva Tipificación</h4>
-        <p>El sistema asignará automáticamente la siguiente llamada...</p>
+      <div v-else class="no-active-form text-dark" style="text-align: center; padding: 40px;">
+        <h4 class="text-dark">📋 Esperando Nueva Tipificación</h4>
+        <p class="text-dark">El sistema asignará automáticamente la siguiente llamada...</p>
         <div style="margin-top: 20px;">
           <div class="loading-spinner" style="display: inline-block; width: 20px; height: 20px; border: 2px solid #f3f3f3; border-top: 2px solid #007bff; border-radius: 50%; animation: spin 1s linear infinite;"></div>
         </div>
       </div>
     </div>
     
-    <div class="work-history">
+    <div class="work-history bg-white">
       <!-- SECCIÓN SIMPLIFICADA: ESTADO DE TRABAJO -->
-      <div class="work-status-section">
-        <h5>📞 Estado de Trabajo</h5>
+      <div class="work-status-section bg-white">
+        <h5 class="text-dark">📞 Estado de Trabajo</h5>
         <div class="work-status-info">
-          <div v-if="!tipificacionActiva" class="waiting-status">
+          <div v-if="!tipificacionActiva" class="waiting-status bg-white">
             <div class="waiting-icon">⏳</div>
             <div class="waiting-text">
-              <h6>Esperando Nueva Llamada</h6>
-              <p>El sistema asignará automáticamente la siguiente llamada cuando esté disponible</p>
+              <h6 class="text-dark">Esperando Nueva Llamada</h6>
+              <p class="text-dark">El sistema asignará automáticamente la siguiente llamada cuando esté disponible</p>
             </div>
           </div>
-          <div v-else class="active-status">
+          <div v-else class="active-status bg-white">
             <div class="active-icon">📞</div>
             <div class="active-text">
-              <h6>Llamada Activa</h6>
-              <p>Procesando tipificación actual</p>
+              <h6 class="text-dark">Llamada Activa</h6>
+              <p class="text-dark">Procesando tipificación actual</p>
             </div>
           </div>
         </div>
       </div>
       
       <!-- SECCIÓN EXISTENTE: HISTORIAL -->
-      <div class="history-section">
-        <h5>📋 Historial Completado</h5>
+      <div class="history-section bg-white">
+        <h5 class="text-dark">📋 Historial Completado</h5>
         <div class="history-list">
-          <div v-if="historial.length === 0" class="no-history">
+          <div v-if="historial.length === 0" class="no-history text-dark">
             No hay tipificaciones completadas
           </div>
-        <div v-for="(item, index) in historial" :key="item._id || index" class="history-item">
+        <div v-for="(item, index) in historial" :key="item._id || index" class="history-item bg-white">
           <div class="history-header">
-            <span class="history-index">{{ index + 1 }}.</span>
-            <span class="history-id"><b>ID:</b> <span class="badge-id">{{ item.idLlamada }}</span></span>
-            <span class="history-doc"><b>{{ item.tipoDocumento }}:</b> <span class="badge-doc">{{ item.cedula }}</span></span>
+            <span class="history-index text-dark">{{ index + 1 }}.</span>
+            <span class="history-id text-dark"><b class="text-dark">ID:</b> <span class="badge-id">{{ item.idLlamada }}</span></span>
+            <span class="history-doc text-dark"><b class="text-dark">{{ item.tipoDocumento }}:</b> <span class="badge-doc">{{ item.cedula }}</span></span>
             <span v-if="item.status" :class="['badge-status',
               item.status === 'success' ? 'badge-success' :
               item.status === 'pending' ? 'badge-pending' :
@@ -394,16 +395,21 @@
             </span>
           </div>
           <div class="history-details">
-            <p><strong>Observación:</strong> {{ item.observacion || 'Sin observaciones' }}</p>
-            <p v-if="item.nivel1 || item.nivel2 || item.nivel3 || item.nivel4 || item.nivel5">
-              <strong>Niveles:</strong>
-              <span v-if="item.nivel1">{{ item.nivel1 }}</span>
-              <span v-if="item.nivel2"> &raquo; {{ item.nivel2 }}</span>
-              <span v-if="item.nivel3"> &raquo; {{ item.nivel3 }}</span>
-              <span v-if="item.nivel4"> &raquo; {{ item.nivel4 }}</span>
-              <span v-if="item.nivel5"> &raquo; {{ item.nivel5 }}</span>
+            <p class="text-dark" v-if="item.assignedToName">
+              <strong class="text-dark">👤 Agente:</strong> 
+              {{ item.assignedToName }}
+              <span v-if="item.assignedAgentId" class="badge-agent-id">(ID: {{ item.assignedAgentId }})</span>
             </p>
-            <p><strong>Fecha:</strong> <span class="badge-date">{{ formatDate(item.createdAt) }}</span></p>
+            <p class="text-dark"><strong class="text-dark">Observación:</strong> {{ item.observacion || 'Sin observaciones' }}</p>
+            <p class="text-dark" v-if="item.nivel1 || item.nivel2 || item.nivel3 || item.nivel4 || item.nivel5">
+              <strong class="text-dark">Niveles:</strong>
+              <span class="text-dark" v-if="item.nivel1">{{ item.nivel1 }}</span>
+              <span class="text-dark" v-if="item.nivel2"> &raquo; {{ item.nivel2 }}</span>
+              <span class="text-dark" v-if="item.nivel3"> &raquo; {{ item.nivel3 }}</span>
+              <span class="text-dark" v-if="item.nivel4"> &raquo; {{ item.nivel4 }}</span>
+              <span class="text-dark" v-if="item.nivel5"> &raquo; {{ item.nivel5 }}</span>
+            </p>
+            <p class="text-dark"><strong class="text-dark">Fecha:</strong> <span class="badge-date">{{ formatDate(item.createdAt) }}</span></p>
             <!-- Mostrar sub-historial si existe -->
             <div v-if="Array.isArray(item.historial) && item.historial.length > 0" class="sub-history-list">
               <strong>Sub-historial:</strong>
@@ -743,6 +749,7 @@ export default {
          console.log('🎯🎯🎯 PROCESANDO NUEVA TIPIFICACIÓN 🎯🎯🎯');
          console.log('📥 Data completa recibida:', JSON.stringify(data, null, 2));
          console.log('🌳 Árbol recibido:', data.arbol ? 'SÍ (' + data.arbol.length + ' nodos)' : 'NO');
+         console.log('👤 Agente asignado:', data.assignedToName, '- ID:', data.assignedAgentId);
          
          if (data.arbol) {
            console.log('🌳 ESTRUCTURA DEL ÁRBOL RECIBIDO:');
@@ -1528,6 +1535,15 @@ export default {
   color: #fff;
   border: 1px solid #ffa726;
 }
+.badge-agent-id {
+  background: #6c757d;
+  color: #fff;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 0.85em;
+  margin-left: 4px;
+  font-weight: 600;
+}
 
 /* ESTILOS PARA ESTADO DE TRABAJO SIMPLIFICADO */
 .work-status-section {
@@ -1656,4 +1672,18 @@ export default {
     margin: 20px;
   }
 }
-</style> 
+
+/* 🎯 FORZAR COLOR NEGRO PARA text-dark */
+h4.text-dark,
+h5.text-dark,
+h6.text-dark,
+p.text-dark,
+label.text-dark,
+span.text-dark,
+div.text-dark,
+td.text-dark,
+b.text-dark,
+strong.text-dark {
+  color: #000000 !important;
+}
+</style>

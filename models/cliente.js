@@ -10,8 +10,9 @@ const clienteSchema = new mongoose.Schema({
   },
   tipoDocumento: {
     type: String,
-    required: true,
-    enum: ['', 'Cédula de ciudadanía', 'Cédula de extranjería', 'Tarjeta de identidad', 'Pasaporte', 'Permiso temporal de permanencia']
+    required: false,
+    enum: ['', 'Cédula de ciudadanía', 'Cédula de extranjería', 'Tarjeta de identidad', 'Pasaporte', 'Permiso temporal de permanencia'],
+    default: ''
   },
   
   // Información personal
