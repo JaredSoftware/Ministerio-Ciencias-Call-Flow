@@ -706,6 +706,9 @@ mqttService.connect('mqtt://localhost:1884')
       mqttService.client.subscribe('crm/clientes/buscar/fechas/+');
       mqttService.client.subscribe('crm/clientes/actualizar/+');
       
+      // Topic de estadísticas del Dashboard
+      mqttService.client.subscribe('crm/estadisticas/solicitar/+');
+      
       mqttService.client.on('message', async (topic, message) => {
         // Heartbeat
         if (topic.startsWith('telefonia/users/heartbeat/')) {
@@ -862,6 +865,92 @@ mqttService.connect('mqtt://localhost:1884')
             });
           } catch (err) {
             console.error('❌ Error en actualización de cliente MQTT:', err);
+          }
+        }
+        
+        // 📊 Estadísticas del Dashboard
+        if (topic.startsWith('crm/estadisticas/solicitar/')) {
+          try {
+            const userId = topic.split('/').pop();
+            console.log(`📊 MQTT: Solicitud de estadísticas para usuario: ${userId}`);
+            
+            const Cliente = require('./models/cliente');
+            const Tipificacion = require('./models/tipificacion');
+            const UserStatus = require('./models/userStatus');
+            const StatusType = require('./models/statusType');
+            
+            // 1. Agentes Conectados (estados de trabajo activos)
+            const workStatusTypes = await StatusType.find({ category: 'work', isActive: true });
+            const workStatusValues = workStatusTypes.map(st => st.value);
+            
+            const agentesConectados = await UserStatus.countDocuments({
+              isActive: true,
+              status: { $in: workStatusValues }
+            });
+            
+            // Agentes ayer (para comparación)
+            const ayer = new Date();
+            ayer.setDate(ayer.getDate() - 1);
+            ayer.setHours(0, 0, 0, 0);
+            const ayerFin = new Date(ayer);
+            ayerFin.setHours(23, 59, 59, 999);
+            
+            // Simplificado: asumir mismo número o calcular de logs si existe
+            const agentesAyer = agentesConectados; // Simplificado
+            
+            // 2. Total Clientes CRM
+            const totalClientes = await Cliente.countDocuments({ activo: true });
+            
+            // Clientes semana anterior
+            const semanaAnterior = new Date();
+            semanaAnterior.setDate(semanaAnterior.getDate() - 7);
+            const clientesSemanaAnterior = await Cliente.countDocuments({
+              activo: true,
+              fechaCreacion: { $lt: semanaAnterior }
+            });
+            
+            // 3. Tipificaciones Hoy
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+            const hoyFin = new Date();
+            hoyFin.setHours(23, 59, 59, 999);
+            
+            const tipificacionesHoy = await Tipificacion.countDocuments({
+              createdAt: { $gte: hoy, $lte: hoyFin },
+              status: 'success'
+            });
+            
+            // Tipificaciones ayer
+            const tipificacionesAyer = await Tipificacion.countDocuments({
+              createdAt: { $gte: ayer, $lte: ayerFin },
+              status: 'success'
+            });
+            
+            // 4. Llamadas en Cola (pendientes)
+            const llamadasEnCola = await Tipificacion.countDocuments({
+              status: 'pending'
+            });
+            
+            console.log(`📊 Estadísticas calculadas:`);
+            console.log(`   - Agentes Conectados: ${agentesConectados}`);
+            console.log(`   - Total Clientes: ${totalClientes}`);
+            console.log(`   - Tipificaciones Hoy: ${tipificacionesHoy}`);
+            console.log(`   - Llamadas en Cola: ${llamadasEnCola}`);
+            
+            // Publicar estadísticas
+            mqttService.publish(`crm/estadisticas/respuesta/${userId}`, {
+              agentesConectados,
+              agentesAyer,
+              totalClientes,
+              clientesSemanaAnterior,
+              tipificacionesHoy,
+              tipificacionesAyer,
+              llamadasEnCola,
+              timestamp: new Date().toISOString()
+            });
+            
+          } catch (err) {
+            console.error('❌ Error calculando estadísticas MQTT:', err);
           }
         }
       });

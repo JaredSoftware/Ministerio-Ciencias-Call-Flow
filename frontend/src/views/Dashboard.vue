@@ -154,39 +154,41 @@ export default {
     return {
       stats: {
         money: {
-          title: "Today's Money",
-          value: "$53,000",
-          percentage: "+55%",
-          iconClass: "ni ni-money-coins",
-          detail: "since yesterday",
-          iconBackground: "bg-gradient-primary",
+          title: "👥 Agentes Conectados",
+          value: "0",
+          percentage: "0%",
+          iconClass: "ni ni-badge",
+          detail: "en tiempo real",
+          iconBackground: "bg-gradient-success",
         },
         users: {
-          title: "Today's Users",
-          value: "2,300",
-          percentage: "+3%",
-          iconClass: "ni ni-world",
-          iconBackground: "bg-gradient-danger",
-          detail: "since last week",
+          title: "📊 Clientes CRM",
+          value: "0",
+          percentage: "0%",
+          iconClass: "ni ni-single-02",
+          iconBackground: "bg-gradient-primary",
+          detail: "total registrados",
         },
         clients: {
-          title: "New Clients",
-          value: "+3,462",
-          percentage: "-2%",
-          iconClass: "ni ni-paper-diploma",
-          percentageColor: "text-danger",
-          iconBackground: "bg-gradient-success",
-          detail: "since last quarter",
+          title: "📞 Tipificaciones Hoy",
+          value: "0",
+          percentage: "0%",
+          iconClass: "ni ni-mobile-button",
+          percentageColor: "text-success",
+          iconBackground: "bg-gradient-info",
+          detail: "desde las 00:00 hrs",
         },
         sales: {
-          title: "Sales",
-          value: "$103,430",
-          percentage: "+5%",
-          iconClass: "ni ni-cart",
+          title: "⏳ Llamadas en Cola",
+          value: "0",
+          percentage: "0%",
+          iconClass: "ni ni-time-alarm",
           iconBackground: "bg-gradient-warning",
-          detail: "than last month",
+          detail: "pendientes de asignar",
         },
       },
+      mqttTopics: [],
+      statsInterval: null,
       sales: {
         us: {
           country: "United States",
@@ -271,6 +273,15 @@ export default {
           console.error('❌ Error conectando MQTT:', mqttError);
         }
         
+        // 🎯 CARGAR ESTADÍSTICAS DEL CRM
+        console.log('🔄 PASO 4: Cargando estadísticas del CRM...');
+        await this.cargarEstadisticasCRM();
+        
+        // 🔄 CONFIGURAR ACTUALIZACIÓN AUTOMÁTICA CADA 30 SEGUNDOS
+        this.statsInterval = setInterval(() => {
+          this.cargarEstadisticasCRM();
+        }, 30000);
+        
         // Inicializar sincronización continua de estados
         console.log('✅ Sincronización continua inicializada');
         
@@ -310,10 +321,93 @@ export default {
     }, 1000);
   },
   methods: {
+    async cargarEstadisticasCRM() {
+      try {
+        const userId = this.$store.state.user?.id || this.$store.state.user?._id;
+        if (!userId) {
+          console.warn('⚠️ No hay usuario para cargar estadísticas');
+          return;
+        }
+        
+        // Publicar solicitud de estadísticas por MQTT
+        const topicSolicitud = `crm/estadisticas/solicitar/${userId}`;
+        const topicRespuesta = `crm/estadisticas/respuesta/${userId}`;
+        
+        // Suscribirse a la respuesta
+        const callback = (data) => {
+          console.log('📊 Estadísticas CRM recibidas:', data);
+          this.actualizarEstadisticas(data);
+        };
+        
+        // Limpiar suscripción anterior si existe
+        if (this.mqttTopics.length > 0) {
+          this.mqttTopics.forEach(topic => {
+            mqttService.off(topic, callback);
+          });
+        }
+        
+        // Nueva suscripción
+        mqttService.on(topicRespuesta, callback);
+        this.mqttTopics.push(topicRespuesta);
+        
+        // Publicar solicitud
+        mqttService.publish(topicSolicitud, {
+          timestamp: new Date().toISOString()
+        });
+        
+        console.log('📡 Solicitud de estadísticas publicada');
+      } catch (error) {
+        console.error('❌ Error cargando estadísticas:', error);
+      }
+    },
+    
+    actualizarEstadisticas(data) {
+      // Agentes Conectados
+      this.stats.money.value = String(data.agentesConectados || 0);
+      const agentesAyer = data.agentesAyer || 0;
+      if (agentesAyer > 0) {
+        const cambio = ((data.agentesConectados - agentesAyer) / agentesAyer * 100).toFixed(1);
+        this.stats.money.percentage = `${cambio > 0 ? '+' : ''}${cambio}%`;
+      } else {
+        this.stats.money.percentage = '+100%';
+      }
+      
+      // Clientes CRM
+      this.stats.users.value = String(data.totalClientes || 0);
+      const clientesSemanaAnterior = data.clientesSemanaAnterior || 1;
+      const cambioClientes = ((data.totalClientes - clientesSemanaAnterior) / clientesSemanaAnterior * 100).toFixed(1);
+      this.stats.users.percentage = `${cambioClientes > 0 ? '+' : ''}${cambioClientes}%`;
+      this.stats.users.detail = 'desde la semana pasada';
+      
+      // Tipificaciones Hoy
+      this.stats.clients.value = String(data.tipificacionesHoy || 0);
+      const tipificacionesAyer = data.tipificacionesAyer || 1;
+      const cambioTipificaciones = ((data.tipificacionesHoy - tipificacionesAyer) / tipificacionesAyer * 100).toFixed(1);
+      this.stats.clients.percentage = `${cambioTipificaciones > 0 ? '+' : ''}${cambioTipificaciones}%`;
+      this.stats.clients.percentageColor = cambioTipificaciones > 0 ? 'text-success' : 'text-danger';
+      this.stats.clients.detail = 'comparado con ayer';
+      
+      // Llamadas en Cola
+      this.stats.sales.value = String(data.llamadasEnCola || 0);
+      this.stats.sales.percentage = data.llamadasEnCola > 0 ? 'Activas' : 'Sin cola';
+      this.stats.sales.detail = data.llamadasEnCola > 0 ? 'esperando asignación' : 'sin llamadas pendientes';
+    }
   },
   beforeUnmount() {
     console.log('Dashboard unmounting - NO desconectar WebSocket (gestión global)');
-    // Eliminar websocketService.disconnect();
+    
+    // Limpiar intervalo de estadísticas
+    if (this.statsInterval) {
+      clearInterval(this.statsInterval);
+    }
+    
+    // Limpiar suscripciones MQTT
+    if (this.mqttTopics.length > 0) {
+      this.mqttTopics.forEach(topic => {
+        mqttService.off(topic);
+      });
+    }
+    
     // NO desconectar MQTT aquí, debe mantenerse para toda la sesión
   },
 };
