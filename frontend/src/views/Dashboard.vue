@@ -65,41 +65,48 @@
             <div class="card">
               <div class="p-3 pb-0 card-header">
                 <div class="d-flex justify-content-between">
-                  <h6 class="mb-2">Sales by Country</h6>
+                  <h6 class="mb-2">📊 Top 5 Agentes - Tipificaciones Hoy</h6>
                 </div>
               </div>
               <div class="table-responsive">
                 <table class="table align-items-center">
                   <tbody>
-                    <tr v-for="(sale, index) in sales" :key="index">
+                    <tr v-for="(agente, index) in topAgentes" :key="index">
                       <td class="w-30">
                         <div class="px-2 py-1 d-flex align-items-center">
                           <div>
-                            <img :src="sale.flag" alt="Country flag" />
+                            <div :class="['avatar avatar-sm me-3', getBadgeColor(index)]">
+                              {{ index + 1 }}
+                            </div>
                           </div>
-                          <div class="ms-4">
-                            <p class="mb-0 text-xs font-weight-bold">Country:</p>
-                            <h6 class="mb-0 text-sm">{{ sale.country }}</h6>
+                          <div class="ms-2">
+                            <p class="mb-0 text-xs font-weight-bold">Agente:</p>
+                            <h6 class="mb-0 text-sm">{{ agente.nombre }}</h6>
                           </div>
                         </div>
                       </td>
                       <td>
                         <div class="text-center">
-                          <p class="mb-0 text-xs font-weight-bold">Sales:</p>
-                          <h6 class="mb-0 text-sm">{{ sale.sales }}</h6>
+                          <p class="mb-0 text-xs font-weight-bold">Completadas:</p>
+                          <h6 class="mb-0 text-sm">{{ agente.completadas }}</h6>
                         </div>
                       </td>
                       <td>
                         <div class="text-center">
-                          <p class="mb-0 text-xs font-weight-bold">Value:</p>
-                          <h6 class="mb-0 text-sm">{{ sale.value }}</h6>
+                          <p class="mb-0 text-xs font-weight-bold">En Cola:</p>
+                          <h6 class="mb-0 text-sm">{{ agente.pendientes }}</h6>
                         </div>
                       </td>
                       <td class="text-sm align-middle">
                         <div class="text-center col">
-                          <p class="mb-0 text-xs font-weight-bold">Bounce:</p>
-                          <h6 class="mb-0 text-sm">{{ sale.bounce }}</h6>
+                          <p class="mb-0 text-xs font-weight-bold">Efectividad:</p>
+                          <h6 class="mb-0 text-sm">{{ agente.efectividad }}%</h6>
                         </div>
+                      </td>
+                    </tr>
+                    <tr v-if="topAgentes.length === 0">
+                      <td colspan="4" class="text-center">
+                        <p class="text-sm text-secondary mb-0">No hay datos disponibles</p>
                       </td>
                     </tr>
                   </tbody>
@@ -108,7 +115,32 @@
             </div>
           </div>
           <div class="col-lg-5">
-            <categories-card />
+            <div class="card">
+              <div class="p-3 pb-0 card-header">
+                <h6 class="mb-0">👥 Estados de Agentes</h6>
+              </div>
+              <div class="p-3 card-body">
+                <div v-for="(estado, index) in estadosAgentes" :key="index" class="mb-3">
+                  <div class="d-flex justify-content-between mb-1">
+                    <p class="text-xs mb-0">
+                      <span :style="{color: estado.color}">●</span>
+                      {{ estado.label }}
+                    </p>
+                    <p class="text-xs font-weight-bold mb-0">{{ estado.count }} agentes</p>
+                  </div>
+                  <div class="progress">
+                    <div 
+                      class="progress-bar" 
+                      :style="{width: estado.porcentaje + '%', backgroundColor: estado.color}"
+                      role="progressbar"
+                    ></div>
+                  </div>
+                </div>
+                <div v-if="estadosAgentes.length === 0" class="text-center">
+                  <p class="text-sm text-secondary mb-0">No hay datos disponibles</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -135,11 +167,6 @@ import websocketService from '@/router/services/websocketService';
 import sessionSync from '@/router/services/sessionSync';
 import StatusValidation from "@/components/StatusValidation.vue";
 import { mqttService } from '@/router/services/mqttService';
-
-import US from "@/assets/img/icons/flags/US.png";
-import DE from "@/assets/img/icons/flags/DE.png";
-import GB from "@/assets/img/icons/flags/GB.png";
-import BR from "@/assets/img/icons/flags/BR.png";
 
 export default {
   name: "dashboard-default",
@@ -189,36 +216,8 @@ export default {
       },
       mqttTopics: [],
       statsInterval: null,
-      sales: {
-        us: {
-          country: "United States",
-          sales: 2500,
-          value: "$230,900",
-          bounce: "29.9%",
-          flag: US,
-        },
-        germany: {
-          country: "Germany",
-          sales: "3.900",
-          value: "$440,000",
-          bounce: "40.22%",
-          flag: DE,
-        },
-        britain: {
-          country: "Great Britain",
-          sales: "1.400",
-          value: "$190,700",
-          bounce: "23.44%",
-          flag: GB,
-        },
-        brasil: {
-          country: "Brasil",
-          sales: "562",
-          value: "$143,960",
-          bounce: "32.14%",
-          flag: BR,
-        },
-      },
+      topAgentes: [],
+      estadosAgentes: [],
     };
   },
   async mounted() {
@@ -391,6 +390,17 @@ export default {
       this.stats.sales.value = String(data.llamadasEnCola || 0);
       this.stats.sales.percentage = data.llamadasEnCola > 0 ? 'Activas' : 'Sin cola';
       this.stats.sales.detail = data.llamadasEnCola > 0 ? 'esperando asignación' : 'sin llamadas pendientes';
+      
+      // Top Agentes
+      this.topAgentes = data.topAgentes || [];
+      
+      // Estados de Agentes
+      this.estadosAgentes = data.estadosAgentes || [];
+    },
+    
+    getBadgeColor(index) {
+      const colors = ['bg-gradient-warning', 'bg-gradient-info', 'bg-gradient-success', 'bg-gradient-primary', 'bg-gradient-secondary'];
+      return colors[index] || 'bg-gradient-secondary';
     }
   },
   beforeUnmount() {

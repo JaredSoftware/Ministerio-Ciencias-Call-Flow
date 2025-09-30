@@ -931,11 +931,90 @@ mqttService.connect('mqtt://localhost:1884')
               status: 'pending'
             });
             
+            // 5. Top 5 Agentes del Día
+            const User = require('./models/users');
+            const topAgentesData = await Tipificacion.aggregate([
+              {
+                $match: {
+                  createdAt: { $gte: hoy, $lte: hoyFin },
+                  assignedTo: { $exists: true, $ne: null }
+                }
+              },
+              {
+                $group: {
+                  _id: '$assignedTo',
+                  completadas: {
+                    $sum: { $cond: [{ $eq: ['$status', 'success'] }, 1, 0] }
+                  },
+                  pendientes: {
+                    $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
+                  },
+                  total: { $sum: 1 }
+                }
+              },
+              {
+                $sort: { completadas: -1 }
+              },
+              {
+                $limit: 5
+              }
+            ]);
+            
+            // Enriquecer con nombres de agentes
+            const topAgentes = await Promise.all(
+              topAgentesData.map(async (agente) => {
+                const user = await User.findById(agente._id).select('name');
+                const efectividad = agente.total > 0 
+                  ? Math.round((agente.completadas / agente.total) * 100) 
+                  : 0;
+                  
+                return {
+                  nombre: user ? user.name : 'Desconocido',
+                  completadas: agente.completadas,
+                  pendientes: agente.pendientes,
+                  efectividad: efectividad
+                };
+              })
+            );
+            
+            // 6. Distribución de Estados de Agentes
+            const allUserStatuses = await UserStatus.find({ isActive: true }).populate('userId');
+            
+            const estadosMap = {};
+            let totalAgentesActivos = 0;
+            
+            for (const userStatus of allUserStatuses) {
+              if (userStatus.userId) {
+                totalAgentesActivos++;
+                const estado = userStatus.status;
+                if (!estadosMap[estado]) {
+                  estadosMap[estado] = {
+                    count: 0,
+                    label: userStatus.label || estado,
+                    color: userStatus.color || '#6366f1'
+                  };
+                }
+                estadosMap[estado].count++;
+              }
+            }
+            
+            // Convertir a array y calcular porcentajes
+            const estadosAgentes = Object.keys(estadosMap).map(key => ({
+              label: estadosMap[key].label,
+              count: estadosMap[key].count,
+              color: estadosMap[key].color,
+              porcentaje: totalAgentesActivos > 0 
+                ? Math.round((estadosMap[key].count / totalAgentesActivos) * 100) 
+                : 0
+            })).sort((a, b) => b.count - a.count);
+            
             console.log(`📊 Estadísticas calculadas:`);
             console.log(`   - Agentes Conectados: ${agentesConectados}`);
             console.log(`   - Total Clientes: ${totalClientes}`);
             console.log(`   - Tipificaciones Hoy: ${tipificacionesHoy}`);
             console.log(`   - Llamadas en Cola: ${llamadasEnCola}`);
+            console.log(`   - Top Agentes: ${topAgentes.length}`);
+            console.log(`   - Estados: ${estadosAgentes.length}`);
             
             // Publicar estadísticas
             mqttService.publish(`crm/estadisticas/respuesta/${userId}`, {
@@ -946,6 +1025,8 @@ mqttService.connect('mqtt://localhost:1884')
               tipificacionesHoy,
               tipificacionesAyer,
               llamadasEnCola,
+              topAgentes,
+              estadosAgentes,
               timestamp: new Date().toISOString()
             });
             
