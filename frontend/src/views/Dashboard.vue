@@ -71,11 +71,20 @@
             <div class="card">
               <div class="card-header pb-0">
                 <h6>🎯 Distribución de Tipificaciones</h6>
-                <p class="text-sm">Por categoría principal (Nivel 1)</p>
+                <p class="text-sm">
+                  <span v-if="distribucionNivel1.length > 0" class="font-weight-bold">
+                    {{ distribucionNivel1.reduce((a, b) => a + b.count, 0) }} tipificaciones
+                  </span>
+                  <span v-else class="text-secondary">Por categoría principal (Nivel 1)</span>
+                </p>
               </div>
               <div class="card-body p-3">
-                <div class="chart">
+                <div class="chart" style="position: relative;">
                   <canvas id="chart-distribucion-nivel1" class="chart-canvas" height="300"></canvas>
+                  <div v-if="distribucionNivel1.length === 0" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; width: 100%;">
+                    <i class="ni ni-chart-pie-35 text-secondary" style="font-size: 48px; opacity: 0.3;"></i>
+                    <p class="text-sm text-secondary mt-2 mb-0">No hay tipificaciones completadas hoy</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -423,6 +432,7 @@ export default {
       
       // Distribución por Nivel 1
       this.distribucionNivel1 = data.distribucionNivel1 || [];
+      console.log('📊 Distribución Nivel 1 recibida:', this.distribucionNivel1);
       this.renderChartDistribucion();
     },
     
@@ -507,11 +517,45 @@ export default {
     
     renderChartDistribucion() {
       const ctx = document.getElementById('chart-distribucion-nivel1');
-      if (!ctx) return;
+      if (!ctx) {
+        console.warn('⚠️ Canvas chart-distribucion-nivel1 no encontrado');
+        return;
+      }
       
       // Destruir gráfica anterior si existe
       if (this.chartDistribucion) {
         this.chartDistribucion.destroy();
+      }
+      
+      // Si no hay datos, mostrar mensaje
+      if (!this.distribucionNivel1 || this.distribucionNivel1.length === 0) {
+        console.log('⚠️ No hay datos de distribución aún');
+        
+        // Mostrar gráfica vacía con mensaje
+        this.chartDistribucion = new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Sin datos'],
+            datasets: [{
+              data: [1],
+              backgroundColor: ['rgba(200, 200, 200, 0.3)'],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: false
+              },
+              tooltip: {
+                enabled: false
+              }
+            }
+          }
+        });
+        return;
       }
       
       const labels = this.distribucionNivel1.map(item => item.nivel1 || 'Sin categoría');
