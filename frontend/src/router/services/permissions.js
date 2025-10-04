@@ -84,7 +84,8 @@ class PermissionsService {
       monitoring: { viewActiveUsers: false, viewUserStates: false, viewReports: false, exportData: false },
       finance: { viewAbonos: false, createAbonos: false, viewSaldos: false, viewBilling: false },
       system: { manageRoles: false, systemConfig: false, viewLogs: false },
-      operations: { viewTables: false, viewViajes: false, viewKardex: false, exportReports: false }
+      operations: { viewTables: false, viewViajes: false, viewKardex: false, exportReports: false },
+      admin: { manageTree: false, systemSettings: false, userManagement: false }
     };
   }
 
@@ -155,6 +156,8 @@ class PermissionsService {
       '/tables': [{ module: 'operations', permission: 'viewTables' }],
       '/viajes': [{ module: 'operations', permission: 'viewViajes' }],
       '/billing': [{ module: 'finance', permission: 'viewBilling' }],
+      '/reportes': [{ module: 'monitoring', permission: 'viewReports' }],
+      '/tree-admin': [{ module: 'admin', permission: 'manageTree' }],
       '/profile': [], // Acceso libre para usuarios autenticados
       '/dashboard': [], // Acceso libre para usuarios autenticados
     };
@@ -196,6 +199,8 @@ class PermissionsService {
       'sidebar-saldos': [{ module: 'finance', permission: 'viewSaldos' }],
       'sidebar-tables': [{ module: 'operations', permission: 'viewTables' }],
       'sidebar-viajes': [{ module: 'operations', permission: 'viewViajes' }],
+      'sidebar-tree-admin': [{ module: 'admin', permission: 'manageTree' }],
+      'sidebar-admin-panels': [{ module: 'admin', permission: 'systemConfig' }],
       'button-create-user': [{ module: 'users', permission: 'create' }],
       'button-edit-user': [{ module: 'users', permission: 'edit' }],
       'button-delete-user': [{ module: 'users', permission: 'delete' }],

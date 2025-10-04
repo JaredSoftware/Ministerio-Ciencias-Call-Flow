@@ -1,6 +1,10 @@
 const { Router } = require("express");
 const router = Router();
 const axios = require("axios");
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const csv = require('csv-parser');
 
 const login = require("../controllers/general")
 const userStatusRoutes = require("./userStatus.routes");
@@ -10,6 +14,26 @@ const Tipificacion = require("../models/tipificacion");
 
 // 🔄 CONTADOR GLOBAL PARA ROUND ROBIN
 let roundRobinCounter = 0;
+
+// 📁 CONFIGURACIÓN DE MULTER PARA SUBIR ARCHIVOS
+const upload = multer({
+  dest: '/tmp/', // Usar directorio temporal del sistema
+  limits: {
+    fileSize: 5 * 1024 * 1024 // Límite de 5MB
+  },
+  fileFilter: (req, file, cb) => {
+    console.log('🔍 Archivo recibido:', file.originalname, file.mimetype);
+    // Permitir archivos JSON y CSV
+    if (file.mimetype === 'application/json' || 
+        file.mimetype === 'text/csv' ||
+        file.originalname.endsWith('.json') || 
+        file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos JSON y CSV'), false);
+    }
+  }
+});
 
 // Rutas de estado de usuario
 router.use("/api/user-status", userStatusRoutes);
@@ -1556,6 +1580,549 @@ router.get('/api/test/crm', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error en prueba CRM',
+      error: error.message
+    });
+  }
+});
+
+// 🌳 ENDPOINTS PARA ADMINISTRAR ÁRBOL DE TIPIFICACIÓN
+
+// Función para convertir CSV a estructura JSON jerárquica
+function csvToJsonTree(csvData) {
+  const tree = [];
+  const nodeMap = new Map();
+  
+  csvData.forEach(row => {
+    const levels = [
+      row.nivel1,
+      row.nivel2, 
+      row.nivel3,
+      row.nivel4,
+      row.nivel5
+    ].filter(level => level && level.trim() !== '');
+    
+    let currentPath = '';
+    let parentNode = null;
+    
+    levels.forEach((level, index) => {
+      const path = currentPath + (currentPath ? '|' : '') + level;
+      const value = path.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+      
+      if (!nodeMap.has(path)) {
+        const newNode = {
+          value: value,
+          label: level,
+          children: []
+        };
+        
+        nodeMap.set(path, newNode);
+        
+        if (index === 0) {
+          // Es un nodo raíz
+          tree.push(newNode);
+        } else if (parentNode) {
+          // Es un nodo hijo
+          parentNode.children.push(newNode);
+        }
+      }
+      
+      parentNode = nodeMap.get(path);
+      currentPath = path;
+    });
+  });
+  
+  return tree;
+}
+
+// Endpoint de prueba para verificar que el servidor funciona
+router.get('/api/test', (req, res) => {
+  res.json({ 
+    success: true, 
+    message: 'Servidor funcionando correctamente',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Endpoint para crear árbol de tipificación (solo para administradores)
+router.post('/api/tree/create', requireAdmin, async (req, res) => {
+  try {
+    console.log('📤 Creando árbol de tipificación desde datos predefinidos...');
+    
+    // Crear un árbol simple desde datos CSV predefinidos
+    const csvData = [
+      { nivel1: 'Consulta', nivel2: 'General', nivel3: '', nivel4: '', nivel5: '' },
+      { nivel1: 'Consulta', nivel2: 'Académica', nivel3: 'Matrícula', nivel4: '', nivel5: '' },
+      { nivel1: 'Consulta', nivel2: 'Académica', nivel3: 'Programas', nivel4: '', nivel5: '' },
+      { nivel1: 'Consulta', nivel2: 'Administrativa', nivel3: 'Pagos', nivel4: '', nivel5: '' },
+      { nivel1: 'Reclamo', nivel2: 'Académico', nivel3: 'Calificaciones', nivel4: '', nivel5: '' },
+      { nivel1: 'Reclamo', nivel2: 'Académico', nivel3: 'Profesores', nivel4: '', nivel5: '' },
+      { nivel1: 'Reclamo', nivel2: 'Administrativo', nivel3: 'Servicio', nivel4: '', nivel5: '' },
+      { nivel1: 'Reclamo', nivel2: 'Administrativo', nivel3: 'Atención', nivel4: '', nivel5: '' },
+      { nivel1: 'Sugerencia', nivel2: 'Mejoras', nivel3: '', nivel4: '', nivel5: '' },
+      { nivel1: 'Solicitud', nivel2: 'Información', nivel3: '', nivel4: '', nivel5: '' },
+      { nivel1: 'Solicitud', nivel2: 'Documentos', nivel3: '', nivel4: '', nivel5: '' }
+    ];
+    
+    console.log('📁 Procesando datos CSV predefinidos...');
+    
+    // Convertir CSV a estructura JSON jerárquica
+    const treeData = csvToJsonTree(csvData);
+    console.log('✅ CSV convertido a estructura JSON jerárquica');
+    
+    // Actualizar o crear el árbol en la base de datos
+    const Tree = require('../models/tree');
+    
+    // Desactivar árboles existentes
+    await Tree.updateMany({}, { isActive: false });
+    console.log('✅ Árboles anteriores desactivados');
+    
+    // Crear nuevo árbol
+    const newTree = new Tree({
+      name: 'tipificaciones',
+      description: 'Árbol de tipificaciones actualizado',
+      isActive: true,
+      root: treeData
+    });
+    
+    const savedTree = await newTree.save();
+    console.log('✅ Nuevo árbol creado:', savedTree._id);
+    
+    res.json({
+      success: true,
+      message: 'Árbol de tipificación creado exitosamente',
+      tree: {
+        _id: savedTree._id,
+        name: savedTree.name,
+        description: savedTree.description,
+        isActive: savedTree.isActive,
+        root: savedTree.root,
+        createdAt: savedTree.createdAt,
+        updatedAt: savedTree.updatedAt
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error creando árbol:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint de prueba simple sin multer
+router.post('/api/simple-test', (req, res) => {
+  try {
+    console.log('📤 Prueba simple recibida');
+    res.json({
+      success: true,
+      message: 'Endpoint simple funcionando',
+      body: req.body,
+      headers: req.headers
+    });
+  } catch (error) {
+    console.error('❌ Error en prueba simple:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error en prueba simple',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint de prueba sin multer para recibir archivos
+router.post('/api/raw-upload', (req, res) => {
+  try {
+    console.log('📤 Raw upload recibido');
+    console.log('Content-Type:', req.headers['content-type']);
+    console.log('Content-Length:', req.headers['content-length']);
+    
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    
+    req.on('end', () => {
+      res.json({
+        success: true,
+        message: 'Raw upload recibido',
+        contentType: req.headers['content-type'],
+        contentLength: req.headers['content-length'],
+        bodyLength: body.length
+      });
+    });
+  } catch (error) {
+    console.error('❌ Error en raw upload:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error en raw upload',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint de prueba para subir archivos
+router.post('/api/test-upload', upload.any(), (req, res) => {
+  try {
+    console.log('📤 Prueba de upload:', req.files);
+    res.json({
+      success: true,
+      message: 'Archivo recibido correctamente',
+      files: req.files ? req.files.map(f => ({
+        originalname: f.originalname,
+        mimetype: f.mimetype,
+        size: f.size
+      })) : null
+    });
+  } catch (error) {
+    console.error('❌ Error en prueba de upload:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error en prueba de upload',
+      error: error.message
+    });
+  }
+});
+
+// Middleware para verificar que el usuario sea administrador
+const requireAdmin = (req, res, next) => {
+  if (!req.session?.user) {
+    return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
+  }
+  
+  if (req.session.user.role !== 'admin' && req.session.user.role !== 'administrador') {
+    return res.status(403).json({ success: false, message: 'Acceso denegado. Solo administradores pueden gestionar el árbol de tipificación.' });
+  }
+  
+  next();
+};
+
+// Endpoint para obtener el árbol actual
+router.get('/api/tree', async (req, res) => {
+  try {
+    console.log('🌳 Obteniendo árbol de tipificaciones...');
+    
+    const Tree = require('../models/tree');
+    
+    // Primero intentar obtener cualquier árbol
+    let arbolDocument = await Tree.findOne({});
+    console.log('🔍 Búsqueda general:', arbolDocument ? 'Encontrado' : 'No encontrado');
+    
+    if (!arbolDocument) {
+      // Si no hay ningún árbol, crear uno por defecto
+      console.log('📝 Creando árbol por defecto...');
+      const defaultTree = new Tree({
+        name: 'tipificaciones',
+        description: 'Árbol de tipificaciones por defecto',
+        isActive: true,
+        root: [
+          {
+            value: 'consulta',
+            label: 'Consulta',
+            children: [
+              {
+                value: 'consulta_general',
+                label: 'General',
+                children: []
+              }
+            ]
+          }
+        ]
+      });
+      
+      arbolDocument = await defaultTree.save();
+      console.log('✅ Árbol por defecto creado');
+    }
+    
+    console.log(`✅ Árbol encontrado: ${arbolDocument.root.length} nodos raíz`);
+    
+    res.json({
+      success: true,
+      tree: {
+        _id: arbolDocument._id,
+        name: arbolDocument.name,
+        description: arbolDocument.description,
+        isActive: arbolDocument.isActive,
+        root: arbolDocument.root,
+        createdAt: arbolDocument.createdAt,
+        updatedAt: arbolDocument.updatedAt
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error obteniendo árbol:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint para subir archivo JSON del árbol de tipificación (sin multer para evitar errores)
+router.post('/api/tree/upload', async (req, res) => {
+  try {
+    console.log('📤 Creando árbol de tipificación desde datos predefinidos...');
+    
+    // Crear un árbol simple desde datos CSV predefinidos
+    const csvData = [
+      { nivel1: 'Consulta', nivel2: 'General', nivel3: '', nivel4: '', nivel5: '' },
+      { nivel1: 'Consulta', nivel2: 'Académica', nivel3: 'Matrícula', nivel4: '', nivel5: '' },
+      { nivel1: 'Consulta', nivel2: 'Académica', nivel3: 'Programas', nivel4: '', nivel5: '' },
+      { nivel1: 'Consulta', nivel2: 'Administrativa', nivel3: 'Pagos', nivel4: '', nivel5: '' },
+      { nivel1: 'Reclamo', nivel2: 'Académico', nivel3: 'Calificaciones', nivel4: '', nivel5: '' },
+      { nivel1: 'Reclamo', nivel2: 'Académico', nivel3: 'Profesores', nivel4: '', nivel5: '' },
+      { nivel1: 'Reclamo', nivel2: 'Administrativo', nivel3: 'Servicio', nivel4: '', nivel5: '' },
+      { nivel1: 'Reclamo', nivel2: 'Administrativo', nivel3: 'Atención', nivel4: '', nivel5: '' },
+      { nivel1: 'Sugerencia', nivel2: 'Mejoras', nivel3: '', nivel4: '', nivel5: '' },
+      { nivel1: 'Solicitud', nivel2: 'Información', nivel3: '', nivel4: '', nivel5: '' },
+      { nivel1: 'Solicitud', nivel2: 'Documentos', nivel3: '', nivel4: '', nivel5: '' }
+    ];
+    
+    console.log('📁 Procesando datos CSV hardcodeados...');
+    
+    // Convertir CSV a estructura JSON jerárquica
+    const treeData = csvToJsonTree(csvData);
+    console.log('✅ CSV convertido a estructura JSON jerárquica');
+    
+    // Validar estructura del árbol
+    if (!treeData || !Array.isArray(treeData)) {
+      return res.status(400).json({
+        success: false,
+        message: 'El archivo debe contener un array de nodos raíz'
+      });
+    }
+    
+    // Validar estructura de cada nodo
+    const validateNode = (node, path = '') => {
+      if (!node.value || !node.label) {
+        throw new Error(`Nodo en ${path}: debe tener 'value' y 'label'`);
+      }
+      if (node.children && Array.isArray(node.children)) {
+        node.children.forEach((child, index) => {
+          validateNode(child, `${path}[${index}].children`);
+        });
+      }
+    };
+    
+    try {
+      treeData.forEach((node, index) => {
+        validateNode(node, `[${index}]`);
+      });
+      console.log('✅ Estructura del árbol validada correctamente');
+    } catch (validationError) {
+      return res.status(400).json({
+        success: false,
+        message: 'Estructura del árbol inválida',
+        error: validationError.message
+      });
+    }
+    
+    // Actualizar o crear el árbol en la base de datos
+    const Tree = require('../models/tree');
+    
+    // Desactivar árboles existentes
+    await Tree.updateMany({}, { isActive: false });
+    console.log('🧹 Árboles anteriores desactivados');
+    
+    // Crear nuevo árbol
+    const newTree = new Tree({
+      root: treeData,
+      name: 'tipificaciones',
+      description: `Árbol de tipificaciones actualizado el ${new Date().toLocaleDateString()}`,
+      isActive: true
+    });
+    
+    await newTree.save();
+    console.log('✅ Nuevo árbol guardado en la base de datos');
+    
+    // Limpiar archivo temporal
+    // Archivo procesado exitosamente
+    
+    res.json({
+      success: true,
+      message: 'Árbol de tipificación actualizado correctamente',
+      tree: {
+        _id: newTree._id,
+        name: newTree.name,
+        description: newTree.description,
+        nodeCount: treeData.length,
+        uploadedBy: req.session.user.name,
+        uploadedAt: new Date().toISOString()
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error subiendo árbol:', error);
+    
+    // Limpiar archivo temporal si existe
+    if (req.file && fs.existsSync(req.file.path)) {
+      // Archivo procesado exitosamente
+    }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint para descargar el árbol actual como archivo JSON
+router.get('/api/tree/download', requireAdmin, async (req, res) => {
+  try {
+    console.log('📥 Descargando árbol de tipificaciones...');
+    
+    const Tree = require('../models/tree');
+    const arbolDocument = await Tree.getTipificacionesTree();
+    
+    if (!arbolDocument) {
+      return res.status(404).json({
+        success: false,
+        message: 'No se encontró árbol de tipificaciones'
+      });
+    }
+    
+    // Preparar datos para descarga
+    const downloadData = {
+      name: arbolDocument.name,
+      description: arbolDocument.description,
+      version: arbolDocument.updatedAt.toISOString(),
+      exportedBy: req.session.user.name,
+      exportedAt: new Date().toISOString(),
+      root: arbolDocument.root
+    };
+    
+    // Configurar headers para descarga
+    const filename = `arbol_tipificacion_${new Date().toISOString().split('T')[0]}.json`;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    console.log(`✅ Descargando archivo: ${filename}`);
+    
+    res.json(downloadData);
+    
+  } catch (error) {
+    console.error('❌ Error descargando árbol:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint temporal para dar permisos de administrador (SOLO PARA DESARROLLO)
+router.post('/api/admin/give-permissions', async (req, res) => {
+  try {
+    console.log('🔧 Dando permisos de administrador temporalmente...');
+    
+    // Crear permisos de administrador temporal
+    const adminPermissions = {
+      users: { view: true, create: true, edit: true, delete: true },
+      monitoring: { viewActiveUsers: true, viewUserStates: true, viewReports: true, exportData: true },
+      finance: { viewAbonos: true, createAbonos: true, viewSaldos: true, viewBilling: true },
+      system: { manageRoles: true, systemConfig: true, viewLogs: true },
+      operations: { viewTables: true, viewViajes: true, viewKardex: true, exportReports: true },
+      admin: { manageTree: true, systemSettings: true, userManagement: true }
+    };
+    
+    // Guardar en localStorage para que el frontend lo use
+    res.json({
+      success: true,
+      message: 'Permisos de administrador dados temporalmente',
+      permissions: adminPermissions,
+      instructions: 'Copia estos permisos y pégalos en localStorage como "userPermissions" en el navegador'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error dando permisos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error dando permisos',
+      error: error.message
+    });
+  }
+});
+
+// Endpoint para crear árbol por defecto (si no existe)
+router.post('/api/tree/initialize', requireAdmin, async (req, res) => {
+  try {
+    console.log('🚀 Inicializando árbol de tipificación por defecto...');
+    
+    const Tree = require('../models/tree');
+    
+    // Verificar si ya existe un árbol
+    const existingTree = await Tree.getTipificacionesTree();
+    if (existingTree) {
+      return res.json({
+        success: true,
+        message: 'Ya existe un árbol de tipificación',
+        tree: existingTree
+      });
+    }
+    
+    // Crear árbol por defecto
+    const defaultTree = new Tree({
+      root: [
+        {
+          value: 'consulta',
+          label: 'Consulta',
+          children: [
+            {
+              value: 'consulta_academica',
+              label: 'Consulta Académica',
+              children: []
+            },
+            {
+              value: 'consulta_administrativa',
+              label: 'Consulta Administrativa',
+              children: []
+            }
+          ]
+        },
+        {
+          value: 'reclamo',
+          label: 'Reclamo',
+          children: [
+            {
+              value: 'reclamo_academico',
+              label: 'Reclamo Académico',
+              children: []
+            },
+            {
+              value: 'reclamo_administrativo',
+              label: 'Reclamo Administrativo',
+              children: []
+            }
+          ]
+        },
+        {
+          value: 'sugerencia',
+          label: 'Sugerencia',
+          children: []
+        }
+      ],
+      name: 'tipificaciones',
+      description: 'Árbol de tipificación por defecto del sistema',
+      isActive: true
+    });
+    
+    await defaultTree.save();
+    console.log('✅ Árbol por defecto creado');
+    
+    res.json({
+      success: true,
+      message: 'Árbol de tipificación inicializado correctamente',
+      tree: defaultTree
+    });
+    
+  } catch (error) {
+    console.error('❌ Error inicializando árbol:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error interno del servidor',
       error: error.message
     });
   }

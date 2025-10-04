@@ -1,0 +1,140 @@
+[
+  {
+    "value": "consulta",
+    "label": "Consulta",
+    "children": [
+      {
+        "value": "consulta_academica",
+        "label": "Consulta Académica",
+        "children": [
+          {
+            "value": "consulta_matricula",
+            "label": "Consulta sobre Matrícula",
+            "children": []
+          },
+          {
+            "value": "consulta_programas",
+            "label": "Consulta sobre Programas",
+            "children": []
+          },
+          {
+            "value": "consulta_horarios",
+            "label": "Consulta sobre Horarios",
+            "children": []
+          }
+        ]
+      },
+      {
+        "value": "consulta_administrativa",
+        "label": "Consulta Administrativa",
+        "children": [
+          {
+            "value": "consulta_pagos",
+            "label": "Consulta sobre Pagos",
+            "children": []
+          },
+          {
+            "value": "consulta_documentos",
+            "label": "Consulta sobre Documentos",
+            "children": []
+          },
+          {
+            "value": "consulta_procedimientos",
+            "label": "Consulta sobre Procedimientos",
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "value": "reclamo",
+    "label": "Reclamo",
+    "children": [
+      {
+        "value": "reclamo_academico",
+        "label": "Reclamo Académico",
+        "children": [
+          {
+            "value": "reclamo_calificaciones",
+            "label": "Reclamo sobre Calificaciones",
+            "children": []
+          },
+          {
+            "value": "reclamo_profesor",
+            "label": "Reclamo sobre Profesor",
+            "children": []
+          },
+          {
+            "value": "reclamo_metodologia",
+            "label": "Reclamo sobre Metodología",
+            "children": []
+          }
+        ]
+      },
+      {
+        "value": "reclamo_administrativo",
+        "label": "Reclamo Administrativo",
+        "children": [
+          {
+            "value": "reclamo_servicio",
+            "label": "Reclamo sobre Servicio",
+            "children": []
+          },
+          {
+            "value": "reclamo_atencion",
+            "label": "Reclamo sobre Atención",
+            "children": []
+          },
+          {
+            "value": "reclamo_proceso",
+            "label": "Reclamo sobre Proceso",
+            "children": []
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "value": "sugerencia",
+    "label": "Sugerencia",
+    "children": [
+      {
+        "value": "sugerencia_mejora",
+        "label": "Sugerencia de Mejora",
+        "children": []
+      },
+      {
+        "value": "sugerencia_nuevo_servicio",
+        "label": "Sugerencia de Nuevo Servicio",
+        "children": []
+      },
+      {
+        "value": "sugerencia_proceso",
+        "label": "Sugerencia de Proceso",
+        "children": []
+      }
+    ]
+  },
+  {
+    "value": "solicitud",
+    "label": "Solicitud",
+    "children": [
+      {
+        "value": "solicitud_informacion",
+        "label": "Solicitud de Información",
+        "children": []
+      },
+      {
+        "value": "solicitud_documento",
+        "label": "Solicitud de Documento",
+        "children": []
+      },
+      {
+        "value": "solicitud_cita",
+        "label": "Solicitud de Cita",
+        "children": []
+      }
+    ]
+  }
+]

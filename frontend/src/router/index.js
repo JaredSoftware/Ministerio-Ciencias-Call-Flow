@@ -13,6 +13,7 @@ import Signin from "../views/Signin.vue";
 import users from "../views/users.vue";
 import ActiveUsers from "../views/ActiveUsers.vue";
 import Work from "../views/Work.vue";
+import TreeAdmin from "../views/TreeAdmin.vue";
 
 import store from "../store/index"; // Importa tu store de Vuex
 
@@ -221,6 +222,33 @@ const routes = [
       permissions: [{ module: 'monitoring', permission: 'viewReports' }]
     },
   },
+      {
+        path: "/tree-admin",
+        name: "TreeAdmin",
+        component: TreeAdmin,
+        meta: {
+          requiresAuth: true,
+          permissions: [{ module: 'admin', permission: 'manageTree' }]
+        },
+      },
+      {
+        path: "/admin-iframe-1",
+        name: "AdminIframe1",
+        component: () => import("../views/AdminIframe1.vue"),
+        meta: {
+          requiresAuth: true,
+          permissions: [{ module: 'admin', permission: 'systemConfig' }]
+        },
+      },
+      {
+        path: "/admin-iframe-2",
+        name: "AdminIframe2",
+        component: () => import("../views/AdminIframe2.vue"),
+        meta: {
+          requiresAuth: true,
+          permissions: [{ module: 'admin', permission: 'systemConfig' }]
+        },
+      },
 ];
 
 const router = createRouter({

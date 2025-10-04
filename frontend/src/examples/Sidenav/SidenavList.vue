@@ -68,15 +68,50 @@
         </sidenav-item>
       </li>
 
+      <!-- Opción de Administración del Árbol de Tipificación: solo para administradores -->
+      <li v-if="canManageTree || userRole === 'admin' || userRole === 'administrador'" class="nav-item">
+        <sidenav-item
+          url="/tree-admin"
+          :class="getRoute() === 'tree-admin' ? 'active' : ''"
+          :navText="this.$store.state.isRTL ? 'إدارة الشجرة' : 'Árbol de Tipificación'"
+        >
+          <template v-slot:icon>
+            <i class="ni ni-settings-gear-65 text-warning text-sm opacity-10"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
+      <!-- Opción 1: Grabaciones - Nueva Pestaña -->
+      <li v-if="canAccessAdminPanels" class="nav-item">
+        <sidenav-item
+          url="#"
+          :class="getRoute() === 'admin-iframe-1' ? 'active' : ''"
+          :navText="this.$store.state.isRTL ? 'التسجيلات' : 'Grabaciones'"
+          @click.prevent="openAdminPanel1"
+        >
+          <template v-slot:icon>
+            <i class="ni ni-sound-wave text-info text-sm opacity-10"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
+      <!-- Opción 2: Reporte de Llamadas - Nueva Pestaña -->
+      <li v-if="canAccessAdminPanels" class="nav-item">
+        <sidenav-item
+          url="#"
+          :class="getRoute() === 'admin-iframe-2' ? 'active' : ''"
+          :navText="this.$store.state.isRTL ? 'تقرير المكالمات' : 'Reporte de Llamadas'"
+          @click.prevent="openAdminPanel2"
+        >
+          <template v-slot:icon>
+            <i class="ni ni-laptop text-success text-sm opacity-10"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
       
 
       
-      <!-- Debug: Mostrar rol actual (temporal) -->
-      <li v-if="userRole" class="nav-item">
-        <div class="px-3 py-2 text-xs text-muted">
-          <small>Rol: {{ userRole }}</small>
-        </div>
-      </li>
       <!--<li class="nav-item">
         <sidenav-item
           url="/billing"
@@ -168,14 +203,6 @@
     </ul>
   </div>
   
-  <!-- Componente de Estado de Usuario -->
-  <div class="user-status-container">
-    <h6 class="status-section-title">
-      <i class="fas fa-circle text-success"></i>
-      Estados de Usuario
-    </h6>
-    <UserStatusSelector />
-  </div>
   
   <!--<div class="pt-3 mx-3 mt-3 sidenav-footer">
     <sidenav-card
@@ -190,7 +217,6 @@
 import SidenavItem from "./SidenavItem.vue";
 import permissions from '@/router/services/permissions';
 import statusTypes from '@/router/services/statusTypes';
-import UserStatusSelector from "@/components/UserStatusSelector.vue";
 //import SidenavCard from "./SidenavCard.vue";
 
 export default {
@@ -206,12 +232,13 @@ export default {
       canViewUsers: false,
       canViewActiveUsers: false,
       canViewReports: false,
+      canManageTree: false,
+      canAccessAdminPanels: false,
       permissionsLoaded: false,
     };
   },
   components: {
     SidenavItem,
-    UserStatusSelector,
     //SidenavCard
   },
   computed: {
@@ -225,6 +252,13 @@ export default {
         ? statusTypes.getStatusByValue(userStatus.status)
         : null;
       return statusObj && statusObj.category === 'work';
+    },
+    userRole() {
+      // Obtener el rol del usuario desde el store o localStorage
+      return this.$store.state.user?.role || 
+             localStorage.getItem('userRoleName') || 
+             localStorage.getItem('userRole') || 
+             'usuario';
     }
   },
   async mounted() {
@@ -251,21 +285,62 @@ export default {
         // Verificar permisos específicos para cada elemento del sidebar
         this.canViewUsers = await permissions.canShowUIElement('sidebar-users');
         this.canViewActiveUsers = await permissions.canShowUIElement('sidebar-active-users');
+        this.canManageTree = await permissions.canShowUIElement('sidebar-tree-admin');
+        this.canAccessAdminPanels = await permissions.canShowUIElement('sidebar-admin-panels');
         
         this.permissionsLoaded = true;
         console.log('✅ Permisos del usuario cargados');
         console.log('   - Users:', this.canViewUsers);
         console.log('   - Active Users:', this.canViewActiveUsers);
+        console.log('   - Tree Admin:', this.canManageTree);
+        console.log('   - Admin Panels:', this.canAccessAdminPanels);
         
       } catch (error) {
         console.error('❌ Error cargando permisos del usuario:', error);
         // En caso de error, denegar todos los permisos
         this.canViewUsers = false;
         this.canViewActiveUsers = false;
+        this.canManageTree = false;
+        this.canAccessAdminPanels = false;
       } finally {
         this._loadingPermissions = false;
       }
     },
+    
+    openAdminPanel1(event) {
+      event.preventDefault();
+      const url = 'https://172.16.116.3:7070/WebManagement/index.html';
+      console.log('🌐 Abriendo Grabaciones en nueva pestaña:', url);
+      
+      // Abrir en nueva pestaña con configuración de seguridad
+      window.open(url, '_blank', 'noopener,noreferrer,width=1200,height=800');
+      
+      // Mostrar notificación si está disponible
+      if (this.$toast) {
+        this.$toast.success('Grabaciones abierto en nueva pestaña', {
+          position: 'top-right',
+          timeout: 3000
+        });
+      }
+    },
+    
+    openAdminPanel2(event) {
+      event.preventDefault();
+      const url = 'http://172.16.116.16:9080/web/login';
+      console.log('🌐 Abriendo Reporte de Llamadas en nueva pestaña:', url);
+      
+      // Abrir en nueva pestaña con configuración de seguridad
+      window.open(url, '_blank', 'noopener,noreferrer,width=1200,height=800');
+      
+      // Mostrar notificación si está disponible
+      if (this.$toast) {
+        this.$toast.success('Reporte de Llamadas abierto en nueva pestaña', {
+          position: 'top-right',
+          timeout: 3000
+        });
+      }
+    },
+    
     getRoute() {
       const routeArr = this.$route.path.split("/");
       return routeArr[1];
@@ -281,31 +356,30 @@ export default {
   height: 100%;
 }
 
-.user-status-container {
-  margin-top: auto;
-  padding: 0.5rem;
-  border-top: 2px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.1);
+
+/* Estilos para enlaces de paneles administrativos */
+.nav-link {
+  transition: all 0.3s ease;
   border-radius: 8px;
-  margin: 1rem;
+  margin: 2px 8px;
 }
 
-.status-section-title {
+.nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(5px);
+}
+
+.nav-link.active {
+  background-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+}
+
+.nav-link-text {
   color: white;
-  font-size: 0.8rem;
-  margin-bottom: 0.5rem;
-  text-align: center;
-  font-weight: 600;
+  font-weight: 500;
 }
 
-.status-section-title i {
-  margin-right: 0.5rem;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0% { opacity: 1; }
-  50% { opacity: 0.5; }
-  100% { opacity: 1; }
+.nav-link:hover .nav-link-text {
+  color: #fff;
 }
 </style>
