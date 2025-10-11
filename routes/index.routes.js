@@ -1988,6 +1988,13 @@ router.post('/api/tree/upload', async (req, res) => {
     const treeName = tree.name || 'tipificaciones';
     const treeDescription = tree.description || `Árbol subido desde ${fileName || 'archivo'} el ${new Date().toLocaleDateString()}`;
     
+    console.log('📝 Creando árbol con datos:', {
+      name: treeName,
+      description: treeDescription,
+      rootLength: treeData.length,
+      firstNode: treeData[0]
+    });
+    
     const newTree = new Tree({
       root: treeData,
       name: treeName,
@@ -1998,6 +2005,11 @@ router.post('/api/tree/upload', async (req, res) => {
     
     await newTree.save();
     console.log('✅ Nuevo árbol guardado en la base de datos');
+    console.log('📊 Árbol guardado tiene:', newTree.root.length, 'nodos raíz');
+    
+    // Verificar inmediatamente que se guardó correctamente
+    const verificacion = await Tree.findById(newTree._id);
+    console.log('🔍 Verificación inmediata:', verificacion.root.length, 'nodos raíz en BD');
     
     res.json({
       success: true,
