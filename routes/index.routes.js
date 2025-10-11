@@ -2055,6 +2055,8 @@ router.post('/api/tree/upload', async (req, res) => {
       firstNode: treeData[0]
     });
     
+    let savedTree;
+    
     if (existingTree) {
       // ✅ ACTUALIZAR el árbol existente
       existingTree.description = treeDescription;
@@ -2062,7 +2064,7 @@ router.post('/api/tree/upload', async (req, res) => {
       existingTree.root = treeData;
       existingTree.updatedAt = new Date();
       
-      const savedTree = await existingTree.save();
+      savedTree = await existingTree.save();
       console.log('✅ Árbol existente actualizado:', savedTree._id);
     } else {
       // Solo crear si no existe
@@ -2077,23 +2079,24 @@ router.post('/api/tree/upload', async (req, res) => {
       // Marcar root como modificado (importante para Mixed types)
       newTree.markModified('root');
       
-      const savedTree = await newTree.save();
+      savedTree = await newTree.save();
       console.log('✅ Nuevo árbol creado:', savedTree._id);
-      console.log('📊 Árbol guardado tiene:', savedTree.root.length, 'nodos raíz');
-      
-      // Verificar inmediatamente que se guardó correctamente (con .lean() para ver datos puros)
-      const verificacion = await Tree.findById(savedTree._id).lean();
-      console.log('🔍 Verificación inmediata:', verificacion.root.length, 'nodos raíz en BD');
-      console.log('🔍 Primeros 2 nodos verificados:', JSON.stringify(verificacion.root.slice(0, 2), null, 2));
     }
+    
+    console.log('📊 Árbol guardado tiene:', savedTree.root.length, 'nodos raíz');
+    
+    // Verificar inmediatamente que se guardó correctamente (con .lean() para ver datos puros)
+    const verificacion = await Tree.findById(savedTree._id).lean();
+    console.log('🔍 Verificación inmediata:', verificacion.root.length, 'nodos raíz en BD');
+    console.log('🔍 Primeros 2 nodos verificados:', JSON.stringify(verificacion.root.slice(0, 2), null, 2));
     
     res.json({
       success: true,
       message: `Árbol de tipificación actualizado correctamente desde ${fileName || 'archivo'}`,
       tree: {
-        _id: newTree._id,
-        name: newTree.name,
-        description: newTree.description,
+        _id: savedTree._id,
+        name: savedTree.name,
+        description: savedTree.description,
         nodeCount: treeData.length,
         uploadedBy: req.session?.user?.name || 'Usuario',
         uploadedAt: new Date().toISOString()
