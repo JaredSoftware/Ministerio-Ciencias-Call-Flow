@@ -1809,17 +1809,85 @@ router.get('/api/test/crm', async (req, res) => {
 
 // Función para convertir CSV a estructura JSON jerárquica
 function csvToJsonTree(csvData) {
+  // 🔧 DECODIFICAR CARACTERES ESPECIALES EN CSV
+  const decodeText = (text) => {
+    if (!text) return text;
+    
+    try {
+      // 1. Intentar diferentes decodificaciones
+      let decoded = text;
+      
+      // Si contiene caracteres de reemplazo UTF-8, intentar recuperar
+      if (text.includes('')) {
+        console.log(`  🔧 CSV: Detectado carácter de reemplazo UTF-8 en "${text}"`);
+        try {
+          decoded = Buffer.from(text, 'latin1').toString('utf8');
+          console.log(`  🔧 CSV: Latin1→UTF8: "${text}" → "${decoded}"`);
+        } catch (e) {
+          console.log(`  ❌ CSV: Latin1 falló: ${e.message}`);
+        }
+      }
+      
+      // 2. Decodificar URL encoding
+      try {
+        const urlDecoded = decodeURIComponent(decoded);
+        if (urlDecoded !== decoded) {
+          decoded = urlDecoded;
+          console.log(`  🔧 CSV: URL decoded: "${decoded}"`);
+        }
+      } catch (e) {
+        console.log(`  ❌ CSV: URL decode falló: ${e.message}`);
+      }
+      
+      // 3. Decodificar HTML entities
+      const entities = {
+        '&aacute;': 'á', '&eacute;': 'é', '&iacute;': 'í', '&oacute;': 'ó', '&uacute;': 'ú',
+        '&Aacute;': 'Á', '&Eacute;': 'É', '&Iacute;': 'Í', '&Oacute;': 'Ó', '&Uacute;': 'Ú',
+        '&ntilde;': 'ñ', '&Ntilde;': 'Ñ', '&uuml;': 'ü', '&Uuml;': 'Ü',
+        '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'",
+        // Entidades numéricas comunes
+        '&#225;': 'á', '&#233;': 'é', '&#237;': 'í', '&#243;': 'ó', '&#250;': 'ú',
+        '&#193;': 'Á', '&#201;': 'É', '&#205;': 'Í', '&#211;': 'Ó', '&#218;': 'Ú',
+        '&#241;': 'ñ', '&#209;': 'Ñ'
+      };
+      
+      const beforeEntities = decoded;
+      decoded = decoded.replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
+        return entities[entity] || entity;
+      });
+      if (beforeEntities !== decoded) {
+        console.log(`  🔧 CSV: HTML entities: "${decoded}"`);
+      }
+      
+      // 4. Limpiar caracteres de control y espacios extra
+      decoded = decoded.replace(/\s+/g, ' ').trim();
+      
+      console.log(`  📤 CSV: Final: "${text}" → "${decoded}"`);
+      return decoded;
+      
+    } catch (error) {
+      console.error(`❌ CSV: Error decodificando texto "${text}":`, error);
+      return text; // Retornar original si hay error
+    }
+  };
+
   const tree = [];
   const nodeMap = new Map();
   
-  csvData.forEach(row => {
+  console.log('🌳 CSV: Iniciando conversión de CSV a árbol...');
+  
+  csvData.forEach((row, rowIndex) => {
+    // Decodificar cada nivel del CSV
     const levels = [
       row.nivel1,
       row.nivel2, 
       row.nivel3,
       row.nivel4,
       row.nivel5
-    ].filter(level => level && level.trim() !== '');
+    ].map(level => level ? decodeText(level) : level)
+     .filter(level => level && level.trim() !== '');
+    
+    console.log(`🌳 CSV: Fila ${rowIndex + 1}:`, levels);
     
     let currentPath = '';
     let parentNode = null;
@@ -1831,7 +1899,7 @@ function csvToJsonTree(csvData) {
       if (!nodeMap.has(path)) {
         const newNode = {
           value: value,
-          label: level,
+          label: level, // ✅ Usar el nivel decodificado
           children: []
         };
         
@@ -1851,6 +1919,7 @@ function csvToJsonTree(csvData) {
     });
   });
   
+  console.log('🌳 CSV: Conversión completada, árbol generado');
   return tree;
 }
 
