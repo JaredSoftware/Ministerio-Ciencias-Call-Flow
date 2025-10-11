@@ -15,6 +15,19 @@ const Tipificacion = require("../models/tipificacion");
 // 🔄 CONTADOR GLOBAL PARA ROUND ROBIN
 let roundRobinCounter = 0;
 
+// 🔐 Middleware para verificar que el usuario sea administrador
+const requireAdmin = (req, res, next) => {
+  if (!req.session?.user) {
+    return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
+  }
+  
+  if (req.session.user.role !== 'admin' && req.session.user.role !== 'administrador') {
+    return res.status(403).json({ success: false, message: 'Acceso denegado. Solo administradores pueden gestionar el árbol de tipificación.' });
+  }
+  
+  next();
+};
+
 // 📁 CONFIGURACIÓN DE MULTER PARA SUBIR ARCHIVOS
 const upload = multer({
   dest: '/tmp/', // Usar directorio temporal del sistema
@@ -1785,18 +1798,6 @@ router.post('/api/test-upload', upload.any(), (req, res) => {
   }
 });
 
-// Middleware para verificar que el usuario sea administrador
-const requireAdmin = (req, res, next) => {
-  if (!req.session?.user) {
-    return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
-  }
-  
-  if (req.session.user.role !== 'admin' && req.session.user.role !== 'administrador') {
-    return res.status(403).json({ success: false, message: 'Acceso denegado. Solo administradores pueden gestionar el árbol de tipificación.' });
-  }
-  
-  next();
-};
 
 // Endpoint para obtener el árbol actual
 router.get('/api/tree', async (req, res) => {
