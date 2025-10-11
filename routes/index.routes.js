@@ -338,15 +338,42 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     params.idAgent = idAgentReal;
 
     // 🔧 DECODIFICAR CARACTERES ESPECIALES (tildes, acentos, etc.)
-    const decodeText = (text) => {
+    const decodeText = (text, fieldName = '') => {
       if (!text) return text;
       
+      console.log(`🔍 DEBUG DECODE ${fieldName}:`);
+      console.log(`  📥 Original: "${text}"`);
+      console.log(`  📥 Length: ${text.length}`);
+      console.log(`  📥 Bytes: ${Buffer.from(text, 'utf8').toString('hex')}`);
+      
       try {
-        // 1. Decodificar URL encoding primero
-        let decoded = decodeURIComponent(text);
-        console.log(`🔤 URL decoded: "${text}" → "${decoded}"`);
+        // 1. Intentar diferentes decodificaciones
+        let decoded = text;
         
-        // 2. Decodificar HTML entities
+        // Si contiene caracteres de reemplazo UTF-8, intentar recuperar
+        if (text.includes('')) {
+          console.log(`  🔧 Detectado carácter de reemplazo UTF-8`);
+          // Intentar decodificar desde diferentes codificaciones
+          try {
+            decoded = Buffer.from(text, 'latin1').toString('utf8');
+            console.log(`  🔧 Latin1→UTF8: "${decoded}"`);
+          } catch (e) {
+            console.log(`  ❌ Latin1 falló: ${e.message}`);
+          }
+        }
+        
+        // 2. Decodificar URL encoding
+        try {
+          const urlDecoded = decodeURIComponent(decoded);
+          if (urlDecoded !== decoded) {
+            decoded = urlDecoded;
+            console.log(`  🔧 URL decoded: "${decoded}"`);
+          }
+        } catch (e) {
+          console.log(`  ❌ URL decode falló: ${e.message}`);
+        }
+        
+        // 3. Decodificar HTML entities
         const entities = {
           '&aacute;': 'á', '&eacute;': 'é', '&iacute;': 'í', '&oacute;': 'ó', '&uacute;': 'ú',
           '&Aacute;': 'Á', '&Eacute;': 'É', '&Iacute;': 'Í', '&Oacute;': 'Ó', '&Uacute;': 'Ú',
@@ -358,14 +385,21 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
           '&#241;': 'ñ', '&#209;': 'Ñ'
         };
         
+        const beforeEntities = decoded;
         decoded = decoded.replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
           return entities[entity] || entity;
         });
+        if (beforeEntities !== decoded) {
+          console.log(`  🔧 HTML entities: "${decoded}"`);
+        }
         
-        // 3. Limpiar caracteres de control y espacios extra
+        // 4. Limpiar caracteres de control y espacios extra
         decoded = decoded.replace(/\s+/g, ' ').trim();
         
-        console.log(`🔤 Final decoded: "${text}" → "${decoded}"`);
+        console.log(`  📤 Final: "${decoded}"`);
+        console.log(`  📤 Bytes: ${Buffer.from(decoded, 'utf8').toString('hex')}`);
+        console.log(`  ✅ Cambió: ${text !== decoded}`);
+        
         return decoded;
         
       } catch (error) {
@@ -383,7 +417,7 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     
     fieldsToDecode.forEach(field => {
       if (params[field]) {
-        params[field] = decodeText(params[field]);
+        params[field] = decodeText(params[field], field);
       }
     });
 
@@ -1014,7 +1048,7 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
     
     fieldsToDecode.forEach(field => {
       if (req.body[field]) {
-        req.body[field] = decodeText(req.body[field]);
+        req.body[field] = decodeText(req.body[field], field);
         // Actualizar la variable también
         if (field === 'nombres') nombres = req.body[field];
         if (field === 'apellidos') apellidos = req.body[field];
