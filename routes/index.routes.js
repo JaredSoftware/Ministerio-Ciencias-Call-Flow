@@ -338,19 +338,40 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     params.idAgent = idAgentReal;
 
     // 🔧 DECODIFICAR CARACTERES ESPECIALES (tildes, acentos, etc.)
-    const decodeHtmlEntities = (text) => {
+    const decodeText = (text) => {
       if (!text) return text;
       
-      const entities = {
-        '&aacute;': 'á', '&eacute;': 'é', '&iacute;': 'í', '&oacute;': 'ó', '&uacute;': 'ú',
-        '&Aacute;': 'Á', '&Eacute;': 'É', '&Iacute;': 'Í', '&Oacute;': 'Ó', '&Uacute;': 'Ú',
-        '&ntilde;': 'ñ', '&Ntilde;': 'Ñ', '&uuml;': 'ü', '&Uuml;': 'Ü',
-        '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"
-      };
-      
-      return text.replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
-        return entities[entity] || entity;
-      });
+      try {
+        // 1. Decodificar URL encoding primero
+        let decoded = decodeURIComponent(text);
+        console.log(`🔤 URL decoded: "${text}" → "${decoded}"`);
+        
+        // 2. Decodificar HTML entities
+        const entities = {
+          '&aacute;': 'á', '&eacute;': 'é', '&iacute;': 'í', '&oacute;': 'ó', '&uacute;': 'ú',
+          '&Aacute;': 'Á', '&Eacute;': 'É', '&Iacute;': 'Í', '&Oacute;': 'Ó', '&Uacute;': 'Ú',
+          '&ntilde;': 'ñ', '&Ntilde;': 'Ñ', '&uuml;': 'ü', '&Uuml;': 'Ü',
+          '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'",
+          // Entidades numéricas comunes
+          '&#225;': 'á', '&#233;': 'é', '&#237;': 'í', '&#243;': 'ó', '&#250;': 'ú',
+          '&#193;': 'Á', '&#201;': 'É', '&#205;': 'Í', '&#211;': 'Ó', '&#218;': 'Ú',
+          '&#241;': 'ñ', '&#209;': 'Ñ'
+        };
+        
+        decoded = decoded.replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
+          return entities[entity] || entity;
+        });
+        
+        // 3. Limpiar caracteres de control y espacios extra
+        decoded = decoded.replace(/\s+/g, ' ').trim();
+        
+        console.log(`🔤 Final decoded: "${text}" → "${decoded}"`);
+        return decoded;
+        
+      } catch (error) {
+        console.error(`❌ Error decodificando texto "${text}":`, error);
+        return text; // Retornar original si hay error
+      }
     };
     
     // Decodificar todos los campos de texto que pueden contener tildes
@@ -362,8 +383,7 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     
     fieldsToDecode.forEach(field => {
       if (params[field]) {
-        params[field] = decodeHtmlEntities(params[field]);
-        console.log(`🔤 Campo ${field} decodificado:`, params[field]);
+        params[field] = decodeText(params[field]);
       }
     });
 
@@ -942,13 +962,78 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
 // Endpoint para actualizar tipificación (desde el frontend)
 router.post('/api/tipificacion/actualizar', async (req, res) => {
   try {
-    const { 
+    // 🔧 DECODIFICAR CARACTERES ESPECIALES (tildes, acentos, etc.)
+    const decodeText = (text) => {
+      if (!text) return text;
+      
+      try {
+        // 1. Decodificar URL encoding primero
+        let decoded = decodeURIComponent(text);
+        
+        // 2. Decodificar HTML entities
+        const entities = {
+          '&aacute;': 'á', '&eacute;': 'é', '&iacute;': 'í', '&oacute;': 'ó', '&uacute;': 'ú',
+          '&Aacute;': 'Á', '&Eacute;': 'É', '&Iacute;': 'Í', '&Oacute;': 'Ó', '&Uacute;': 'Ú',
+          '&ntilde;': 'ñ', '&Ntilde;': 'Ñ', '&uuml;': 'ü', '&Uuml;': 'Ü',
+          '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'",
+          // Entidades numéricas comunes
+          '&#225;': 'á', '&#233;': 'é', '&#237;': 'í', '&#243;': 'ó', '&#250;': 'ú',
+          '&#193;': 'Á', '&#201;': 'É', '&#205;': 'Í', '&#211;': 'Ó', '&#218;': 'Ú',
+          '&#241;': 'ñ', '&#209;': 'Ñ'
+        };
+        
+        decoded = decoded.replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
+          return entities[entity] || entity;
+        });
+        
+        // 3. Limpiar caracteres de control y espacios extra
+        decoded = decoded.replace(/\s+/g, ' ').trim();
+        
+        return decoded;
+        
+      } catch (error) {
+        console.error(`❌ Error decodificando texto "${text}":`, error);
+        return text; // Retornar original si hay error
+      }
+    };
+
+    let { 
       idLlamada, cedula, tipoDocumento, observacion, historial, arbol, assignedTo, 
       nivel1, nivel2, nivel3, nivel4, nivel5,
       // Campos del cliente
       nombres, apellidos, fechaNacimiento, pais, departamento, ciudad, direccion,
       telefono, correo, sexo, nivelEscolaridad, grupoEtnico, discapacidad
     } = req.body;
+    
+    // Decodificar todos los campos de texto que pueden contener tildes
+    const fieldsToDecode = [
+      'nombres', 'apellidos', 'observacion', 'nivel1', 'nivel2', 'nivel3', 'nivel4', 'nivel5',
+      'pais', 'departamento', 'ciudad', 'direccion', 'sexo', 'nivelEscolaridad', 
+      'grupoEtnico', 'discapacidad'
+    ];
+    
+    fieldsToDecode.forEach(field => {
+      if (req.body[field]) {
+        req.body[field] = decodeText(req.body[field]);
+        // Actualizar la variable también
+        if (field === 'nombres') nombres = req.body[field];
+        if (field === 'apellidos') apellidos = req.body[field];
+        if (field === 'observacion') observacion = req.body[field];
+        if (field === 'nivel1') nivel1 = req.body[field];
+        if (field === 'nivel2') nivel2 = req.body[field];
+        if (field === 'nivel3') nivel3 = req.body[field];
+        if (field === 'nivel4') nivel4 = req.body[field];
+        if (field === 'nivel5') nivel5 = req.body[field];
+        if (field === 'pais') pais = req.body[field];
+        if (field === 'departamento') departamento = req.body[field];
+        if (field === 'ciudad') ciudad = req.body[field];
+        if (field === 'direccion') direccion = req.body[field];
+        if (field === 'sexo') sexo = req.body[field];
+        if (field === 'nivelEscolaridad') nivelEscolaridad = req.body[field];
+        if (field === 'grupoEtnico') grupoEtnico = req.body[field];
+        if (field === 'discapacidad') discapacidad = req.body[field];
+      }
+    });
     
     // Buscar la tipificación pendiente por idLlamada y assignedTo
     const Tipificacion = require('../models/tipificacion');
