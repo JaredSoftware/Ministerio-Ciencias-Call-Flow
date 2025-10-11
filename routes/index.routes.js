@@ -1852,9 +1852,18 @@ router.get('/api/tree', async (req, res) => {
     
     const Tree = require('../models/tree');
     
-    // Primero intentar obtener cualquier árbol
-    let arbolDocument = await Tree.findOne({});
-    console.log('🔍 Búsqueda general:', arbolDocument ? 'Encontrado' : 'No encontrado');
+    // Buscar el árbol más reciente y activo
+    let arbolDocument = await Tree.findOne({ isActive: true }).sort({ updatedAt: -1 }).lean();
+    console.log('🔍 Búsqueda (isActive=true):', arbolDocument ? 'Encontrado' : 'No encontrado');
+    
+    if (arbolDocument) {
+      console.log('📊 Árbol encontrado:', {
+        _id: arbolDocument._id,
+        name: arbolDocument.name,
+        rootLength: arbolDocument.root?.length || 0,
+        updatedAt: arbolDocument.updatedAt
+      });
+    }
     
     if (!arbolDocument) {
       // Si no hay ningún árbol, crear uno por defecto
@@ -1882,7 +1891,8 @@ router.get('/api/tree', async (req, res) => {
       console.log('✅ Árbol por defecto creado');
     }
     
-    console.log(`✅ Árbol encontrado: ${arbolDocument.root.length} nodos raíz`);
+    console.log(`✅ Árbol final tiene: ${arbolDocument.root.length} nodos raíz`);
+    console.log('📊 Primeros 2 nodos del árbol final:', JSON.stringify(arbolDocument.root.slice(0, 2), null, 2));
     
     res.json({
       success: true,
