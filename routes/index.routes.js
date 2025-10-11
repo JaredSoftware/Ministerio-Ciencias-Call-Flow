@@ -617,8 +617,20 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     const arbolDocument = await Tree.getTipificacionesTree();
     const arbolTipificaciones = arbolDocument ? arbolDocument.root : [];
     
-    console.log('🌳 Árbol de tipificaciones encontrado:', arbolTipificaciones ? 'SÍ' : 'NO');
-    console.log('📊 Cantidad de nodos raíz:', arbolTipificaciones.length);
+    console.log('🌳 Árbol de tipificaciones encontrado:', arbolDocument ? 'SÍ' : 'NO');
+    if (arbolDocument) {
+      console.log('📊 Árbol completo:', {
+        _id: arbolDocument._id,
+        name: arbolDocument.name,
+        description: arbolDocument.description,
+        isActive: arbolDocument.isActive,
+        rootLength: arbolDocument.root?.length || 0
+      });
+      console.log('📊 Cantidad de nodos raíz:', arbolTipificaciones.length);
+      console.log('📊 Primeros 3 nodos:', JSON.stringify(arbolTipificaciones.slice(0, 3), null, 2));
+    } else {
+      console.log('❌ No se encontró ningún árbol en la base de datos');
+    }
     
     // 📋 Crear historial básico para la nueva tipificación (solo el item actual)
     const historialNuevo = [
