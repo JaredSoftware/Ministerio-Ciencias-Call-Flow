@@ -16,16 +16,50 @@ const Tipificacion = require("../models/tipificacion");
 let roundRobinCounter = 0;
 
 // 🔐 Middleware para verificar que el usuario sea administrador
-const requireAdmin = (req, res, next) => {
+const requireAdmin = async (req, res, next) => {
   if (!req.session?.user) {
     return res.status(401).json({ success: false, message: 'Usuario no autenticado' });
   }
   
-  if (req.session.user.role !== 'admin' && req.session.user.role !== 'administrador') {
-    return res.status(403).json({ success: false, message: 'Acceso denegado. Solo administradores pueden gestionar el árbol de tipificación.' });
+  try {
+    // Verificar si el usuario tiene el rol de administrador
+    if (req.session.user.role === 'admin' || req.session.user.role === 'administrador') {
+      console.log('✅ Usuario es admin por rol:', req.session.user.role);
+      return next();
+    }
+    
+    // Si no es admin por rol, verificar permisos específicos
+    const Role = require('../models/role');
+    const userRole = await Role.findById(req.session.user.role);
+    
+    if (!userRole) {
+      console.log('❌ Rol no encontrado para usuario:', req.session.user.name);
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Acceso denegado. No tienes permisos para gestionar el árbol de tipificación.' 
+      });
+    }
+    
+    // Verificar si tiene permiso admin.manageTree
+    if (userRole.permissions?.admin?.manageTree === true) {
+      console.log('✅ Usuario tiene permiso admin.manageTree:', req.session.user.name);
+      return next();
+    }
+    
+    console.log('❌ Usuario no tiene permiso admin.manageTree:', req.session.user.name);
+    return res.status(403).json({ 
+      success: false, 
+      message: 'Acceso denegado. No tienes permisos para gestionar el árbol de tipificación.' 
+    });
+    
+  } catch (error) {
+    console.error('❌ Error verificando permisos:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Error verificando permisos del usuario',
+      error: error.message
+    });
   }
-  
-  next();
 };
 
 // 📁 CONFIGURACIÓN DE MULTER PARA SUBIR ARCHIVOS
