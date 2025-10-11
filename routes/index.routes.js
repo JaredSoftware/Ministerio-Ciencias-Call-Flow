@@ -2003,13 +2003,17 @@ router.post('/api/tree/upload', async (req, res) => {
       version: tree.version || '1.0'
     });
     
+    // Marcar root como modificado (importante para Mixed types)
+    newTree.markModified('root');
+    
     await newTree.save();
     console.log('✅ Nuevo árbol guardado en la base de datos');
     console.log('📊 Árbol guardado tiene:', newTree.root.length, 'nodos raíz');
     
-    // Verificar inmediatamente que se guardó correctamente
-    const verificacion = await Tree.findById(newTree._id);
+    // Verificar inmediatamente que se guardó correctamente (con .lean() para ver datos puros)
+    const verificacion = await Tree.findById(newTree._id).lean();
     console.log('🔍 Verificación inmediata:', verificacion.root.length, 'nodos raíz en BD');
+    console.log('🔍 Primeros 2 nodos verificados:', JSON.stringify(verificacion.root.slice(0, 2), null, 2));
     
     res.json({
       success: true,

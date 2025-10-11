@@ -1,21 +1,9 @@
 const mongoose = require('mongoose');
 
-// Schema para los nodos del árbol (usando Mixed para permitir recursividad)
-const TreeNodeSchema = new mongoose.Schema({
-  value: {
-    type: String,
-    required: true
-  },
-  label: {
-    type: String,
-    required: true
-  },
-  children: [mongoose.Schema.Types.Mixed] // Usar Mixed para estructura recursiva
-}, { _id: false, strict: false });
-
 // Schema principal del árbol
+// Usar Mixed directamente para root para evitar problemas de recursividad
 const TreeSchema = new mongoose.Schema({
-  root: [TreeNodeSchema], // Array de nodos raíz
+  root: [mongoose.Schema.Types.Mixed], // Array de nodos raíz usando Mixed directamente
   name: {
     type: String,
     default: 'tipificaciones'
