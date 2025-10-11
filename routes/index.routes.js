@@ -814,6 +814,18 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
         .limit(5)
         .lean();
       }
+      
+      // 🌳 ACTUALIZAR EL ÁRBOL EN CADA TIPIFICACIÓN DEL HISTORIAL
+      // Reemplazar el árbol viejo con el árbol actual de la BD
+      console.log(`🔄 Actualizando árbol en ${historialPrevio.length} tipificaciones del historial...`);
+      historialPrevio = historialPrevio.map(tip => {
+        return {
+          ...tip,
+          arbol: arbolTipificaciones // ✅ Usar el árbol actual en lugar del viejo
+        };
+      });
+      console.log(`✅ Árbol actualizado en historial (${arbolTipificaciones.length} nodos raíz)`);
+      
     } catch (err) {
       console.error('❌ Error buscando historial de tipificaciones:', err);
     }
