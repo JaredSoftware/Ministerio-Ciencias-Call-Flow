@@ -115,13 +115,20 @@
           <div class="alert alert-info">
             <h6 class="alert-heading">
               <i class="ni ni-bulb-61"></i>
-              Información Importante
+              Formato de Archivo CSV
             </h6>
             <ul class="mb-0 small">
-              <li>Sube un archivo JSON con la estructura completa del árbol</li>
-              <li>O sube un archivo CSV con formato: nivel1,nivel2,nivel3</li>
-              <li>El árbol debe tener la estructura: name, description, version, root[]</li>
-              <li>Usa el botón "Crear Por Defecto" para generar un árbol de ejemplo</li>
+              <li><strong>Primera línea (encabezado):</strong> nivel1,nivel2,nivel3,nivel4,nivel5</li>
+              <li><strong>Siguientes líneas:</strong> tus categorías en orden jerárquico</li>
+              <li><strong>Ejemplo:</strong><br>
+                <code style="font-size: 0.85em;">
+                  Transferencia llamada,Despacho del Ministro,,,<br>
+                  Convocatorias,Información general,,,<br>
+                  Plataforma Red Scienti,Activación de usuario,Crear cuenta,,
+                </code>
+              </li>
+              <li><strong>Importante:</strong> Si Excel no deja celdas vacías, ¡no importa! El sistema las detecta automáticamente</li>
+              <li>Usa el botón "Crear Por Defecto" para ver un ejemplo completo</li>
             </ul>
           </div>
               </div>
@@ -418,8 +425,10 @@ export default {
     },
 
     csvToJson(csvContent) {
-      // Implementación básica de CSV a JSON para árbol
-      // Formato esperado: nivel1,nivel2,nivel3
+      // Implementación flexible de CSV a JSON para árbol
+      // Soporta de 1 a 5 niveles: nivel1,nivel2,nivel3,nivel4,nivel5
+      console.log('📄 Convirtiendo CSV a JSON...');
+      
       const lines = csvContent.split('\n').filter(line => line.trim());
       const tree = {
         name: 'Árbol desde CSV',
@@ -428,56 +437,98 @@ export default {
         root: []
       };
 
+      // Maps para evitar duplicados en cada nivel
       const nivel1Map = new Map();
+      const nivel2Map = new Map();
+      const nivel3Map = new Map();
+      const nivel4Map = new Map();
 
       lines.forEach((line, index) => {
-        if (index === 0) return; // Skip header
+        // Skip header (primera línea)
+        if (index === 0) return;
         
+        // Split y limpiar espacios
         const parts = line.split(',').map(part => part.trim());
-        if (parts.length === 0) return;
-
-        const [nivel1, nivel2, nivel3] = parts;
         
-        // Crear o obtener nodo de nivel 1
+        // Si la línea está vacía o no tiene nivel1, saltarla
+        if (parts.length === 0 || !parts[0]) return;
+
+        const [nivel1, nivel2, nivel3, nivel4, nivel5] = parts;
+        
+        console.log(`Línea ${index}: ${nivel1} > ${nivel2 || ''} > ${nivel3 || ''} > ${nivel4 || ''} > ${nivel5 || ''}`);
+        
+        // ====== NIVEL 1 ======
         if (!nivel1Map.has(nivel1)) {
           const node1 = {
-            id: `nivel1_${nivel1Map.size + 1}`,
+            value: nivel1.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
             label: nivel1,
-            level: 1,
             children: []
           };
           nivel1Map.set(nivel1, node1);
           tree.root.push(node1);
         }
-
         const node1 = nivel1Map.get(nivel1);
 
-        // Agregar nivel 2 si existe
+        // ====== NIVEL 2 ======
         if (nivel2) {
-          let node2 = node1.children.find(n => n.label === nivel2);
-          if (!node2) {
-            node2 = {
-              id: `nivel2_${node1.children.length + 1}`,
+          const nivel2Key = `${nivel1}|${nivel2}`;
+          
+          if (!nivel2Map.has(nivel2Key)) {
+            const node2 = {
+              value: nivel2.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
               label: nivel2,
-              level: 2,
               children: []
             };
+            nivel2Map.set(nivel2Key, node2);
             node1.children.push(node2);
           }
+          const node2 = nivel2Map.get(nivel2Key);
 
-          // Agregar nivel 3 si existe
+          // ====== NIVEL 3 ======
           if (nivel3) {
-            const node3 = {
-              id: `nivel3_${node2.children.length + 1}`,
-              label: nivel3,
-              level: 3,
-              children: []
-            };
-            node2.children.push(node3);
+            const nivel3Key = `${nivel1}|${nivel2}|${nivel3}`;
+            
+            if (!nivel3Map.has(nivel3Key)) {
+              const node3 = {
+                value: nivel3.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
+                label: nivel3,
+                children: []
+              };
+              nivel3Map.set(nivel3Key, node3);
+              node2.children.push(node3);
+            }
+            const node3 = nivel3Map.get(nivel3Key);
+
+            // ====== NIVEL 4 ======
+            if (nivel4) {
+              const nivel4Key = `${nivel1}|${nivel2}|${nivel3}|${nivel4}`;
+              
+              if (!nivel4Map.has(nivel4Key)) {
+                const node4 = {
+                  value: nivel4.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
+                  label: nivel4,
+                  children: []
+                };
+                nivel4Map.set(nivel4Key, node4);
+                node3.children.push(node4);
+              }
+              const node4 = nivel4Map.get(nivel4Key);
+
+              // ====== NIVEL 5 ======
+              if (nivel5) {
+                const node5 = {
+                  value: nivel5.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
+                  label: nivel5,
+                  children: []
+                };
+                node4.children.push(node5);
+              }
+            }
           }
         }
       });
 
+      console.log(`✅ CSV convertido: ${tree.root.length} nodos raíz`);
       return tree;
     },
 
