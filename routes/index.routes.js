@@ -337,6 +337,36 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     // Actualizar params con el ID real
     params.idAgent = idAgentReal;
 
+    // 🔧 DECODIFICAR CARACTERES ESPECIALES (tildes, acentos, etc.)
+    const decodeHtmlEntities = (text) => {
+      if (!text) return text;
+      
+      const entities = {
+        '&aacute;': 'á', '&eacute;': 'é', '&iacute;': 'í', '&oacute;': 'ó', '&uacute;': 'ú',
+        '&Aacute;': 'Á', '&Eacute;': 'É', '&Iacute;': 'Í', '&Oacute;': 'Ó', '&Uacute;': 'Ú',
+        '&ntilde;': 'ñ', '&Ntilde;': 'Ñ', '&uuml;': 'ü', '&Uuml;': 'Ü',
+        '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'"
+      };
+      
+      return text.replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
+        return entities[entity] || entity;
+      });
+    };
+    
+    // Decodificar todos los campos de texto que pueden contener tildes
+    const fieldsToDecode = [
+      'nombres', 'apellidos', 'observacion', 'nivel1', 'nivel2', 'nivel3', 'nivel4', 'nivel5',
+      'pais', 'departamento', 'ciudad', 'direccion', 'sexo', 'nivelEscolaridad', 
+      'grupoEtnico', 'discapacidad'
+    ];
+    
+    fieldsToDecode.forEach(field => {
+      if (params[field]) {
+        params[field] = decodeHtmlEntities(params[field]);
+        console.log(`🔤 Campo ${field} decodificado:`, params[field]);
+      }
+    });
+
     // 🎯 CRM: BUSCAR CLIENTE EXISTENTE POR CÉDULA
     let clienteExistente = null;
     let historialCliente = [];
@@ -1743,20 +1773,30 @@ router.post('/api/tree/create', requireAdmin, async (req, res) => {
     // Actualizar o crear el árbol en la base de datos
     const Tree = require('../models/tree');
     
-    // Desactivar árboles existentes
-    await Tree.updateMany({}, { isActive: false });
-    console.log('✅ Árboles anteriores desactivados');
+    // Buscar el árbol existente para actualizarlo
+    let existingTree = await Tree.findOne({ name: 'tipificaciones' });
     
-    // Crear nuevo árbol
-    const newTree = new Tree({
-      name: 'tipificaciones',
-      description: 'Árbol de tipificaciones actualizado',
-      isActive: true,
-      root: treeData
-    });
-    
-    const savedTree = await newTree.save();
-    console.log('✅ Nuevo árbol creado:', savedTree._id);
+    if (existingTree) {
+      // ✅ ACTUALIZAR el árbol existente
+      existingTree.description = 'Árbol de tipificaciones actualizado';
+      existingTree.isActive = true;
+      existingTree.root = treeData;
+      existingTree.updatedAt = new Date();
+      
+      const savedTree = await existingTree.save();
+      console.log('✅ Árbol existente actualizado:', savedTree._id);
+    } else {
+      // Solo crear si no existe
+      const newTree = new Tree({
+        name: 'tipificaciones',
+        description: 'Árbol de tipificaciones actualizado',
+        isActive: true,
+        root: treeData
+      });
+      
+      const savedTree = await newTree.save();
+      console.log('✅ Nuevo árbol creado:', savedTree._id);
+    }
     
     res.json({
       success: true,
@@ -2002,40 +2042,50 @@ router.post('/api/tree/upload', async (req, res) => {
     // Actualizar o crear el árbol en la base de datos
     const Tree = require('../models/tree');
     
-    // Desactivar árboles existentes
-    await Tree.updateMany({}, { isActive: false });
-    console.log('🧹 Árboles anteriores desactivados');
+    // Buscar el árbol existente para actualizarlo
+    let existingTree = await Tree.findOne({ name: 'tipificaciones' });
     
-    // Crear nuevo árbol
     const treeName = tree.name || 'tipificaciones';
     const treeDescription = tree.description || `Árbol subido desde ${fileName || 'archivo'} el ${new Date().toLocaleDateString()}`;
     
-    console.log('📝 Creando árbol con datos:', {
+    console.log('📝 Procesando árbol con datos:', {
       name: treeName,
       description: treeDescription,
       rootLength: treeData.length,
       firstNode: treeData[0]
     });
     
-    const newTree = new Tree({
-      root: treeData,
-      name: treeName,
-      description: treeDescription,
-      isActive: true,
-      version: tree.version || '1.0'
-    });
-    
-    // Marcar root como modificado (importante para Mixed types)
-    newTree.markModified('root');
-    
-    await newTree.save();
-    console.log('✅ Nuevo árbol guardado en la base de datos');
-    console.log('📊 Árbol guardado tiene:', newTree.root.length, 'nodos raíz');
-    
-    // Verificar inmediatamente que se guardó correctamente (con .lean() para ver datos puros)
-    const verificacion = await Tree.findById(newTree._id).lean();
-    console.log('🔍 Verificación inmediata:', verificacion.root.length, 'nodos raíz en BD');
-    console.log('🔍 Primeros 2 nodos verificados:', JSON.stringify(verificacion.root.slice(0, 2), null, 2));
+    if (existingTree) {
+      // ✅ ACTUALIZAR el árbol existente
+      existingTree.description = treeDescription;
+      existingTree.isActive = true;
+      existingTree.root = treeData;
+      existingTree.updatedAt = new Date();
+      
+      const savedTree = await existingTree.save();
+      console.log('✅ Árbol existente actualizado:', savedTree._id);
+    } else {
+      // Solo crear si no existe
+      const newTree = new Tree({
+        root: treeData,
+        name: treeName,
+        description: treeDescription,
+        isActive: true,
+        version: tree.version || '1.0'
+      });
+      
+      // Marcar root como modificado (importante para Mixed types)
+      newTree.markModified('root');
+      
+      const savedTree = await newTree.save();
+      console.log('✅ Nuevo árbol creado:', savedTree._id);
+      console.log('📊 Árbol guardado tiene:', savedTree.root.length, 'nodos raíz');
+      
+      // Verificar inmediatamente que se guardó correctamente (con .lean() para ver datos puros)
+      const verificacion = await Tree.findById(savedTree._id).lean();
+      console.log('🔍 Verificación inmediata:', verificacion.root.length, 'nodos raíz en BD');
+      console.log('🔍 Primeros 2 nodos verificados:', JSON.stringify(verificacion.root.slice(0, 2), null, 2));
+    }
     
     res.json({
       success: true,
