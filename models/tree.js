@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-// Schema para los nodos del árbol (recursivo)
+// Schema para los nodos del árbol (usando Mixed para permitir recursividad)
 const TreeNodeSchema = new mongoose.Schema({
   value: {
     type: String,
@@ -10,8 +10,8 @@ const TreeNodeSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  children: [this] // Referencia recursiva para permitir estructura anidada
-}, { _id: false });
+  children: [mongoose.Schema.Types.Mixed] // Usar Mixed para estructura recursiva
+}, { _id: false, strict: false });
 
 // Schema principal del árbol
 const TreeSchema = new mongoose.Schema({
