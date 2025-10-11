@@ -420,7 +420,8 @@ export default {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target.result);
         reader.onerror = (e) => reject(e);
-        reader.readAsText(file);
+        // 🔧 Especificar codificación UTF-8 para evitar corrupción de caracteres
+        reader.readAsText(file, 'UTF-8');
       });
     },
 
@@ -428,6 +429,57 @@ export default {
       // Implementación flexible de CSV a JSON para árbol
       // Soporta de 1 a 5 niveles: nivel1,nivel2,nivel3,nivel4,nivel5
       console.log('📄 Convirtiendo CSV a JSON...');
+      
+      // 🔧 DECODIFICAR CARACTERES ESPECIALES EN EL FRONTEND
+      const decodeText = (text) => {
+        if (!text) return text;
+        
+        try {
+          let decoded = text;
+          
+          // Si contiene caracteres de reemplazo UTF-8, intentar recuperar
+          if (text.includes('')) {
+            console.log(`🔧 Frontend: Detectado carácter de reemplazo UTF-8 en "${text}"`);
+            // En el frontend, intentar decodificar desde diferentes codificaciones
+            try {
+              // Crear un nuevo TextDecoder para UTF-8
+              const bytes = new Uint8Array(text.length);
+              for (let i = 0; i < text.length; i++) {
+                bytes[i] = text.charCodeAt(i);
+              }
+              decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+              console.log(`🔧 Frontend: UTF-8 decoded: "${text}" → "${decoded}"`);
+            } catch (e) {
+              console.log(`❌ Frontend: UTF-8 decode falló: ${e.message}`);
+            }
+          }
+          
+          // Decodificar HTML entities
+          const entities = {
+            '&aacute;': 'á', '&eacute;': 'é', '&iacute;': 'í', '&oacute;': 'ó', '&uacute;': 'ú',
+            '&Aacute;': 'Á', '&Eacute;': 'É', '&Iacute;': 'Í', '&Oacute;': 'Ó', '&Uacute;': 'Ú',
+            '&ntilde;': 'ñ', '&Ntilde;': 'Ñ', '&uuml;': 'ü', '&Uuml;': 'Ü',
+            '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'",
+            '&#225;': 'á', '&#233;': 'é', '&#237;': 'í', '&#243;': 'ó', '&#250;': 'ú',
+            '&#193;': 'Á', '&#201;': 'É', '&#205;': 'Í', '&#211;': 'Ó', '&#218;': 'Ú',
+            '&#241;': 'ñ', '&#209;': 'Ñ'
+          };
+          
+          decoded = decoded.replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
+            return entities[entity] || entity;
+          });
+          
+          // Limpiar espacios extra
+          decoded = decoded.replace(/\s+/g, ' ').trim();
+          
+          console.log(`📤 Frontend: Final: "${text}" → "${decoded}"`);
+          return decoded;
+          
+        } catch (error) {
+          console.error(`❌ Frontend: Error decodificando texto "${text}":`, error);
+          return text;
+        }
+      };
       
       const lines = csvContent.split('\n').filter(line => line.trim());
       const tree = {
@@ -453,7 +505,13 @@ export default {
         // Si la línea está vacía o no tiene nivel1, saltarla
         if (parts.length === 0 || !parts[0]) return;
 
-        const [nivel1, nivel2, nivel3, nivel4, nivel5] = parts;
+        // 🔧 DECODIFICAR CADA NIVEL ANTES DE PROCESAR
+        const [nivel1Raw, nivel2Raw, nivel3Raw, nivel4Raw, nivel5Raw] = parts;
+        const nivel1 = decodeText(nivel1Raw);
+        const nivel2 = nivel2Raw ? decodeText(nivel2Raw) : nivel2Raw;
+        const nivel3 = nivel3Raw ? decodeText(nivel3Raw) : nivel3Raw;
+        const nivel4 = nivel4Raw ? decodeText(nivel4Raw) : nivel4Raw;
+        const nivel5 = nivel5Raw ? decodeText(nivel5Raw) : nivel5Raw;
         
         console.log(`Línea ${index}: ${nivel1} > ${nivel2 || ''} > ${nivel3 || ''} > ${nivel4 || ''} > ${nivel5 || ''}`);
         
@@ -461,7 +519,7 @@ export default {
         if (!nivel1Map.has(nivel1)) {
           const node1 = {
             value: nivel1.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-            label: nivel1,
+            label: nivel1, // ✅ Usar el nivel decodificado
             children: []
           };
           nivel1Map.set(nivel1, node1);
@@ -476,7 +534,7 @@ export default {
           if (!nivel2Map.has(nivel2Key)) {
             const node2 = {
               value: nivel2.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-              label: nivel2,
+              label: nivel2, // ✅ Usar el nivel decodificado
               children: []
             };
             nivel2Map.set(nivel2Key, node2);
@@ -491,7 +549,7 @@ export default {
             if (!nivel3Map.has(nivel3Key)) {
               const node3 = {
                 value: nivel3.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-                label: nivel3,
+                label: nivel3, // ✅ Usar el nivel decodificado
                 children: []
               };
               nivel3Map.set(nivel3Key, node3);
@@ -506,7 +564,7 @@ export default {
               if (!nivel4Map.has(nivel4Key)) {
                 const node4 = {
                   value: nivel4.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-                  label: nivel4,
+                  label: nivel4, // ✅ Usar el nivel decodificado
                   children: []
                 };
                 nivel4Map.set(nivel4Key, node4);
@@ -518,7 +576,7 @@ export default {
               if (nivel5) {
                 const node5 = {
                   value: nivel5.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-                  label: nivel5,
+                  label: nivel5, // ✅ Usar el nivel decodificado
                   children: []
                 };
                 node4.children.push(node5);
