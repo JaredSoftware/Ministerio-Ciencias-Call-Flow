@@ -3,7 +3,7 @@
     <div class="row">
       <div class="col-lg-12">
         <div class="row">
-          <div class="col-lg-3 col-md-6 col-12">
+          <div class="col-lg-4 col-md-6 col-12">
             <card
               :title="stats.money.title"
               :value="stats.money.value"
@@ -14,7 +14,7 @@
               directionReverse
             ></card>
           </div>
-          <div class="col-lg-3 col-md-6 col-12">
+          <div class="col-lg-4 col-md-6 col-12">
             <card
               :title="stats.users.title"
               :value="stats.users.value"
@@ -25,7 +25,7 @@
               directionReverse
             ></card>
           </div>
-          <div class="col-lg-3 col-md-6 col-12">
+          <div class="col-lg-4 col-md-6 col-12">
             <card
               :title="stats.clients.title"
               :value="stats.clients.value"
@@ -34,17 +34,6 @@
               :iconBackground="stats.clients.iconBackground"
               :percentageColor="stats.clients.percentageColor"
               :detail="stats.clients.detail"
-              directionReverse
-            ></card>
-          </div>
-          <div class="col-lg-3 col-md-6 col-12">
-            <card
-              :title="stats.sales.title"
-              :value="stats.sales.value"
-              :percentage="stats.sales.percentage"
-              :iconClass="stats.sales.iconClass"
-              :iconBackground="stats.sales.iconBackground"
-              :detail="stats.sales.detail"
               directionReverse
             ></card>
           </div>
@@ -173,14 +162,6 @@
             </div>
           </div>
         </div>
-        
-        <!-- Validación de Estados -->
-        <div class="row mt-4">
-          <div class="col-12">
-            <StatusValidation />
-          </div>
-        </div>
-        
 
 
       </div>
@@ -192,15 +173,13 @@
 import Card from "@/examples/Cards/Card.vue";
 import websocketService from '@/router/services/websocketService';
 import sessionSync from '@/router/services/sessionSync';
-import StatusValidation from "@/components/StatusValidation.vue";
 import { mqttService } from '@/router/services/mqttService';
 import Chart from 'chart.js/auto';
 
 export default {
   name: "dashboard-default",
   components: {
-    Card,
-    StatusValidation
+    Card
   },
   data() {
     return {
@@ -229,14 +208,6 @@ export default {
           percentageColor: "text-success",
           iconBackground: "bg-gradient-info",
           detail: "desde las 00:00 hrs",
-        },
-        sales: {
-          title: "⏳ Llamadas en Cola",
-          value: "0",
-          percentage: "0%",
-          iconClass: "ni ni-time-alarm",
-          iconBackground: "bg-gradient-warning",
-          detail: "pendientes de asignar",
         },
       },
       mqttTopics: [],
@@ -414,11 +385,6 @@ export default {
       this.stats.clients.percentage = `${cambioTipificaciones > 0 ? '+' : ''}${cambioTipificaciones}%`;
       this.stats.clients.percentageColor = cambioTipificaciones > 0 ? 'text-success' : 'text-danger';
       this.stats.clients.detail = 'comparado con ayer';
-      
-      // Llamadas en Cola
-      this.stats.sales.value = String(data.llamadasEnCola || 0);
-      this.stats.sales.percentage = data.llamadasEnCola > 0 ? 'Activas' : 'Sin cola';
-      this.stats.sales.detail = data.llamadasEnCola > 0 ? 'esperando asignación' : 'sin llamadas pendientes';
       
       // Top Agentes
       this.topAgentes = data.topAgentes || [];

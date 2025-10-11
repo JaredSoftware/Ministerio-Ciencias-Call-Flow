@@ -95,10 +95,10 @@
                 <button 
                   class="btn btn-primary"
                   @click="uploadTree"
-                  :disabled="uploading"
+                  :disabled="!selectedFile || uploading"
                 >
-                  <i class="ni ni-tree-17"></i>
-                  Crear Árbol Predefinido
+                  <i class="ni ni-cloud-upload-95"></i>
+                  Subir Archivo
                 </button>
                 <button 
                   class="btn btn-outline-secondary"
@@ -118,10 +118,10 @@
               Información Importante
             </h6>
             <ul class="mb-0 small">
-              <li>Por ahora, el botón crea un árbol predefinido con categorías comunes</li>
-              <li>Incluye: Consultas, Reclamos, Sugerencias y Solicitudes</li>
-              <li>El árbol se estructura jerárquicamente automáticamente</li>
-              <li>Se puede expandir y personalizar desde la interfaz</li>
+              <li>Sube un archivo JSON con la estructura completa del árbol</li>
+              <li>O sube un archivo CSV con formato: nivel1,nivel2,nivel3</li>
+              <li>El árbol debe tener la estructura: name, description, version, root[]</li>
+              <li>Usa el botón "Crear Por Defecto" para generar un árbol de ejemplo</li>
             </ul>
           </div>
               </div>
@@ -352,26 +352,133 @@ export default {
     },
 
     async uploadTree() {
-      // Por ahora, crear el árbol desde datos predefinidos sin archivo
+      if (!this.selectedFile) {
+        this.showNotification('Por favor selecciona un archivo primero', 'error');
+        return;
+      }
+
       this.uploading = true;
 
       try {
-        const response = await axios.post('/api/tree/create');
+        // Leer el archivo
+        const fileContent = await this.readFile(this.selectedFile);
+        let treeData;
+
+        // Parsear según el tipo de archivo
+        if (this.selectedFile.name.endsWith('.json')) {
+          treeData = JSON.parse(fileContent);
+        } else if (this.selectedFile.name.endsWith('.csv')) {
+          // Convertir CSV a JSON (implementación básica)
+          treeData = this.csvToJson(fileContent);
+        } else {
+          throw new Error('Formato de archivo no soportado');
+        }
+
+        console.log('📤 Subiendo árbol:', treeData);
+
+        // Enviar al servidor
+        const response = await axios.post('/api/tree/upload', {
+          tree: treeData,
+          fileName: this.selectedFile.name
+        });
 
         if (response.data.success) {
           this.showNotification('Árbol actualizado correctamente', 'success');
-          this.addToHistory('Árbol creado', 'Usuario', true, response.data.message);
+          this.addToHistory(
+            'Árbol subido desde archivo', 
+            this.$store.state.user?.name || 'Usuario', 
+            true, 
+            `Archivo: ${this.selectedFile.name}`
+          );
           await this.loadCurrentTree();
           this.clearFile();
         }
       } catch (error) {
         console.error('Error subiendo árbol:', error);
-        const message = error.response?.data?.message || 'Error subiendo archivo';
+        const message = error.response?.data?.message || error.message || 'Error subiendo archivo';
         this.showNotification(message, 'error');
-        this.addToHistory('Error subiendo árbol', this.$store.state.user?.name || 'Usuario', false, message);
+        this.addToHistory(
+          'Error subiendo árbol', 
+          this.$store.state.user?.name || 'Usuario', 
+          false, 
+          message
+        );
       } finally {
         this.uploading = false;
       }
+    },
+
+    readFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (e) => reject(e);
+        reader.readAsText(file);
+      });
+    },
+
+    csvToJson(csvContent) {
+      // Implementación básica de CSV a JSON para árbol
+      // Formato esperado: nivel1,nivel2,nivel3
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      const tree = {
+        name: 'Árbol desde CSV',
+        description: 'Importado desde archivo CSV',
+        version: '1.0',
+        root: []
+      };
+
+      const nivel1Map = new Map();
+
+      lines.forEach((line, index) => {
+        if (index === 0) return; // Skip header
+        
+        const parts = line.split(',').map(part => part.trim());
+        if (parts.length === 0) return;
+
+        const [nivel1, nivel2, nivel3] = parts;
+        
+        // Crear o obtener nodo de nivel 1
+        if (!nivel1Map.has(nivel1)) {
+          const node1 = {
+            id: `nivel1_${nivel1Map.size + 1}`,
+            label: nivel1,
+            level: 1,
+            children: []
+          };
+          nivel1Map.set(nivel1, node1);
+          tree.root.push(node1);
+        }
+
+        const node1 = nivel1Map.get(nivel1);
+
+        // Agregar nivel 2 si existe
+        if (nivel2) {
+          let node2 = node1.children.find(n => n.label === nivel2);
+          if (!node2) {
+            node2 = {
+              id: `nivel2_${node1.children.length + 1}`,
+              label: nivel2,
+              level: 2,
+              children: []
+            };
+            node1.children.push(node2);
+          }
+
+          // Agregar nivel 3 si existe
+          if (nivel3) {
+            const node3 = {
+              id: `nivel3_${node2.children.length + 1}`,
+              label: nivel3,
+              level: 3,
+              children: []
+            };
+            node2.children.push(node3);
+          }
+        }
+      });
+
+      return tree;
     },
 
     async downloadCurrentTree() {

@@ -1863,28 +1863,39 @@ router.get('/api/tree', async (req, res) => {
 // Endpoint para subir archivo JSON del árbol de tipificación (sin multer para evitar errores)
 router.post('/api/tree/upload', async (req, res) => {
   try {
-    console.log('📤 Creando árbol de tipificación desde datos predefinidos...');
+    console.log('📤 Subiendo árbol de tipificación desde cliente...');
     
-    // Crear un árbol simple desde datos CSV predefinidos
-    const csvData = [
-      { nivel1: 'Consulta', nivel2: 'General', nivel3: '', nivel4: '', nivel5: '' },
-      { nivel1: 'Consulta', nivel2: 'Académica', nivel3: 'Matrícula', nivel4: '', nivel5: '' },
-      { nivel1: 'Consulta', nivel2: 'Académica', nivel3: 'Programas', nivel4: '', nivel5: '' },
-      { nivel1: 'Consulta', nivel2: 'Administrativa', nivel3: 'Pagos', nivel4: '', nivel5: '' },
-      { nivel1: 'Reclamo', nivel2: 'Académico', nivel3: 'Calificaciones', nivel4: '', nivel5: '' },
-      { nivel1: 'Reclamo', nivel2: 'Académico', nivel3: 'Profesores', nivel4: '', nivel5: '' },
-      { nivel1: 'Reclamo', nivel2: 'Administrativo', nivel3: 'Servicio', nivel4: '', nivel5: '' },
-      { nivel1: 'Reclamo', nivel2: 'Administrativo', nivel3: 'Atención', nivel4: '', nivel5: '' },
-      { nivel1: 'Sugerencia', nivel2: 'Mejoras', nivel3: '', nivel4: '', nivel5: '' },
-      { nivel1: 'Solicitud', nivel2: 'Información', nivel3: '', nivel4: '', nivel5: '' },
-      { nivel1: 'Solicitud', nivel2: 'Documentos', nivel3: '', nivel4: '', nivel5: '' }
-    ];
+    const { tree, fileName } = req.body;
     
-    console.log('📁 Procesando datos CSV hardcodeados...');
+    if (!tree) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se proporcionó el árbol en la petición'
+      });
+    }
     
-    // Convertir CSV a estructura JSON jerárquica
-    const treeData = csvToJsonTree(csvData);
-    console.log('✅ CSV convertido a estructura JSON jerárquica');
+    console.log(`📁 Procesando árbol desde archivo: ${fileName || 'sin nombre'}...`);
+    
+    let treeData;
+    
+    // Si el árbol viene con estructura completa (name, description, root)
+    if (tree.root && Array.isArray(tree.root)) {
+      console.log('✅ Árbol con estructura completa detectado');
+      treeData = tree.root;
+    } 
+    // Si el árbol es directamente un array de nodos
+    else if (Array.isArray(tree)) {
+      console.log('✅ Árbol como array de nodos detectado');
+      treeData = tree;
+    } 
+    else {
+      return res.status(400).json({
+        success: false,
+        message: 'Formato de árbol inválido. Debe ser un array de nodos o un objeto con propiedad "root"'
+      });
+    }
+    
+    console.log(`📊 Árbol contiene ${treeData.length} nodos raíz`);
     
     // Validar estructura del árbol
     if (!treeData || !Array.isArray(treeData)) {
@@ -1927,28 +1938,29 @@ router.post('/api/tree/upload', async (req, res) => {
     console.log('🧹 Árboles anteriores desactivados');
     
     // Crear nuevo árbol
+    const treeName = tree.name || 'tipificaciones';
+    const treeDescription = tree.description || `Árbol subido desde ${fileName || 'archivo'} el ${new Date().toLocaleDateString()}`;
+    
     const newTree = new Tree({
       root: treeData,
-      name: 'tipificaciones',
-      description: `Árbol de tipificaciones actualizado el ${new Date().toLocaleDateString()}`,
-      isActive: true
+      name: treeName,
+      description: treeDescription,
+      isActive: true,
+      version: tree.version || '1.0'
     });
     
     await newTree.save();
     console.log('✅ Nuevo árbol guardado en la base de datos');
     
-    // Limpiar archivo temporal
-    // Archivo procesado exitosamente
-    
     res.json({
       success: true,
-      message: 'Árbol de tipificación actualizado correctamente',
+      message: `Árbol de tipificación actualizado correctamente desde ${fileName || 'archivo'}`,
       tree: {
         _id: newTree._id,
         name: newTree.name,
         description: newTree.description,
         nodeCount: treeData.length,
-        uploadedBy: req.session.user.name,
+        uploadedBy: req.session?.user?.name || 'Usuario',
         uploadedAt: new Date().toISOString()
       }
     });
