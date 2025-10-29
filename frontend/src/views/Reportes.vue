@@ -14,7 +14,13 @@
         @click="tipoBusqueda = 'fechas'" 
         :class="['btn-tipo', { active: tipoBusqueda === 'fechas' }]"
       >
-        📅 Buscar por Fechas
+        📅 Clientes por Fechas
+      </button>
+      <button 
+        @click="tipoBusqueda = 'tipificaciones'" 
+        :class="['btn-tipo', { active: tipoBusqueda === 'tipificaciones' }]"
+      >
+        📊 Tipificaciones por Fechas
       </button>
     </div>
     
@@ -39,7 +45,7 @@
       </button>
     </div>
     
-    <!-- FILTRO POR FECHAS -->
+    <!-- FILTRO POR FECHAS (Clientes) -->
     <div v-if="tipoBusqueda === 'fechas'" class="filtros-fechas">
       <div class="filtro-grupo">
         <label class="filtro-label text-dark">
@@ -69,14 +75,44 @@
       </button>
     </div>
     
+    <!-- FILTRO POR TIPIFICACIONES -->
+    <div v-if="tipoBusqueda === 'tipificaciones'" class="filtros-fechas">
+      <div class="filtro-grupo">
+        <label class="filtro-label text-dark">
+          <i class="ni ni-calendar-grid-58 icono-filtro"></i>
+          Fecha Inicio
+        </label>
+        <input 
+          type="date" 
+          v-model="fechaInicioTipif" 
+          class="input-filtro bg-white text-dark"
+        />
+      </div>
+      <div class="filtro-grupo">
+        <label class="filtro-label text-dark">
+          <i class="ni ni-calendar-grid-58 icono-filtro"></i>
+          Fecha Fin
+        </label>
+        <input 
+          type="date" 
+          v-model="fechaFinTipif" 
+          class="input-filtro bg-white text-dark"
+        />
+      </div>
+      <button class="btn-buscar" @click="buscarTipificaciones" :disabled="!fechaInicioTipif || !fechaFinTipif">
+        <i class="ni ni-zoom-split-in"></i>
+        Buscar Tipificaciones
+      </button>
+    </div>
+    
     <!-- LOADING -->
     <div v-if="loading" class="loading-estado text-dark">
       <div class="spinner"></div>
       Buscando clientes...
     </div>
     
-    <!-- RESULTADOS -->
-    <div v-if="!loading && clientes.length > 0" class="resultados-container">
+    <!-- RESULTADOS DE CLIENTES -->
+    <div v-if="!loading && tipoBusqueda !== 'tipificaciones' && clientes.length > 0" class="resultados-container">
       <div class="resultados-header">
         <h4 class="text-dark">
           📋 Resultados: {{ clientes.length }} cliente{{ clientes.length > 1 ? 's' : '' }} encontrado{{ clientes.length > 1 ? 's' : '' }}
@@ -141,8 +177,75 @@
       </div>
     </div>
     
+    <!-- RESULTADOS DE TIPIFICACIONES -->
+    <div v-if="!loading && tipoBusqueda === 'tipificaciones' && tipificaciones.length > 0" class="resultados-container">
+      <div class="resultados-header">
+        <h4 class="text-dark">
+          📊 Resultados: {{ tipificaciones.length }} tipificación{{ tipificaciones.length > 1 ? 'es' : '' }} encontrada{{ tipificaciones.length > 1 ? 's' : '' }}
+        </h4>
+        <button class="btn-exportar" @click="exportarTipificacionesCSV">
+          <i class="ni ni-archive-2"></i>
+          Exportar CSV
+        </button>
+      </div>
+      
+      <!-- TABLA DE TIPIFICACIONES -->
+      <div class="tabla-scroll">
+        <table class="tabla-clientes bg-white">
+          <thead>
+            <tr>
+              <th class="text-dark">Fecha</th>
+              <th class="text-dark">Hora</th>
+              <th class="text-dark">Agente</th>
+              <th class="text-dark">Cédula Cliente</th>
+              <th class="text-dark">Nombre Cliente</th>
+              <th class="text-dark">Teléfono</th>
+              <th class="text-dark">Nivel 1</th>
+              <th class="text-dark">Nivel 2</th>
+              <th class="text-dark">Nivel 3</th>
+              <th class="text-dark">Observaciones</th>
+              <th class="text-dark">Duración (min)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="tipif in tipificaciones" :key="tipif._id" class="fila-cliente">
+              <td class="text-dark"><b>{{ formatFecha(tipif.fecha) }}</b></td>
+              <td class="text-dark">{{ formatHora(tipif.fecha) }}</td>
+              <td class="text-dark">{{ tipif.agente?.nombre || '-' }}</td>
+              <td class="text-dark"><b>{{ tipif.cliente?.cedula || '-' }}</b></td>
+              <td class="text-dark">{{ getNombreCompleto(tipif.cliente) }}</td>
+              <td class="text-dark">{{ tipif.cliente?.telefono || '-' }}</td>
+              <td class="text-dark">
+                <span class="badge-nivel1">{{ tipif.nivel1 || '-' }}</span>
+              </td>
+              <td class="text-dark">{{ tipif.nivel2 || '-' }}</td>
+              <td class="text-dark">{{ tipif.nivel3 || '-' }}</td>
+              <td class="text-dark">
+                <div class="observaciones-cell">{{ tipif.observaciones || '-' }}</div>
+              </td>
+              <td class="text-dark">
+                <span class="badge-duracion">{{ tipif.duracionMinutos || 0 }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- PAGINACIÓN TIPIFICACIONES -->
+      <div v-if="hasMoreTipif && !loading" class="paginacion">
+        <button class="btn-cargar-mas" @click="cargarMasTipificaciones">
+          <i class="ni ni-bold-down"></i>
+          Cargar Más ({{ tipificaciones.length }} de {{ totalTipificaciones }})
+        </button>
+      </div>
+      
+      <div v-if="totalTipificaciones > 0" class="total-info text-dark">
+        Mostrando {{ tipificaciones.length }} de {{ totalTipificaciones }} tipificaciones
+      </div>
+    </div>
+    
     <!-- SIN RESULTADOS -->
-    <div v-if="!loading && busquedaRealizada && clientes.length === 0" class="sin-resultados">
+    <div v-if="!loading && busquedaRealizada && clientes.length === 0 && tipificaciones.length === 0" class="sin-resultados">
       <i class="ni ni-fat-remove icono-sin-resultados"></i>
       <p class="text-dark">No se encontraron clientes con los criterios especificados</p>
     </div>
@@ -168,28 +271,39 @@ export default {
   },
   data() {
     return {
-      tipoBusqueda: 'cedula', // 'cedula' o 'fechas'
+      tipoBusqueda: 'cedula', // 'cedula', 'fechas' o 'tipificaciones'
       cedulaBusqueda: '',
       fechaInicio: '',
       fechaFin: '',
+      fechaInicioTipif: '',
+      fechaFinTipif: '',
       clientes: [],
+      tipificaciones: [],
       loading: false,
       busquedaRealizada: false,
       clienteSeleccionado: null,
       mqttTopic: '',
       mqttCallback: null,
+      mqttTopicTipif: '',
+      mqttCallbackTipif: null,
       currentPage: 1,
       totalClientes: 0,
-      hasMore: false
+      hasMore: false,
+      currentPageTipif: 1,
+      totalTipificaciones: 0,
+      hasMoreTipif: false
     };
   },
   async mounted() {
     await this.setupMQTT();
   },
   beforeUnmount() {
-    // Limpiar listener MQTT
+    // Limpiar listeners MQTT
     if (this.mqttTopic && this.mqttCallback) {
       mqttService.off(this.mqttTopic, this.mqttCallback);
+    }
+    if (this.mqttTopicTipif && this.mqttCallbackTipif) {
+      mqttService.off(this.mqttTopicTipif, this.mqttCallbackTipif);
     }
   },
   methods: {
@@ -202,20 +316,28 @@ export default {
         }
         
         this.mqttTopic = `crm/clientes/resultado/${userId}`;
+        this.mqttTopicTipif = `crm/tipificaciones/resultado/${userId}`;
         
         // Asegurar conexión MQTT
         if (!mqttService.isConnected) {
           await mqttService.connect('ws://localhost:9001', userId, this.$store.state.user?.name);
         }
         
-        // Callback para resultados
+        // Callback para resultados de clientes
         this.mqttCallback = (data) => {
-          console.log('📥 Resultados recibidos por MQTT:', data);
+          console.log('📥 Resultados de clientes recibidos por MQTT:', data);
           this.handleResultados(data);
         };
         
+        // Callback para resultados de tipificaciones
+        this.mqttCallbackTipif = (data) => {
+          console.log('📥 Resultados de tipificaciones recibidos por MQTT:', data);
+          this.handleResultadosTipificaciones(data);
+        };
+        
         mqttService.on(this.mqttTopic, this.mqttCallback);
-        console.log('✅ MQTT configurado para reportes:', this.mqttTopic);
+        mqttService.on(this.mqttTopicTipif, this.mqttCallbackTipif);
+        console.log('✅ MQTT configurado para reportes:', this.mqttTopic, this.mqttTopicTipif);
         
       } catch (error) {
         console.error('❌ Error configurando MQTT:', error);
@@ -269,6 +391,43 @@ export default {
       }
     },
     
+    async buscarTipificaciones() {
+      this.loading = true;
+      this.busquedaRealizada = false;
+      this.tipificaciones = [];
+      this.currentPageTipif = 1;
+      
+      try {
+        const userId = this.$store.state.user?.id || this.$store.state.user?._id;
+        
+        console.log('🔍 Buscando tipificaciones para usuario:', userId);
+        
+        if (!userId) {
+          alert('❌ Debes iniciar sesión para buscar tipificaciones');
+          this.loading = false;
+          return;
+        }
+        
+        // 📡 Publicar solicitud por MQTT - Búsqueda de tipificaciones por fechas
+        const topicBusqueda = `crm/tipificaciones/buscar/fechas/${userId}`;
+        mqttService.publish(topicBusqueda, {
+          fechaInicio: this.fechaInicioTipif,
+          fechaFin: this.fechaFinTipif,
+          page: this.currentPageTipif,
+          limit: 100,
+          timestamp: new Date().toISOString()
+        });
+        
+        console.log(`📡 Solicitud de búsqueda de tipificaciones publicada en: ${topicBusqueda}`);
+        console.log(`📅 Rango de fechas: ${this.fechaInicioTipif} a ${this.fechaFinTipif}`);
+        
+      } catch (error) {
+        console.error('❌ Error solicitando búsqueda de tipificaciones:', error);
+        this.loading = false;
+        this.busquedaRealizada = true;
+      }
+    },
+    
     handleResultados(data) {
       this.loading = false;
       this.busquedaRealizada = true;
@@ -287,6 +446,27 @@ export default {
       } else {
         this.clientes = [];
         this.totalClientes = 0;
+      }
+    },
+    
+    handleResultadosTipificaciones(data) {
+      this.loading = false;
+      this.busquedaRealizada = true;
+      
+      if (data.success && data.tipificaciones) {
+        if (data.page === 1) {
+          this.tipificaciones = data.tipificaciones;
+        } else {
+          this.tipificaciones.push(...data.tipificaciones);
+        }
+        
+        this.totalTipificaciones = data.total || data.count;
+        this.hasMoreTipif = data.hasMore || false;
+        
+        console.log(`✅ ${this.tipificaciones.length} tipificaciones en memoria`);
+      } else {
+        this.tipificaciones = [];
+        this.totalTipificaciones = 0;
       }
     },
     
@@ -309,6 +489,27 @@ export default {
       });
       
       console.log(`📡 Solicitud de página ${this.currentPage} publicada por MQTT`);
+    },
+    
+    async cargarMasTipificaciones() {
+      if (!this.hasMoreTipif || this.loading) return;
+      
+      this.currentPageTipif++;
+      this.loading = true;
+      
+      const userId = this.$store.state.user?.id || this.$store.state.user?._id;
+      
+      // 📡 Publicar solicitud de siguiente página por MQTT
+      const topicBusqueda = `crm/tipificaciones/buscar/fechas/${userId}`;
+      mqttService.publish(topicBusqueda, {
+        fechaInicio: this.fechaInicioTipif,
+        fechaFin: this.fechaFinTipif,
+        page: this.currentPageTipif,
+        limit: 100,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log(`📡 Solicitud de página ${this.currentPageTipif} de tipificaciones publicada por MQTT`);
     },
     
     verDetalles(cliente) {
@@ -386,6 +587,77 @@ export default {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    },
+    
+    exportarTipificacionesCSV() {
+      if (this.tipificaciones.length === 0) return;
+      
+      // Crear CSV
+      const headers = [
+        'Fecha',
+        'Hora',
+        'Agente',
+        'Cédula Cliente',
+        'Nombre Cliente',
+        'Teléfono Cliente',
+        'Correo Cliente',
+        'Nivel 1',
+        'Nivel 2',
+        'Nivel 3',
+        'Observaciones',
+        'Duración (minutos)',
+        'ID Tipificación'
+      ];
+      
+      const rows = this.tipificaciones.map(t => [
+        this.formatFecha(t.fecha),
+        this.formatHora(t.fecha),
+        t.agente?.nombre || '',
+        t.cliente?.cedula || '',
+        this.getNombreCompleto(t.cliente),
+        t.cliente?.telefono || '',
+        t.cliente?.correo || '',
+        t.nivel1 || '',
+        t.nivel2 || '',
+        t.nivel3 || '',
+        t.observaciones || '',
+        t.duracionMinutos || 0,
+        t._id || ''
+      ]);
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(field => `"${field}"`).join(','))
+      ].join('\n');
+      
+      // Descargar archivo
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      const fecha = new Date().toISOString().slice(0, 10);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `tipificaciones_${this.fechaInicioTipif}_${this.fechaFinTipif}_${fecha}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    },
+    
+    getNombreCompleto(cliente) {
+      if (!cliente) return '-';
+      const nombres = cliente.nombres || '';
+      const apellidos = cliente.apellidos || '';
+      return `${nombres} ${apellidos}`.trim() || '-';
+    },
+    
+    formatHora(f) {
+      if (!f) return '-';
+      const d = new Date(f);
+      return d.toLocaleTimeString('es-CO', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
     },
     
     formatFecha(f) {
@@ -634,6 +906,32 @@ export default {
   border-radius: 12px;
   font-weight: 600;
   font-size: 0.9rem;
+}
+
+.badge-nivel1 {
+  background: #28a745;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  display: inline-block;
+}
+
+.badge-duracion {
+  background: #ffc107;
+  color: #000;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.observaciones-cell {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .btn-detalle {
