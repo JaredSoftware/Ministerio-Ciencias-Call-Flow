@@ -48,32 +48,29 @@ class EnvironmentConfig {
     return process.env.NODE_ENV === 'development';
   }
 
-  // Obtener URL del backend WebSocket
+  // Obtener URL del backend WebSocket (Socket.IO)
   getWebSocketUrl() {
     if (this.isDevelopment) {
       // En desarrollo, usar localhost con puerto específico
       return 'http://localhost:9035';
     }
     
-    // En producción, usar la misma URL base pero con puerto específico
-    // Asumir que el backend WebSocket corre en el puerto 9035
-    const url = new URL(this.baseUrl);
-    url.port = '9035';
-    return url.toString();
+    // En producción, usar la misma URL base (nginx proxy)
+    // Socket.IO usa la ruta /socket.io/ automáticamente
+    return this.baseUrl;
   }
 
   // Obtener URL del broker MQTT
   getMQTTBrokerUrl() {
     if (this.isDevelopment) {
-      // En desarrollo, usar WebSocket en localhost
+      // En desarrollo, usar WebSocket en localhost con puerto directo
       return 'ws://localhost:9001';
     }
     
-    // En producción, convertir HTTP a WebSocket y usar puerto específico
-    const url = new URL(this.baseUrl);
-    url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-    url.port = '9001';
-    return url.toString();
+    // En producción, usar la ruta /mqtt del proxy nginx
+    const protocol = this.baseUrl.startsWith('https') ? 'wss:' : 'ws:';
+    const host = new URL(this.baseUrl).host;
+    return `${protocol}//${host}/mqtt`;
   }
 
   // Obtener URL base de la API

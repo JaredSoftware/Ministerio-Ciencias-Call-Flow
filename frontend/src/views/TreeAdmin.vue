@@ -417,24 +417,16 @@ export default {
 
     readFile(file) {
       return new Promise((resolve, reject) => {
-        // 🔧 LEER DIRECTAMENTE COMO LATIN1 (ISO-8859-1) - lo que Excel suele usar
         const reader = new FileReader();
         reader.onload = (e) => {
-          const arrayBuffer = e.target.result;
-          const bytes = new Uint8Array(arrayBuffer);
-          
-          // Decodificar manualmente como Latin1 (ISO-8859-1)
-          let content = '';
-          for (let i = 0; i < bytes.length; i++) {
-            content += String.fromCharCode(bytes[i]);
-          }
-          
-          console.log('📄 Archivo leído como Latin1 (ISO-8859-1)');
+          const content = e.target.result;
+          console.log('📄 Archivo leído como UTF-8');
           console.log('📄 Primeros 200 caracteres:', content.substring(0, 200));
           resolve(content);
         };
         reader.onerror = reject;
-        reader.readAsArrayBuffer(file);
+        // Leer como texto UTF-8 (el estándar)
+        reader.readAsText(file, 'UTF-8');
       });
     },
 
@@ -461,13 +453,13 @@ export default {
         // Skip header (primera línea)
         if (index === 0) return;
         
-        // Split y limpiar espacios (el archivo ya viene en Latin1 correcto)
+        // Split y limpiar espacios
         const parts = line.split(',').map(part => part.trim());
         
         // Si la línea está vacía o no tiene nivel1, saltarla
         if (parts.length === 0 || !parts[0]) return;
 
-        // Ya no necesitamos decodificar porque leímos el archivo como Latin1
+        // El archivo ya viene correctamente decodificado como UTF-8
         const [nivel1, nivel2, nivel3, nivel4, nivel5] = parts;
         
         console.log(`Línea ${index}: ${nivel1} > ${nivel2 || ''} > ${nivel3 || ''} > ${nivel4 || ''} > ${nivel5 || ''}`);
@@ -475,8 +467,8 @@ export default {
         // ====== NIVEL 1 ======
         if (!nivel1Map.has(nivel1)) {
           const node1 = {
-            value: nivel1.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-            label: nivel1, // ✅ Usar el nivel decodificado
+            value: nivel1.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_áéíóúñü]/g, ''),
+            label: nivel1,
             children: []
           };
           nivel1Map.set(nivel1, node1);
@@ -490,8 +482,8 @@ export default {
           
           if (!nivel2Map.has(nivel2Key)) {
             const node2 = {
-              value: nivel2.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-              label: nivel2, // ✅ Usar el nivel decodificado
+              value: nivel2.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_áéíóúñü]/g, ''),
+              label: nivel2,
               children: []
             };
             nivel2Map.set(nivel2Key, node2);
@@ -505,8 +497,8 @@ export default {
             
             if (!nivel3Map.has(nivel3Key)) {
               const node3 = {
-                value: nivel3.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-                label: nivel3, // ✅ Usar el nivel decodificado
+                value: nivel3.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_áéíóúñü]/g, ''),
+                label: nivel3,
                 children: []
               };
               nivel3Map.set(nivel3Key, node3);
@@ -520,8 +512,8 @@ export default {
               
               if (!nivel4Map.has(nivel4Key)) {
                 const node4 = {
-                  value: nivel4.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-                  label: nivel4, // ✅ Usar el nivel decodificado
+                  value: nivel4.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_áéíóúñü]/g, ''),
+                  label: nivel4,
                   children: []
                 };
                 nivel4Map.set(nivel4Key, node4);
@@ -532,8 +524,8 @@ export default {
               // ====== NIVEL 5 ======
               if (nivel5) {
                 const node5 = {
-                  value: nivel5.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''),
-                  label: nivel5, // ✅ Usar el nivel decodificado
+                  value: nivel5.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_áéíóúñü]/g, ''),
+                  label: nivel5,
                   children: []
                 };
                 node4.children.push(node5);

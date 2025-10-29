@@ -55,11 +55,6 @@
                         @update:modelValue="(newValue) => (password = newValue)"
                       />
                     </div>
-                    <argon-switch
-                      :modelValue="rememberme"
-                      @update:modelValue="(newValue) => (rememberme = newValue)"
-                      >Remember me</argon-switch
-                    >
 
                     <div class="text-center">
                       <argon-button
@@ -108,7 +103,6 @@
 <script>
 //import Navbar from "@/examples/PageLayout/Navbar.vue";
 import ArgonInput from "@/components/ArgonInput.vue";
-import ArgonSwitch from "@/components/ArgonSwitch.vue";
 import ArgonButton from "@/components/ArgonButton.vue";
 import Login from "@/router/services/LoginService";
 import sessionSync from "@/router/services/sessionSync";
@@ -123,7 +117,6 @@ export default {
     return {
       email: "",
       password: "",
-      rememberme: false,
       passwordDisabled: false,
       emailDisabled: false,
     };
@@ -148,28 +141,9 @@ export default {
           this.setToken(token);
           this.setRole(getInfoForLogin.role.nombre)
           this.setRoleToken(getInfoForLogin.tokenRole);
-          localStorage.setItem('user', qs.stringify(getInfoForLogin.user));
+          // Cambio a sessionStorage para que cada pestaña sea independiente
+          sessionStorage.setItem('user', qs.stringify(getInfoForLogin.user));
           
-          // Si se marcó el remember me, guardar un cookie con el token
-          if (this.rememberme) {
-            const cookieValue = encodeURIComponent(token);
-            const maxAge = 60 * 60 * 24 * 7; // 7 días
-            document.cookie = `rememberMe=${cookieValue};max-age=${maxAge};path=/;domain=localhost;SameSite=Lax`;
-            console.log('🍪 Cookie Remember Me creada:', {
-              name: 'rememberMe',
-              value: cookieValue.substring(0, 20) + '...',
-              maxAge: maxAge,
-              path: '/',
-              domain: 'localhost'
-            });
-            
-            // Verificar que se creó correctamente
-            const testCookie = document.cookie
-              .split(";")
-              .find((cookie) => cookie.trim().startsWith("rememberMe="));
-            console.log('✅ Cookie verificada:', !!testCookie);
-          }
-
           // SINCRONIZAR SESIÓN EXPRESS ANTES DE REDIRIGIR
           console.log('🔄 Sincronizando sesión con Express...');
           try {
@@ -202,7 +176,6 @@ export default {
     //Navbar,
     ArgonAlert,
     ArgonInput,
-    ArgonSwitch,
     ArgonButton,
   },
   created() {

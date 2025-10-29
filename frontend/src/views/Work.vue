@@ -410,37 +410,6 @@
               <span class="text-dark" v-if="item.nivel5"> &raquo; {{ item.nivel5 }}</span>
             </p>
             <p class="text-dark"><strong class="text-dark">Fecha:</strong> <span class="badge-date">{{ formatDate(item.createdAt) }}</span></p>
-            <!-- Mostrar sub-historial si existe -->
-            <div v-if="Array.isArray(item.historial) && item.historial.length > 0" class="sub-history-list">
-              <strong>Sub-historial:</strong>
-              <ul>
-                <li v-for="(sub, subIdx) in item.historial" :key="sub._id || subIdx">
-                  <span><b>ID:</b> {{ sub.idLlamada }}</span> |
-                  <span><b>{{ sub.tipoDocumento }}:</b> {{ sub.cedula }}</span> |
-                  <span><b>Obs:</b> {{ sub.observacion || 'Sin observaciones' }}</span> |
-                  <span><b>Fecha:</b> {{ formatDate(sub.createdAt) }}</span>
-                </li>
-              </ul>
-            </div>
-            <!-- Mostrar árbol/arbol si existe -->
-            <div v-if="Array.isArray(item.arbol) && item.arbol.length > 0" class="arbol-list">
-              <strong>Árbol de Tipificación:</strong>
-              <ul>
-                <li v-for="(nodo, nodoIdx) in item.arbol" :key="nodo.value || nodoIdx">
-                  {{ nodo.label }} ({{ nodo.value }})
-                  <ul v-if="nodo.children && nodo.children.length > 0">
-                    <li v-for="(child, childIdx) in nodo.children" :key="child.value || childIdx">
-                      {{ child.label }} ({{ child.value }})
-                      <ul v-if="child.children && child.children.length > 0">
-                        <li v-for="(subchild, subchildIdx) in child.children" :key="subchild.value || subchildIdx">
-                          {{ subchild.label }} ({{ subchild.value }})
-                        </li>
-                      </ul>
-                    </li>
-                  </ul>
-                </li>
-              </ul>
-            </div>
           </div>
           </div>
         </div>
@@ -453,7 +422,7 @@
 import axios from '@/router/services/axios';
 import toastMixin from '@/mixins/toastMixin';
 import { mqttService } from '@/router/services/mqttService';
-import statusService from '@/services/statusService';
+import statusTypes from '@/router/services/statusTypes';
 
 export default {
   name: 'Work',
@@ -1018,13 +987,72 @@ export default {
         mqttService.on(topic, callback);
         this.mqttTopic = topic;
       }
+    },
+    
+    // 🔒 WATCHER PARA VALIDAR QUE EL USUARIO TENGA EL ESTADO CORRECTO PARA WORK
+    '$store.state.userStatus.status': {
+      handler(newStatus, oldStatus) {
+        // Solo validar si ya estamos montados y el estado cambió realmente
+        if (!this._isMounted || newStatus === oldStatus) {
+          return;
+        }
+        
+        console.log('🔍 CAMBIO DE ESTADO DETECTADO EN WORK');
+        console.log('   - Estado anterior:', oldStatus);
+        console.log('   - Estado nuevo:', newStatus);
+        
+        // No validar si los estados aún no están cargados
+        if (!statusTypes.statuses || statusTypes.statuses.length === 0) {
+          console.log('⚠️ Estados aún no cargados - no validando');
+          return;
+        }
+        
+        if (!newStatus) {
+          console.warn('⚠️ Usuario sin estado definido, redirigiendo a dashboard');
+          this.showToast('No tienes un estado asignado. Por favor, selecciona un estado.', 'warning');
+          
+          // Limpiar formulario y datos antes de redirigir
+          this.limpiarTipificacion();
+          this.tipificacionActiva = false;
+          this.showModal = false;
+          
+          this.$router.push('/dashboard');
+          return;
+        }
+        
+        // Validar si el estado actual es de categoría 'work'
+        const statusObj = statusTypes.getStatusByValue(newStatus);
+        
+        console.log('📋 Estado encontrado:', statusObj);
+        console.log('   - Categoría:', statusObj?.category);
+        
+        // Solo bloquear si el estado tiene una categoría definida que NO es 'work'
+        // Permitir estados 'custom' (estados dinámicos no reconocidos)
+        if (statusObj && statusObj.category && statusObj.category !== 'work' && statusObj.category !== 'custom') {
+          console.warn('⚠️ Estado actual NO es de categoría WORK, redirigiendo a dashboard');
+          console.log('   - Estado actual:', newStatus);
+          console.log('   - Categoría:', statusObj.category);
+          
+          this.showToast('Tu estado cambió a uno que no permite acceder a Work. Has sido redirigido al Dashboard.', 'warning');
+          
+          // Limpiar formulario y datos antes de redirigir
+          this.limpiarTipificacion();
+          this.tipificacionActiva = false;
+          this.showModal = false;
+          
+          // Redirigir al dashboard
+          this.$router.push('/dashboard');
+        } else {
+          console.log('✅ Estado válido para Work - Categoría:', statusObj?.category || 'custom/desconocido');
+        }
+      }
     }
   },
   async mounted() {
-    // Cargar usuario desde localStorage si no está en el store
+    // Cargar usuario desde sessionStorage si no está en el store
     let user = this.$store.state.user;
     if (!user) {
-      const userStr = localStorage.getItem('user');
+      const userStr = sessionStorage.getItem('user');
       if (userStr) {
         try {
           const userParams = new URLSearchParams(userStr);
@@ -1040,29 +1068,69 @@ export default {
       }
     }
 
-    // Validar estado del usuario para recibir tipificaciones
-    const userId = user?._id;
-    if (userId) {
-      const isAvailable = await statusService.validateCurrentUserForWork(userId);
-      if (!isAvailable) {
-        this.showToast('Tu estado actual no permite recibir tipificaciones. Cambia a un estado de trabajo.', 'warning');
+    // 🔒 VALIDACIÓN INICIAL: Verificar que el usuario tenga un estado de categoría 'work'
+    const currentStatus = this.$store.state.userStatus?.status;
+    console.log('🔍 VALIDACIÓN INICIAL EN WORK - Estado actual:', currentStatus);
+    
+    // Solo validar si el estado existe y statusTypes tiene estados cargados
+    if (currentStatus && statusTypes.statuses && statusTypes.statuses.length > 0) {
+      const statusObj = statusTypes.getStatusByValue(currentStatus);
+      
+      console.log('📋 Estado encontrado:', statusObj);
+      console.log('   - Categoría:', statusObj?.category);
+      
+      // Solo bloquear si encontramos el estado Y su categoría NO es 'work' Y NO es 'custom'
+      if (statusObj && statusObj.category !== 'work' && statusObj.category !== 'custom') {
+        console.warn('⚠️ Estado actual NO es de categoría WORK al entrar');
+        console.log('   - Estado:', currentStatus);
+        console.log('   - Categoría:', statusObj.category);
+        this.showToast('Tu estado actual no permite acceder a Work. Por favor, cambia a un estado de trabajo.', 'warning');
+        this.$router.push('/dashboard');
+        return;
       }
+      
+      console.log('✅ Usuario tiene estado válido para Work:', statusObj?.label || currentStatus);
+    } else {
+      console.log('⚠️ Estados aún no cargados o usuario sin estado - permitiendo acceso');
     }
+
+    // ✅ Validación del frontend ya completada arriba
+    // La validación del estado se hace con statusTypes.getStatusByValue()
+    // No necesitamos validación adicional del backend aquí
+    console.log('✅ Validación de estado completada - permitiendo acceso a Work');
     
     // Inicializar componente
     this.initializeArbol();
     this.loadHistorial();
     this.setupMQTT();
+    
+    // Marcar que el componente está montado
+    this._isMounted = true;
+    console.log('✅ Componente Work montado completamente');
+    
+    // 🔥 PROCESAR TIPIFICACIÓN PENDIENTE SI EXISTE
+    const pendingTipificacion = this.$store.state.pendingTipificacion;
+    if (pendingTipificacion) {
+      console.log('🔥🔥🔥 TIPIFICACIÓN PENDIENTE DETECTADA, PROCESANDO...', pendingTipificacion);
+      // Procesar inmediatamente
+      this.handleNuevaTipificacion(pendingTipificacion);
+      // Limpiar del store
+      this.$store.commit('clearPendingTipificacion');
+    } else {
+      console.log('✅ No hay tipificación pendiente al montar Work');
+    }
   },
   beforeUnmount() {
+    // Marcar que el componente se está desmontando
+    this._isMounted = false;
+    
     // Limpiar listener MQTT si existe
     if (this.mqttTopic && this.mqttCallback) {
       mqttService.off(this.mqttTopic, this.mqttCallback);
       this.mqttCallback = null;
     }
     
-    
-    // Desmontando componente
+    console.log('🔚 Componente Work desmontado');
   }
 };
 </script>

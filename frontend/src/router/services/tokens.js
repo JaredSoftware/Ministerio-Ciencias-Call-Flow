@@ -12,7 +12,7 @@ export default {
 	},
 	//roles
 	sendRole: async () => {
-		const token = localStorage.getItem("token") || localStorage.getItem("TokenRole");
+		const token = sessionStorage.getItem("token") || sessionStorage.getItem("TokenRole") || localStorage.getItem("token") || localStorage.getItem("TokenRole");
 		
 		// Cache del rol para evitar requests innecesarios
 		const cachedRole = localStorage.getItem('cachedRole');
@@ -63,7 +63,7 @@ export default {
 	},
 	sendRoles: async () => {
 		let data = {
-			'token': localStorage.getItem("TokenRole")
+			'token': sessionStorage.getItem("TokenRole") || localStorage.getItem("TokenRole")
 		};
 
 		const info = await axios.post("/roles",data)

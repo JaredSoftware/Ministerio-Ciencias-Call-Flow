@@ -22,13 +22,15 @@ export default createStore({
     user: null, // Usuario actual
     //remember me
     rememberMe: false,
-    token: sessionStorage.getItem('token') || '',
+    token: sessionStorage.getItem('token') || '', // Solo sessionStorage - cada pestaña es independiente
     // User status
     userStatus: {
       status: null, // Se cargará dinámicamente desde el backend
       customStatus: null,
       lastActivity: null
     },
+    // Tipificación pendiente (se guarda temporalmente cuando llega antes de que Work se monte)
+    pendingTipificacion: null,
   },
   mutations: {
     toggleConfigurator(state) {
@@ -69,26 +71,29 @@ export default createStore({
     //remember me
     setToken(state, token) {
       state.token = token;
-      localStorage.setItem('token', token);
+      // Cambio a sessionStorage para que cada pestaña sea independiente
+      sessionStorage.setItem('token', token);
     },
     clearToken(state) {
       state.token = '';
-      localStorage.removeItem('token');
+      sessionStorage.removeItem('token');
     },
     setRememberMe(state, value) {
       state.rememberMe = value;
     },
     setRole(state, role) {
       state.role = role;
-      localStorage.setItem('role', role);
+      // Cambio a sessionStorage para que cada pestaña sea independiente
+      sessionStorage.setItem('role', role);
     },
     setRoleToken(state, tokenRole) {
       state.TokenRole = tokenRole;
-      localStorage.setItem('TokenRole', tokenRole);
+      // Cambio a sessionStorage para que cada pestaña sea independiente
+      sessionStorage.setItem('TokenRole', tokenRole);
     },
     clearRole(state) {
       state.role = '';
-      localStorage.removeItem('role');
+      sessionStorage.removeItem('role');
     },
     // User mutations
     setUser(state, user) {
@@ -100,6 +105,14 @@ export default createStore({
     },
     updateUserStatus(state, status) {
       state.userStatus.status = status;
+    },
+    setPendingTipificacion(state, tipificacionData) {
+      state.pendingTipificacion = tipificacionData;
+      console.log('💾 Tipificación pendiente guardada en store:', tipificacionData?.idLlamada);
+    },
+    clearPendingTipificacion(state) {
+      state.pendingTipificacion = null;
+      console.log('🗑️ Tipificación pendiente limpiada del store');
     },
   },
   actions: {

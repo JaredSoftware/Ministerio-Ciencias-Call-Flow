@@ -501,9 +501,9 @@ export default {
 
     getCurrentUserId() {
       try {
-        // Obtener el ID del usuario actual desde el localStorage o store
-        const userDataString = localStorage.getItem('user');
-        console.log('🔍 userDataString del localStorage:', userDataString);
+        // Obtener el ID del usuario actual desde el sessionStorage o store
+        const userDataString = sessionStorage.getItem('user');
+        console.log('🔍 userDataString del sessionStorage:', userDataString);
         
         if (userDataString && userDataString.trim() !== '') {
           // Verificar si es un JSON válido

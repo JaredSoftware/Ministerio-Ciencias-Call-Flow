@@ -18,7 +18,6 @@ import TreeAdmin from "../views/TreeAdmin.vue";
 import store from "../store/index"; // Importa tu store de Vuex
 
 import tokens from "@/router/services/tokens";
-import sessionSync from "@/router/services/sessionSync";
 import permissions from "@/router/services/permissions";
 
 const routes = [
@@ -49,14 +48,19 @@ const routes = [
       localStorage.clear();
       sessionStorage.clear();
 
-      function deleteCookie(cookieName) {
-        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      // Limpiar todas las cookies
+      function deleteAllCookies() {
+        const cookies = document.cookie.split(";");
+        for (let cookie of cookies) {
+          const eqPos = cookie.indexOf("=");
+          const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        }
       }
 
-      deleteCookie("rememberMe");
-      deleteCookie("remember_token");
+      deleteAllCookies();
       
-      console.log('✅ Signout completado, redirigiendo a login');
+      console.log('✅ Signout completado - sesión limpiada completamente');
       next("/signin");
     },
   },
@@ -156,46 +160,28 @@ const routes = [
     component: Signin,
     beforeEnter: async (to, from, next) => {
       console.log('🔐 Verificando acceso a /signin...');
-      let isLoggedIn = sessionStorage.getItem("isLoggedIn");
+      const isLoggedIn = sessionStorage.getItem("isLoggedIn");
       
-      // Verificar Remember Me si no está logueado
-      if (!store.getters.isLoggedIn && !isLoggedIn) {
-        console.log('⚠️ No está logueado, verificando Remember Me...');
-        const autoLoginResult = await sessionSync.autoLoginFromCookie();
-        
-        if (autoLoginResult.success) {
-          console.log('✅ Auto-login exitoso en /signin');
-          isLoggedIn = "true";
-          sessionStorage.setItem("isLoggedIn", "true");
-          store.dispatch("login", { token: localStorage.getItem("token"), user: autoLoginResult.user });
-        }
-      }
-      
-      const roles = await tokens.sendRole();
-
       if (store.getters.isLoggedIn || isLoggedIn) {
-        // Si el usuario ha iniciado sesión...
+        // Si el usuario ya está logueado, verificar si el token es válido
+        console.log('✅ Usuario ya autenticado, verificando token...');
+        const roles = await tokens.sendRole();
+        
         if (roles.error) {
+          // Token inválido, limpiar y mostrar login
+          console.log('❌ Token inválido, limpiando sesión');
           localStorage.clear();
+          sessionStorage.clear();
           next();
         } else {
-          console.log('✅ Usuario ya autenticado, redirigiendo al dashboard');
-          next("/dashboard"); // Permitimos el acceso a la ruta
+          // Token válido, redirigir al dashboard
+          console.log('✅ Token válido, redirigiendo al dashboard');
+          next("/dashboard");
         }
       } else {
-        // Si el usuario no ha iniciado sesión...
-        console.log('🔍 Verificando Remember Me en /signin...');
-        
-        const autoLoginResult = await sessionSync.autoLoginFromCookie();
-        
-        if (autoLoginResult.success) {
-          console.log('✅ Auto-login exitoso desde cookie, redirigiendo al dashboard');
-          next("/dashboard");
-        } else {
-          console.log('❌ No hay cookie válida o falló auto-login');
-          localStorage.clear();
-          next(); // Mostrar página de login
-        }
+        // Usuario no logueado, mostrar página de login
+        console.log('🔐 Usuario no autenticado, mostrando login');
+        next();
       }
     },
   },
@@ -273,19 +259,6 @@ router.beforeEach(async (to, from, next) => {
   console.log('🔍 sessionStorage isLoggedIn:', isLoggedIn);
   console.log('🔍 store.getters.isLoggedIn:', store.getters.isLoggedIn);
   
-  // VERIFICAR REMEMBER ME ANTES DE VERIFICAR PERMISOS
-  if (!store.getters.isLoggedIn && !isLoggedIn) {
-    console.log('⚠️ Usuario no logueado, verificando Remember Me...');
-    
-    const autoLoginResult = await sessionSync.autoLoginFromCookie();
-    if (autoLoginResult.success) {
-      console.log('✅ Auto-login exitoso desde cookie en router guard');
-      // Actualizar estados
-      sessionStorage.setItem("isLoggedIn", "true");
-      store.dispatch("login", { token: localStorage.getItem("token"), user: autoLoginResult.user });
-    }
-  }
-  
   // Verificar si la ruta requiere autenticación
     if (to.matched.some((record) => record.meta.requiresAuth)) {
       console.log('🔒 Ruta protegida detectada');
@@ -313,7 +286,23 @@ router.beforeEach(async (to, from, next) => {
     }
 
     try {
-      // Verificar si el usuario tiene los permisos necesarios
+      // Verificar si el usuario es admin primero
+      const userRole = store.state.user?.role || 
+                      store.state.role ||
+                      localStorage.getItem('userRoleName') || 
+                      localStorage.getItem('userRole') || 
+                      sessionStorage.getItem('role') ||
+                      'usuario';
+      
+      const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrador';
+      
+      if (isAdmin) {
+        console.log('👑 Usuario admin detectado, permitiendo acceso automático');
+        next();
+        return;
+      }
+      
+      // Si no es admin, verificar permisos específicos
       const hasAccess = await permissions.hasAnyPermission(routePermissions);
       
       if (hasAccess) {

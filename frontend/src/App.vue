@@ -54,6 +54,8 @@ import { mapMutations } from "vuex";
 import { mqttService } from '@/router/services/mqttService';
 import websocketService from '@/router/services/websocketService';
 import environmentConfig from '@/config/environment';
+import inactivityService from '@/services/inactivityService';
+import sessionLockService from '@/services/sessionLockService';
 
 export default {
   name: "App",
@@ -98,6 +100,19 @@ export default {
           }
           // Configurar listeners para cambios de estado automáticos
           this.setupAutoStatusChangeListeners();
+          
+          // 🕐 Iniciar monitoreo de inactividad
+          inactivityService.start();
+          console.log('✅ Servicio de inactividad iniciado para usuario:', this.$store.state.user.name);
+          
+          // 🔒 Iniciar sistema de sesión única
+          sessionLockService.start(this.$store.state.user._id, this.$store.state.user.name);
+          console.log('✅ Sistema de sesión única iniciado para usuario:', this.$store.state.user.name);
+        } else {
+          // Usuario deslogueado - detener servicios
+          inactivityService.stop();
+          sessionLockService.stop();
+          console.log('🛑 Servicios detenidos (inactividad y sesión única)');
         }
       }
     },
@@ -128,12 +143,13 @@ export default {
     this.$store.state.isTransparent = "bg-transparent";
     this.checkAuthStatus();
     this.logEnvironmentInfo();
+    this.clearOrphanCookies();
   },
   methods: {
     ...mapMutations(["toggleConfigurator", "navbarMinimize"]),
     checkAuthStatus() {
-      // Verificar si hay un token válido al cargar la aplicación
-      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      // Verificar si hay un token válido al cargar la aplicación (solo sessionStorage ahora)
+      const token = sessionStorage.getItem('token');
       const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
       
       console.log('🔍 Verificando estado de autenticación al cargar app...');
@@ -143,6 +159,29 @@ export default {
       if (token && !isLoggedIn) {
         console.log('🔄 Token encontrado pero isLoggedIn es false - Restaurando estado...');
         this.$store.commit('makelogin');
+      }
+    },
+    
+    clearOrphanCookies() {
+      // Si no hay sesión activa, limpiar todas las cookies HTTP que puedan existir
+      const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+      const token = sessionStorage.getItem('token');
+      
+      if (!isLoggedIn || !token) {
+        console.log('🧹 No hay sesión activa - limpiando cookies HTTP huérfanas...');
+        
+        // Limpiar todas las cookies
+        const cookies = document.cookie.split(";");
+        for (let cookie of cookies) {
+          const eqPos = cookie.indexOf("=");
+          const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+          
+          // Eliminar la cookie en todos los paths posibles
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+        }
+        
+        console.log('✅ Cookies HTTP limpiadas');
       }
     },
     
@@ -167,7 +206,7 @@ export default {
       const userId = this.$store.state.user._id;
       console.log('🔧 Configurando listeners para cambios de estado automáticos para usuario:', userId);
       
-      // Listener para cambios de estado del usuario específico
+      // 1️⃣ Listener para cambios de estado del usuario específico
       const statusChangeTopic = `telefonia/users/status-change/${userId}`;
       
       // Limpiar listener anterior si existe
@@ -184,7 +223,26 @@ export default {
       // Registrar listener
       mqttService.on(statusChangeTopic, this.statusChangeCallback, 'status');
       
-      console.log('✅ Listeners configurados para cambios automáticos de estado');
+      // 2️⃣ Listener GLOBAL para nuevas tipificaciones (captura temprana)
+      const nuevaTipificacionTopic = `telefonia/tipificacion/nueva/${userId}`;
+      
+      // Limpiar listener anterior si existe
+      if (this.nuevaTipificacionCallback) {
+        mqttService.off(nuevaTipificacionTopic, this.nuevaTipificacionCallback, 'tipificacion');
+      }
+      
+      // Crear callback para tipificaciones
+      this.nuevaTipificacionCallback = (data) => {
+        console.log('📞 GLOBAL: Nueva tipificación recibida:', data);
+        this.handleNuevaTipificacionGlobal(data);
+      };
+      
+      // Registrar listener
+      mqttService.on(nuevaTipificacionTopic, this.nuevaTipificacionCallback, 'tipificacion');
+      
+      console.log('✅ Listeners configurados:');
+      console.log('   - Cambios de estado:', statusChangeTopic);
+      console.log('   - Nuevas tipificaciones:', nuevaTipificacionTopic);
     },
     
     async handleAutoStatusChange(data) {
@@ -293,12 +351,37 @@ export default {
       } catch (error) {
         console.log('No se pudo reproducir sonido de notificación:', error);
       }
+    },
+    
+    // 📞 Manejar nueva tipificación recibida globalmente
+    async handleNuevaTipificacionGlobal(data) {
+      try {
+        console.log('🎯 GLOBAL: Procesando nueva tipificación:', data);
+        
+        // 1️⃣ Guardar tipificación en el store
+        this.$store.commit('setPendingTipificacion', data);
+        
+        // 2️⃣ Verificar si ya estamos en /work
+        const currentRoute = this.$route.path;
+        console.log('📍 Ruta actual:', currentRoute);
+        
+        if (currentRoute !== '/work') {
+          console.log('🔄 NO estamos en /work, redirigiendo...');
+          // Redirigir a Work
+          this.$router.push('/work');
+        } else {
+          console.log('✅ Ya estamos en /work, la vista procesará la tipificación pendiente');
+        }
+      } catch (error) {
+        console.error('❌ Error procesando tipificación global:', error);
+      }
     }
   },
   
   data() {
     return {
-      statusChangeCallback: null
+      statusChangeCallback: null,
+      nuevaTipificacionCallback: null
     };
   },
 };
@@ -359,5 +442,172 @@ export default {
   font-size: 0.85rem !important;
   opacity: 0.8 !important;
   font-style: italic;
+}
+
+/* Estilos para notificaciones de inactividad */
+.inactivity-warning,
+.logout-notification {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.inactivity-warning .warning-content,
+.logout-notification .notification-content {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  position: relative;
+}
+
+.inactivity-warning .warning-icon,
+.logout-notification .notification-icon {
+  font-size: 2.5rem;
+  flex-shrink: 0;
+}
+
+.inactivity-warning .warning-text h4,
+.logout-notification .notification-text h4 {
+  margin: 0 0 10px 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.inactivity-warning .warning-text p,
+.logout-notification .notification-text p {
+  margin: 6px 0;
+  font-size: 1rem;
+  opacity: 0.95;
+}
+
+.inactivity-warning .warning-detail,
+.logout-notification .notification-detail {
+  font-size: 0.9rem !important;
+  opacity: 0.85 !important;
+  font-style: italic;
+  margin-top: 10px !important;
+}
+
+.inactivity-warning .warning-close {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: rgba(255, 255, 255, 0.3);
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  color: white;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.inactivity-warning .warning-close:hover {
+  background: rgba(255, 255, 255, 0.5);
+  transform: scale(1.1);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* Estilos para notificaciones de sesión duplicada */
+.session-takeover-notification {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.session-takeover-notification .notification-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.session-takeover-notification .notification-icon {
+  font-size: 3rem;
+  animation: pulse 1.5s infinite;
+}
+
+.session-takeover-notification .notification-text h4 {
+  margin: 0 0 12px 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.session-takeover-notification .notification-text p {
+  margin: 8px 0;
+  font-size: 1rem;
+  opacity: 0.95;
+}
+
+.session-takeover-notification .notification-detail {
+  font-size: 1.1rem !important;
+  font-weight: 600 !important;
+  margin-top: 12px !important;
+}
+
+.session-takeover-notification .notification-info {
+  font-size: 0.9rem !important;
+  opacity: 0.85 !important;
+  font-style: italic;
+  margin-top: 16px !important;
+  padding-top: 16px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Advertencia de pestaña secundaria */
+.local-takeover-warning {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.local-takeover-warning .warning-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+}
+
+.local-takeover-warning .warning-icon {
+  font-size: 2rem;
+  animation: pulse 2s infinite;
+}
+
+.local-takeover-warning .warning-text h4 {
+  margin: 0 0 8px 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.local-takeover-warning .warning-text p {
+  margin: 4px 0;
+  font-size: 0.9rem;
+}
+
+.local-takeover-warning .warning-detail {
+  font-weight: 600;
+  font-size: 0.95rem !important;
+}
+
+.local-takeover-warning .warning-action {
+  font-style: italic;
+  opacity: 0.9;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
 }
 </style>

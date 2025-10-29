@@ -266,8 +266,12 @@ export default {
     if (!this.permissionsLoaded) {
       await this.loadUserPermissions();
     }
-    // Verificar permiso de reportes
-    this.canViewReports = await permissions.hasPermission('monitoring', 'viewReports');
+    // Verificar permiso de reportes - los admins siempre tienen acceso
+    if (this.userRole === 'admin' || this.userRole === 'administrador') {
+      this.canViewReports = true;
+    } else {
+      this.canViewReports = await permissions.hasPermission('monitoring', 'viewReports');
+    }
   },
 
   methods: {
@@ -282,11 +286,20 @@ export default {
       try {
         console.log('🔄 Cargando permisos del usuario...');
         
-        // Verificar permisos específicos para cada elemento del sidebar
-        this.canViewUsers = await permissions.canShowUIElement('sidebar-users');
-        this.canViewActiveUsers = await permissions.canShowUIElement('sidebar-active-users');
-        this.canManageTree = await permissions.canShowUIElement('sidebar-tree-admin');
-        this.canAccessAdminPanels = await permissions.canShowUIElement('sidebar-admin-panels');
+        // Si el usuario es admin, otorgar todos los permisos automáticamente
+        if (this.userRole === 'admin' || this.userRole === 'administrador') {
+          console.log('👑 Usuario admin detectado - otorgando todos los permisos');
+          this.canViewUsers = true;
+          this.canViewActiveUsers = true;
+          this.canManageTree = true;
+          this.canAccessAdminPanels = true;
+        } else {
+          // Verificar permisos específicos para cada elemento del sidebar
+          this.canViewUsers = await permissions.canShowUIElement('sidebar-users');
+          this.canViewActiveUsers = await permissions.canShowUIElement('sidebar-active-users');
+          this.canManageTree = await permissions.canShowUIElement('sidebar-tree-admin');
+          this.canAccessAdminPanels = await permissions.canShowUIElement('sidebar-admin-panels');
+        }
         
         this.permissionsLoaded = true;
         console.log('✅ Permisos del usuario cargados');
@@ -297,11 +310,18 @@ export default {
         
       } catch (error) {
         console.error('❌ Error cargando permisos del usuario:', error);
-        // En caso de error, denegar todos los permisos
-        this.canViewUsers = false;
-        this.canViewActiveUsers = false;
-        this.canManageTree = false;
-        this.canAccessAdminPanels = false;
+        // En caso de error, denegar todos los permisos excepto para admins
+        if (this.userRole === 'admin' || this.userRole === 'administrador') {
+          this.canViewUsers = true;
+          this.canViewActiveUsers = true;
+          this.canManageTree = true;
+          this.canAccessAdminPanels = true;
+        } else {
+          this.canViewUsers = false;
+          this.canViewActiveUsers = false;
+          this.canManageTree = false;
+          this.canAccessAdminPanels = false;
+        }
       } finally {
         this._loadingPermissions = false;
       }
