@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { getFechaColombia } = require('../utils/fechaColombia');
 
 const tipificacionSchema = new mongoose.Schema({
   idLlamada: { type: String },
@@ -11,7 +12,7 @@ const tipificacionSchema = new mongoose.Schema({
   assignedToName: { type: String },
   assignedAgentId: { type: String }, // ID del agente del sistema telefónico
   status: { type: String, enum: ['pending', 'success', 'cancelada_por_agente'], default: 'pending' },
-  timestamp: { type: Date, default: Date.now },
+  timestamp: { type: Date, default: getFechaColombia }, // 🕐 UTC-5 (Colombia)
   type: { type: String },
   nivel1: { type: String },
   nivel2: { type: String },
@@ -49,5 +50,16 @@ const tipificacionSchema = new mongoose.Schema({
   skillRequired: { type: String }, // Skill específico requerido
   customerSegment: { type: String, enum: ['premium', 'standard', 'basic'], default: 'standard' },
 }, { timestamps: true });
+
+// 🕐 PRE-SAVE HOOK: Asegurar que createdAt y updatedAt estén en UTC-5 (Colombia)
+tipificacionSchema.pre('save', function(next) {
+  // Si es un documento nuevo, establecer createdAt en UTC-5
+  if (this.isNew && !this.createdAt) {
+    this.createdAt = getFechaColombia();
+  }
+  // Siempre actualizar updatedAt en UTC-5
+  this.updatedAt = getFechaColombia();
+  next();
+});
 
 module.exports = mongoose.model('Tipificacion', tipificacionSchema); 

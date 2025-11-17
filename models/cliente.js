@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { getFechaColombia } = require('../utils/fechaColombia');
 
 const clienteSchema = new mongoose.Schema({
   // Información básica de identificación
@@ -103,7 +104,7 @@ const clienteSchema = new mongoose.Schema({
     idLlamada: String,
     fecha: {
       type: Date,
-      default: Date.now
+      default: getFechaColombia // 🕐 UTC-5 (Colombia)
     },
     tipo: {
       type: String,
@@ -136,11 +137,11 @@ const clienteSchema = new mongoose.Schema({
   // Metadatos
   fechaCreacion: {
     type: Date,
-    default: Date.now
+    default: getFechaColombia // 🕐 UTC-5 (Colombia)
   },
   fechaUltimaInteraccion: {
     type: Date,
-    default: Date.now
+    default: getFechaColombia // 🕐 UTC-5 (Colombia)
   },
   totalInteracciones: {
     type: Number,
@@ -157,7 +158,7 @@ const clienteSchema = new mongoose.Schema({
   notas: [{
     fecha: {
       type: Date,
-      default: Date.now
+      default: getFechaColombia // 🕐 UTC-5 (Colombia)
     },
     agente: {
       type: mongoose.Schema.Types.ObjectId,
@@ -169,6 +170,17 @@ const clienteSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// 🕐 PRE-SAVE HOOK: Asegurar que createdAt y updatedAt estén en UTC-5 (Colombia)
+clienteSchema.pre('save', function(next) {
+  // Si es un documento nuevo, establecer createdAt en UTC-5
+  if (this.isNew && !this.createdAt) {
+    this.createdAt = getFechaColombia();
+  }
+  // Siempre actualizar updatedAt en UTC-5
+  this.updatedAt = getFechaColombia();
+  next();
+});
+
 // Índices para búsquedas eficientes
 clienteSchema.index({ cedula: 1 });
 clienteSchema.index({ correo: 1 });
@@ -178,8 +190,12 @@ clienteSchema.index({ 'interacciones.fecha': -1 });
 
 // Método para agregar una nueva interacción
 clienteSchema.methods.agregarInteraccion = function(interaccionData) {
+  // Si no tiene fecha, usar fecha actual en UTC-5
+  if (!interaccionData.fecha) {
+    interaccionData.fecha = getFechaColombia();
+  }
   this.interacciones.push(interaccionData);
-  this.fechaUltimaInteraccion = new Date();
+  this.fechaUltimaInteraccion = getFechaColombia(); // 🕐 UTC-5 (Colombia)
   this.totalInteracciones = this.interacciones.length;
   return this.save();
 };

@@ -12,6 +12,9 @@ const statusTypeRoutes = require("./statusType.routes");
 const User = require("../models/users");
 const Tipificacion = require("../models/tipificacion");
 
+// 🕐 HELPER: Fechas en UTC-5 (Colombia)
+const { getFechaColombia } = require('../utils/fechaColombia');
+
 // 🔄 CONTADOR GLOBAL PARA ROUND ROBIN
 let roundRobinCounter = 0;
 
@@ -435,7 +438,7 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
             grupoEtnico: params.grupoEtnico || '',
             discapacidad: params.discapacidad || '',
             status: 'pending', // ⚠️ IMPORTANTE: status 'pending' para poder actualizarlo
-            timestamp: new Date(),
+            timestamp: getFechaColombia(),
             priority: params.priority || 1
           });
           console.log(`✅ Registro creado en MongoDB con status 'pending' para idLlamada ${params.idLlamada}`);
@@ -954,7 +957,7 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
         // Agregar nueva interacción al cliente
         const nuevaInteraccion = {
           idLlamada: idLlamada,
-          fecha: new Date(),
+          fecha: getFechaColombia(), // 🕐 UTC-5 (Colombia)
           tipo: 'tipificacion',
           observacion: observacion || '',
           agente: assignedTo,
@@ -1038,7 +1041,7 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
           grupoEtnico: grupoEtnico || '',
           discapacidad: discapacidad || '',
           status: 'success',
-          timestamp: new Date()
+          timestamp: getFechaColombia()
         });
       }
     } catch (error) {
@@ -1672,7 +1675,7 @@ router.post('/api/crm/cliente/:cedula/nota', async (req, res) => {
     
     // Agregar nota
     cliente.notas.push({
-      fecha: new Date(),
+      fecha: getFechaColombia(), // 🕐 UTC-5 (Colombia)
       agente: agente || null,
       contenido: contenido
     });

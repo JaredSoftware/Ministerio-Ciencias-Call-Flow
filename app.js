@@ -821,12 +821,11 @@ mqttService.connect('mqtt://localhost:1884')
             
             const Cliente = require('./models/cliente');
             
-            // Convertir fechas
-            const inicio = new Date(fechaInicio);
-            inicio.setHours(0, 0, 0, 0);
-            
-            const fin = new Date(fechaFin);
-            fin.setHours(23, 59, 59, 999);
+            // Convertir fechas - Colombia está en UTC-5
+            // Cuando el usuario busca "2025-10-28", quiere desde las 00:00 hasta las 23:59 hora Colombia
+            // Eso equivale a 05:00 UTC del día 28 hasta las 04:59 UTC del día 29
+            const inicio = new Date(fechaInicio + 'T00:00:00-05:00');
+            const fin = new Date(fechaFin + 'T23:59:59.999-05:00');
             
             // Buscar con paginación
             const skip = (page - 1) * limit;
@@ -1154,14 +1153,17 @@ mqttService.connect('mqtt://localhost:1884')
             // Primero contar todas sin paginación
             const totalSinFiltro = await Tipificacion.countDocuments({});
             
-            // Buscar por createdAt
+            // 🕐 Buscar por createdAt, updatedAt o timestamp (para incluir tipificaciones actualizadas hoy)
+            // Si una tipificación se creó ayer pero se actualizó hoy, debe aparecer en la búsqueda de hoy
             const tipificaciones = await Tipificacion.find({
-              createdAt: { 
-                $gte: inicio, 
-                $lte: fin 
-              }
+              $or: [
+                { createdAt: { $gte: inicio, $lte: fin } },
+                { updatedAt: { $gte: inicio, $lte: fin } },
+                { timestamp: { $gte: inicio, $lte: fin } }
+              ],
+              status: 'success' // Solo mostrar tipificaciones completadas
             })
-            .sort({ createdAt: -1 })
+            .sort({ updatedAt: -1, createdAt: -1 }) // Ordenar por fecha de actualización primero
             .skip(skip)
             .limit(limit)
             .lean();
@@ -1212,9 +1214,12 @@ mqttService.connect('mqtt://localhost:1884')
                   duracionMinutos = Math.round(tipif.timeInQueue);
                 }
                 
+                // 🕐 Usar updatedAt si existe (fecha de última actualización), sino createdAt o timestamp
+                const fechaMostrar = tipif.updatedAt || tipif.createdAt || tipif.timestamp || tipif.fecha;
+                
                 return {
                   _id: tipif._id,
-                  fecha: tipif.createdAt || tipif.fecha || tipif.timestamp,
+                  fecha: fechaMostrar,
                   agente: agente,
                   cliente: cliente,
                   nivel1: tipif.nivel1 || '',
@@ -1232,10 +1237,12 @@ mqttService.connect('mqtt://localhost:1884')
             
             // Contar total con el mismo filtro
             const total = await Tipificacion.countDocuments({
-              createdAt: {
-                $gte: inicio,
-                $lte: fin
-              }
+              $or: [
+                { createdAt: { $gte: inicio, $lte: fin } },
+                { updatedAt: { $gte: inicio, $lte: fin } },
+                { timestamp: { $gte: inicio, $lte: fin } }
+              ],
+              status: 'success' // Solo contar tipificaciones completadas
             });
             
             

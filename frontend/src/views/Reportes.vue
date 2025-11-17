@@ -136,7 +136,8 @@
               <th class="text-dark">Correo</th>
               <th class="text-dark">Ciudad</th>
               <th class="text-dark">Total Interacciones</th>
-              <th class="text-dark">Última Interacción</th>
+              <th class="text-dark">Fecha Última Interacción</th>
+              <th class="text-dark">Hora Última Interacción</th>
               <th class="text-dark">Acciones</th>
             </tr>
           </thead>
@@ -152,7 +153,8 @@
               <td class="text-dark">
                 <span class="badge-interacciones">{{ cliente.totalInteracciones || 0 }}</span>
               </td>
-              <td class="text-dark">{{ formatFecha(cliente.fechaUltimaInteraccion) }}</td>
+              <td class="text-dark"><b>{{ formatFecha(cliente.fechaUltimaInteraccion) }}</b></td>
+              <td class="text-dark">{{ formatHora(cliente.fechaUltimaInteraccion) }}</td>
               <td>
                 <button class="btn-detalle" @click="verDetalles(cliente)">
                   <i class="ni ni-bold-right"></i>
@@ -638,31 +640,39 @@ export default {
     formatHora(f) {
       if (!f) return '-';
       const d = new Date(f);
+      // Formato hora en UTC-5 (Colombia)
       return d.toLocaleTimeString('es-CO', {
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: 'America/Bogota'
       });
     },
     
     formatFecha(f) {
       if (!f) return '-';
       const d = new Date(f);
+      // Formato fecha en UTC-5 (Colombia)
       return d.toLocaleDateString('es-CO', { 
         year: 'numeric', 
         month: '2-digit', 
-        day: '2-digit' 
+        day: '2-digit',
+        timeZone: 'America/Bogota'
       });
     },
     
     formatFechaHora(f) {
       if (!f) return '-';
       const d = new Date(f);
+      // Formato fecha y hora completa en UTC-5 (Colombia)
       return d.toLocaleString('es-CO', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        second: '2-digit',
+        timeZone: 'America/Bogota'
       });
     }
   }
