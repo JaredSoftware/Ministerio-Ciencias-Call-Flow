@@ -6,8 +6,9 @@ class InactivityService {
   constructor() {
     this.timeout = null;
     this.warningTimeout = null;
-    this.inactivityTime = 2 * 60 * 60 * 1000; // 2 horas en milisegundos
+    this.inactivityTime = 1 * 60 * 60 * 1000; // 1 hora en milisegundos
     this.warningTime = this.inactivityTime - (5 * 60 * 1000); // 5 minutos antes
+    this.virtualActivityInterval = null; // Intervalo para actividad virtual en /work
     this.isActive = false;
     this.lastActivity = Date.now();
     
@@ -25,13 +26,9 @@ class InactivityService {
   // Iniciar monitoreo de inactividad
   start() {
     if (this.isActive) {
-      console.log('⚠️ Servicio de inactividad ya está activo');
       return;
     }
 
-    console.log('🕐 Iniciando monitoreo de inactividad');
-    console.log(`   - Tiempo de inactividad: ${this.inactivityTime / 1000 / 60} minutos`);
-    console.log(`   - Advertencia en: ${this.warningTime / 1000 / 60} minutos`);
     
     this.isActive = true;
     this.lastActivity = Date.now();
@@ -51,7 +48,6 @@ class InactivityService {
       return;
     }
 
-    console.log('🛑 Deteniendo monitoreo de inactividad');
     this.isActive = false;
 
     // Limpiar timers
@@ -63,11 +59,39 @@ class InactivityService {
       clearTimeout(this.warningTimeout);
       this.warningTimeout = null;
     }
+    
+    // Limpiar intervalo de actividad virtual
+    if (this.virtualActivityInterval) {
+      clearInterval(this.virtualActivityInterval);
+      this.virtualActivityInterval = null;
+    }
 
     // Remover event listeners
     this.activityEvents.forEach(event => {
       window.removeEventListener(event, this.resetTimer.bind(this), true);
     });
+  }
+
+  // ✅ Verificar si el usuario está en una ruta que requiere actividad virtual
+  isInVirtualActivityRoute() {
+    if (typeof window === 'undefined' || !window.location) {
+      return false;
+    }
+    
+    const currentPath = window.location.pathname;
+    // Considerar activo si está en /work esperando tipificaciones
+    return currentPath === '/work';
+  }
+  
+  // ✅ Manejar cambios de ruta
+  handleRouteChange() {
+    if (!this.isActive) {
+      return;
+    }
+    
+    // Si cambió la ruta, reiniciar el timer para aplicar nueva lógica de actividad virtual
+    console.log('🔄 [INACTIVITY] Cambio de ruta detectado, reiniciando timer');
+    this.resetTimer();
   }
 
   // Reiniciar timer cuando hay actividad
@@ -85,21 +109,53 @@ class InactivityService {
     if (this.warningTimeout) {
       clearTimeout(this.warningTimeout);
     }
+    
+    // Limpiar intervalo de actividad virtual anterior
+    if (this.virtualActivityInterval) {
+      clearInterval(this.virtualActivityInterval);
+      this.virtualActivityInterval = null;
+    }
+
+    // ✅ Si está en /work, mantener actividad virtual cada 30 segundos
+    if (this.isInVirtualActivityRoute()) {
+      // Simular actividad cada 30 segundos cuando está en /work
+      this.virtualActivityInterval = setInterval(() => {
+        if (this.isInVirtualActivityRoute() && this.isActive) {
+          this.lastActivity = Date.now();
+          console.log('✅ [INACTIVITY] Actividad virtual mantenida (usuario en /work esperando tipificaciones)');
+        } else {
+          // Limpiar intervalo si ya no está en /work
+          if (this.virtualActivityInterval) {
+            clearInterval(this.virtualActivityInterval);
+            this.virtualActivityInterval = null;
+          }
+        }
+      }, 30000); // Cada 30 segundos
+    }
 
     // Configurar timer de advertencia (5 minutos antes del logout)
     this.warningTimeout = setTimeout(() => {
-      this.showInactivityWarning();
+      // Solo mostrar advertencia si NO está en ruta de actividad virtual
+      if (!this.isInVirtualActivityRoute()) {
+        this.showInactivityWarning();
+      }
     }, this.warningTime);
 
     // Configurar timer de logout
     this.timeout = setTimeout(() => {
-      this.handleInactivity();
+      // Solo hacer logout si NO está en ruta de actividad virtual
+      if (!this.isInVirtualActivityRoute()) {
+        this.handleInactivity();
+      } else {
+        // Si está en /work, reiniciar el timer (mantener sesión activa)
+        console.log('✅ [INACTIVITY] Usuario en /work, manteniendo sesión activa');
+        this.resetTimer();
+      }
     }, this.inactivityTime);
   }
 
   // Mostrar advertencia de inactividad
   showInactivityWarning() {
-    console.log('⚠️ ADVERTENCIA: Inactividad detectada - logout en 5 minutos');
     
     // Crear notificación visual
     const warning = document.createElement('div');
@@ -151,8 +207,6 @@ class InactivityService {
     const inactiveTime = Date.now() - this.lastActivity;
     const inactiveMinutes = Math.floor(inactiveTime / 1000 / 60);
 
-    console.log('🚨 INACTIVIDAD DETECTADA - Haciendo logout automático');
-    console.log(`   - Tiempo inactivo: ${inactiveMinutes} minutos`);
 
     // Detener monitoreo
     this.stop();

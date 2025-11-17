@@ -23,10 +23,20 @@ module.exports = {
   form: async (req, res) => {
     try {
       if (config.pay === false) {
+        console.error('[AUTH] ❌ Login fallido: Token disabled', {
+          email: req.body.email,
+          ip: req.ip,
+          userAgent: req.get('user-agent')
+        });
         res.send({ login: false, error: "token disabled" });
-        console.log("token disabled");
       } else {
         if (!req.body.email || !req.body.password) {
+          console.error('[AUTH] ❌ Login fallido: Faltan credenciales', {
+            hasEmail: !!req.body.email,
+            hasPassword: !!req.body.password,
+            ip: req.ip,
+            userAgent: req.get('user-agent')
+          });
           res.send({
             login: false,
             error: "por favor ingrese correo y contraseña",
@@ -54,7 +64,6 @@ module.exports = {
             const isPasswordValid = await bcrypt.compare(req.body.password, FindUser.password);
             if (isPasswordValid) {
               if (!FindUser.active == false) {
-                console.log('🔄 Estableciendo sesión para usuario:', FindUser.name);
                 req.session.user = FindUser;
                 req.session.userId = FindUser._id;
                 req.session.userName = FindUser.name;
@@ -62,12 +71,13 @@ module.exports = {
                 
                 req.session.save((err) => {
                   if (err) {
-                    console.error('❌ Error guardando sesión:', err);
-                  } else {
-                    console.log('✅ Sesión guardada correctamente');
-                    console.log('   - User ID:', req.session.userId);
-                    console.log('   - User Name:', req.session.userName);
-                    console.log('   - Session ID:', req.sessionID);
+                    console.error('[AUTH] ❌ Error guardando sesión:', {
+                      error: err.message,
+                      userId: FindUser._id,
+                      sessionId: req.sessionID,
+                      ip: req.ip,
+                      timestamp: new Date().toISOString()
+                    });
                   }
                 });
                 
@@ -111,7 +121,6 @@ module.exports = {
                 try {
                   const UserStatus = require('../models/userStatus');
                   
-                  console.log(`🔄 Asignando estado por defecto a ${FindUser.name}`);
                   
                   // Crear o actualizar el estado del usuario (usará el estado por defecto automáticamente)
                   await UserStatus.upsertStatus(FindUser._id, {
@@ -119,7 +128,6 @@ module.exports = {
                     sessionId: req.sessionID
                   });
                   
-                  console.log(`✅ Estado por defecto asignado exitosamente a ${FindUser.name}`);
 
                   // 🚨 EMITIR EVENTOS SOLO POR MQTT (NO WEBSOCKET)
                   try {
@@ -136,11 +144,6 @@ module.exports = {
                   console.error('❌ Error asignando estado dinámico:', statusError);
                 }
 
-                console.log('✅✅✅ LOGIN COMPLETADO - SESIÓN ESTABLECIDA ✅✅✅');
-                console.log('   - Usuario:', FindUser.name);
-                console.log('   - Session ID:', req.sessionID);
-                console.log('   - User ID en sesión:', req.session.userId);
-                console.log('   - Session keys:', Object.keys(req.session));
 
                 res.send({
                   user: true,
@@ -152,18 +155,43 @@ module.exports = {
                   user: UserWithCredentials,
                 });
               } else {
+                console.error('[AUTH] ❌ Login fallido: Usuario no activo', {
+                  email: req.body.email,
+                  userId: FindUser._id,
+                  ip: req.ip,
+                  userAgent: req.get('user-agent')
+                });
                 res.send({ login: false, error: "Usuario no activo" });
               }
             } else {
+              console.error('[AUTH] ❌ Login fallido: Contraseña incorrecta', {
+                email: req.body.email,
+                userId: FindUser?._id,
+                ip: req.ip,
+                userAgent: req.get('user-agent')
+              });
               res.send({ user: true, login: false, error: null });
             }
           } else {
+            console.error('[AUTH] ❌ Login fallido: Usuario no encontrado', {
+              email: req.body.email,
+              ip: req.ip,
+              userAgent: req.get('user-agent')
+            });
             res.send({ user: false, login: false, error: null });
           }
         }
       }
     } catch (error) {
-      console.log(error);
+      console.error('[AUTH] ❌ Error crítico en login:', {
+        error: error.message,
+        stack: error.stack,
+        email: req.body?.email,
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+        timestamp: new Date().toISOString()
+      });
+      res.status(500).send({ login: false, error: "Error interno del servidor" });
     }
   },
   makeUser: async (req, res) => {
@@ -233,8 +261,6 @@ module.exports = {
   },
   updateUser: async (req, res) => {
     try {
-      console.log('🔍 updateUser llamado con:', req.body);
-      console.log('🔍 Content-Type:', req.headers['content-type']);
       
       if (!req.body.id) {
         return res.send({
@@ -293,22 +319,11 @@ module.exports = {
         dataForUpdate.password = hashedPassword;
       }
 
-      console.log('🔍 Datos para actualizar:', dataForUpdate);
-      console.log('🔍 ID del usuario:', req.body.id);
 
       // Verificar si el usuario existe
       let existingUser;
       try {
         existingUser = await users.findById(req.body.id);
-        console.log('🔍 Usuario encontrado:', existingUser ? 'SÍ' : 'NO');
-        if (existingUser) {
-          console.log('🔍 Usuario actual:', {
-            _id: existingUser._id,
-            name: existingUser.name,
-            email: existingUser.correo,
-            idAgent: existingUser.idAgent
-          });
-        }
       } catch (findError) {
         console.error('🔍 Error buscando usuario:', findError);
         return res.send({ 
@@ -329,7 +344,6 @@ module.exports = {
         dataForUpdate
       );
 
-      console.log('🔍 Resultado de la actualización:', update);
 
       if (update.modifiedCount > 0) {
         res.send({ 
@@ -372,7 +386,6 @@ module.exports = {
   checkUser: async (req, res) => {
     try {
       const { id } = req.body;
-      console.log('🔍 Verificando usuario con ID:', id);
       
       const user = await users.findById(id);
       if (user) {
@@ -403,7 +416,6 @@ module.exports = {
   checkUserById: async (req, res) => {
     try {
       const { id } = req.params;
-      console.log('🔍 Verificando usuario con ID:', id);
       
       const user = await users.findById(id);
       if (user) {
@@ -464,7 +476,6 @@ module.exports = {
   userToken: async (req, res) => {
     try {
       const { token } = req.body;
-      console.log(token);
       const info = await tokens.find({ token });
       if (info.length > 0) {
         res.send({ token: true });
@@ -472,7 +483,6 @@ module.exports = {
         res.send({ token: false });
       }
     } catch (error) {
-      console.log(error);
     }
   },
   userEmailExist: async (req, res) => {
@@ -494,7 +504,6 @@ module.exports = {
         }
       }
     } catch (error) {
-      console.log(error);
     }
   },
   makerRole: async (req, res) => {
@@ -533,8 +542,6 @@ module.exports = {
 
       const savedRole = await addRole.save();
       
-      console.log(`✅ Rol creado exitosamente: ${savedRole.nombre}`);
-      console.log(`   - ID: ${savedRole._id}`);
 
       res.status(201).send({ 
         success: true, 
@@ -581,7 +588,6 @@ module.exports = {
         });
       }
     } catch (error) {
-      console.log(error);
     }
   },
   roles: async (req, res) => {
@@ -589,7 +595,6 @@ module.exports = {
       const addRole = await rol.find();
       res.send(addRole);
     } catch (error) {
-      console.log(error);
     }
   },
   allUsers: async (req, res) => {
@@ -618,7 +623,6 @@ module.exports = {
 
       res.send(addRole);
     } catch (error) {
-      console.log(error);
     }
   },
   roleChanger: async (req, res) => {
@@ -635,7 +639,6 @@ module.exports = {
         res.send({ addRole, restart: false });
       }
     } catch (error) {
-      console.log(error);
     }
   },
   statChanger: async (req, res) => {
@@ -652,7 +655,6 @@ module.exports = {
         res.send({ addRole, restart: false });
       }
     } catch (error) {
-      console.log(error);
     }
   },
   changePassword: async (req, res) => {
@@ -710,7 +712,6 @@ module.exports = {
       });
 
     } catch (error) {
-      console.log(error);
       res.status(500).send({
         success: false,
         error: "Error interno del servidor"
@@ -738,7 +739,6 @@ module.exports = {
       });
 
     } catch (error) {
-      console.log(error);
       res.status(500).send({
         success: false,
         error: "Error al generar hash de contraseña"

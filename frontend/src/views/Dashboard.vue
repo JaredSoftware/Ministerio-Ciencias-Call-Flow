@@ -1,5 +1,21 @@
 <template>
   <div class="py-4 container-fluid">
+    <!-- Estado de carga -->
+    <div v-if="isLoadingData" class="alert alert-info alert-dismissible fade show" role="alert">
+      <div class="d-flex align-items-center">
+        <div class="spinner-border spinner-border-sm me-2" role="status">
+          <span class="visually-hidden">Cargando...</span>
+        </div>
+        <span>⏳ Cargando estadísticas en tiempo real del CRM...</span>
+      </div>
+    </div>
+    
+    <!-- Error de carga -->
+    <div v-if="dataLoadError && !isLoadingData" class="alert alert-warning alert-dismissible fade show" role="alert">
+      <strong>⚠️ Atención:</strong> {{ dataLoadError }}
+      <button type="button" class="btn-close" @click="dataLoadError = null" aria-label="Close"></button>
+    </div>
+    
     <div class="row">
       <div class="col-lg-12">
         <div class="row">
@@ -216,28 +232,28 @@ export default {
       stats: {
         money: {
           title: "👥 Agentes Conectados",
-          value: "0",
-          percentage: "0%",
+          value: "...",
+          percentage: "...",
           iconClass: "ni ni-badge",
-          detail: "en tiempo real",
+          detail: "cargando...",
           iconBackground: "bg-gradient-success",
         },
         users: {
           title: "📊 Clientes CRM",
-          value: "0",
-          percentage: "0%",
+          value: "...",
+          percentage: "...",
           iconClass: "ni ni-single-02",
           iconBackground: "bg-gradient-primary",
-          detail: "total registrados",
+          detail: "cargando...",
         },
         clients: {
           title: "📞 Tipificaciones Hoy",
-          value: "0",
-          percentage: "0%",
+          value: "...",
+          percentage: "...",
           iconClass: "ni ni-mobile-button",
           percentageColor: "text-success",
           iconBackground: "bg-gradient-info",
-          detail: "desde las 00:00 hrs",
+          detail: "cargando...",
         },
       },
       mqttTopics: [],
@@ -248,15 +264,11 @@ export default {
       distribucionNivel1: [],
       chartHora: null,
       chartDistribucion: null,
-      chartError: false, // Flag para mostrar fallbacks solo cuando hay error
+      isLoadingData: true, // Flag para mostrar estado de carga
+      dataLoadError: null, // Errores de carga
     };
   },
   async mounted() {
-    console.log('🚀 Dashboard mounted - Iniciando proceso automático...');
-    
-    // CARGAR DATOS DE FALLBACK INMEDIATAMENTE
-    console.log('🔄 Cargando datos de fallback inmediatamente...');
-    this.cargarDatosFallback();
     
     // Esperar un poco para que se complete la navegación
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -265,56 +277,62 @@ export default {
       let syncResult;
       
       // 1. INTENTAR SINCRONIZACIÓN NORMAL PRIMERO
-      console.log('🔄 PASO 1: Sincronizando sesión (automático)...');
       syncResult = await sessionSync.syncSession();
       
       // 2. SI FALLA, INTENTAR AUTO-LOGIN DESDE COOKIE
       if (!syncResult.success) {
-        console.log('⚠️ Sincronización falló, intentando auto-login desde cookie...');
         const autoLoginResult = await sessionSync.autoLoginFromCookie();
         
         if (autoLoginResult.success) {
-          console.log('✅ Auto-login desde cookie exitoso');
           syncResult = autoLoginResult;
         }
       }
       
-      // 3. CONECTAR WEBSOCKET
+      // 3. CONECTAR WEBSOCKET Y MQTT
+      let user = null;
+      
       if (syncResult.success) {
-        console.log('✅ Sesión activa:', syncResult.user.name);
+        user = syncResult.user;
+      } else {
+        // Si no se pudo sincronizar pero hay usuario en sessionStorage, usarlo
+        try {
+          const userStr = sessionStorage.getItem('user');
+          if (userStr) {
+            const qs = await import('qs');
+            user = qs.default.parse(userStr);
+            
+            // Actualizar store con el usuario
+            this.$store.commit('setUser', user);
+          }
+        } catch (err) {
+          console.error('❌ Error recuperando usuario de sessionStorage:', err);
+        }
+      }
+      
+      if (user) {
         
         // Conectar WebSocket con información del usuario
-        console.log('🔄 PASO 2: Conectando WebSocket con usuario autenticado...');
-        await websocketService.connect(syncResult.user);
-        console.log('✅ WebSocket conectado con usuario:', syncResult.user.name);
+        await websocketService.connect(user);
         
         // 🚨 CONECTAR MQTT GLOBALMENTE UNA SOLA VEZ
-        console.log('🔄 PASO 3: Conectando MQTT globalmente...');
         try {
-          await mqttService.connect(null, syncResult.user.id, syncResult.user.name);
-          console.log('✅ MQTT conectado globalmente para:', syncResult.user.name);
+          await mqttService.connect(null, user._id || user.id, user.name);
           
           // Configurar callbacks del sistema
           mqttService.onSystemEvent('onConnect', () => {
-            console.log('🎉 MQTT conectado exitosamente');
           });
           
           mqttService.onSystemEvent('onError', (error) => {
             console.error('❌ Error en MQTT:', error);
+            this.dataLoadError = 'Error de conexión MQTT';
           });
           
         } catch (mqttError) {
           console.error('❌ Error conectando MQTT:', mqttError);
+          this.dataLoadError = 'No se pudo conectar al sistema de mensajería';
         }
         
-        // 🎯 CARGAR ESTADÍSTICAS DEL CRM
-        console.log('🔄 PASO 4: Cargando estadísticas del CRM...');
-        
-        // Cargar datos de fallback inmediatamente para mostrar las gráficas
-        console.log('🔄 Cargando datos de fallback inmediatamente...');
-        this.cargarDatosFallback();
-        
-        // Intentar cargar datos reales por MQTT
+        // 🎯 CARGAR ESTADÍSTICAS REALES DEL CRM (SIN DATOS FALSOS)
         await this.cargarEstadisticasCRM();
         
         // 🔄 CONFIGURAR ACTUALIZACIÓN AUTOMÁTICA CADA 30 SEGUNDOS
@@ -323,19 +341,20 @@ export default {
         }, 30000);
         
         // Inicializar sincronización continua de estados
-        console.log('✅ Sincronización continua inicializada');
         
       } else {
-        console.log('❌ No se pudo establecer sesión:', syncResult.message);
-        console.log('⚠️ Intentando conectar WebSocket sin autenticación...');
+        this.dataLoadError = 'No se pudo identificar al usuario. Por favor, vuelve a iniciar sesión.';
+        this.isLoadingData = false;
         await websocketService.connect();
       }
       
     } catch (error) {
       console.error('❌ Error en mounted:', error);
+      this.dataLoadError = 'Error de inicialización: ' + error.message;
+      this.isLoadingData = false;
+      
       // Intentar conectar WebSocket de todas formas
       try {
-        console.log('🔄 Conectando WebSocket como fallback...');
         await websocketService.connect();
       } catch (wsError) {
         console.error('❌ Error conectando WebSocket:', wsError);
@@ -344,14 +363,10 @@ export default {
   },
   async activated() {
     // Se ejecuta cuando el componente se activa (navegación)
-    console.log('Dashboard activated - Sincronizando sesión y verificando WebSocket...');
     setTimeout(async () => {
       try {
         // Sincronizar sesión
-        const syncResult = await sessionSync.syncSession();
-        if (syncResult.success) {
-          console.log('✅ Sesión sincronizada en activated:', syncResult.user.name);
-        }
+        await sessionSync.syncSession();
         
         // Conectar WebSocket
         await websocketService.connect();
@@ -363,36 +378,94 @@ export default {
   methods: {
     async cargarEstadisticasCRM() {
       try {
-        const userId = this.$store.state.user?.id || this.$store.state.user?._id;
+        // Intentar obtener usuario del store o de sessionStorage
+        let userId = this.$store.state.user?.id || this.$store.state.user?._id;
+        
+        // Si no está en el store, intentar desde sessionStorage
+        if (!userId) {
+          try {
+            const userStr = sessionStorage.getItem('user');
+            if (userStr) {
+              const qs = await import('qs');
+              const user = qs.default.parse(userStr);
+              userId = user.id || user._id;
+            }
+          } catch (err) {
+            console.error('❌ Error parseando usuario de sessionStorage:', err);
+          }
+        }
+        
         if (!userId) {
           console.warn('⚠️ No hay usuario para cargar estadísticas');
+          console.warn('   - Store user:', this.$store.state.user);
+          console.warn('   - SessionStorage user:', sessionStorage.getItem('user'));
+          this.dataLoadError = 'Usuario no identificado';
+          this.isLoadingData = false;
           return;
         }
         
-        console.log('🔍 Debug MQTT para estadísticas:');
-        console.log('   - MQTT conectado:', mqttService.isConnected);
-        console.log('   - User ID:', userId);
-        console.log('   - Store user:', this.$store.state.user);
+        
+        // 🔄 INTENTAR RECONECTAR MQTT SI NO ESTÁ CONECTADO
+        if (!mqttService.isConnected && !mqttService.isConnecting) {
+          console.warn('⚠️ MQTT no conectado, intentando reconectar...');
+          try {
+            const user = this.$store.state.user;
+            if (user && (user._id || user.id)) {
+              // Intentar reconectar con un timeout corto
+              await Promise.race([
+                mqttService.connect(null, user._id || user.id, user.name),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
+              ]);
+            }
+          } catch (reconnectError) {
+            console.warn('⚠️ No se pudo reconectar MQTT:', reconnectError);
+            // Continuar de todas formas, puede que se conecte después
+          }
+        }
+        
+        // Si aún no está conectado después de intentar reconectar, esperar un poco más
+        if (!mqttService.isConnected) {
+          // Esperar hasta 2 segundos más si está conectando
+          let waitTime = 0;
+          while (!mqttService.isConnected && mqttService.isConnecting && waitTime < 2000) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            waitTime += 100;
+          }
+        }
+        
+        // Verificar nuevamente después de esperar
+        if (!mqttService.isConnected) {
+          console.warn('⚠️ MQTT no está conectado después de intentar reconectar, no se pueden cargar estadísticas');
+          // NO mostrar error si es la primera carga, solo si ya se había cargado antes
+          if (!this.statsInterval) {
+            // Primera carga, solo mostrar warning en consola
+            console.warn('⚠️ Estadísticas no disponibles: MQTT no conectado');
+          } else {
+            // Actualización automática, mostrar warning pero no bloquear
+            console.warn('⚠️ No se puede actualizar estadísticas: MQTT no conectado');
+          }
+          this.isLoadingData = false;
+          return;
+        }
         
         // Publicar solicitud de estadísticas por MQTT
         const topicSolicitud = `crm/estadisticas/solicitar/${userId}`;
         const topicRespuesta = `crm/estadisticas/respuesta/${userId}`;
         
-        console.log('📡 Topics MQTT:');
-        console.log('   - Solicitud:', topicSolicitud);
-        console.log('   - Respuesta:', topicRespuesta);
         
         // Suscribirse a la respuesta
         const callback = (data) => {
-          console.log('📊 Estadísticas CRM recibidas:', data);
           this.actualizarEstadisticas(data);
+          this.isLoadingData = false;
+          this.dataLoadError = null;
         };
         
         // Limpiar suscripción anterior si existe
         if (this.mqttTopics.length > 0) {
           this.mqttTopics.forEach(topic => {
-            mqttService.off(topic, callback);
+            mqttService.off(topic);
           });
+          this.mqttTopics = [];
         }
         
         // Nueva suscripción
@@ -401,95 +474,57 @@ export default {
         
         // Publicar solicitud
         const published = mqttService.publish(topicSolicitud, {
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          requestId: `req_${Date.now()}`
         });
         
-        console.log('📡 Solicitud de estadísticas publicada:', published);
-        
-        // Si MQTT no está funcionando, no hacer nada (ya tenemos datos de fallback)
-        if (!mqttService.isConnected) {
-          console.warn('⚠️ MQTT no conectado, manteniendo datos de fallback');
-          return;
+        if (!published) {
+          console.error('❌ No se pudo publicar solicitud de estadísticas');
+          this.dataLoadError = 'No se pudo enviar solicitud';
+          this.isLoadingData = false;
         }
         
-        // Timeout para verificar si recibimos datos reales
+        // Timeout para detectar si no llegan datos
         setTimeout(() => {
-          // Si después de 3 segundos seguimos con datos de fallback, intentar una vez más
-          if (this.stats.money.value === '5' && this.topAgentes.length === 5) {
-            console.log('🔄 Intentando obtener datos reales del backend...');
-            // Los datos siguen siendo de fallback, intentar una vez más
+          if (this.isLoadingData) {
+            console.warn('⚠️ Timeout esperando estadísticas del backend');
+            this.dataLoadError = 'Tiempo de espera agotado. Reintentando...';
+            
+            // Reintentar una vez
             mqttService.publish(topicSolicitud, {
               timestamp: new Date().toISOString(),
-              force: true
+              requestId: `req_retry_${Date.now()}`
             });
+            
+            // Timeout final
+            setTimeout(() => {
+              if (this.isLoadingData) {
+                this.isLoadingData = false;
+                this.dataLoadError = 'No se pudieron cargar las estadísticas. Por favor, recarga la página.';
+              }
+            }, 5000);
           }
-        }, 3000);
+        }, 5000);
         
       } catch (error) {
         console.error('❌ Error cargando estadísticas:', error);
-        this.cargarDatosFallback();
+        this.dataLoadError = 'Error: ' + error.message;
+        this.isLoadingData = false;
       }
     },
     
-    cargarDatosFallback() {
-      console.log('🔄 Cargando datos de fallback para Dashboard...');
-      
-      // Datos de ejemplo para mostrar las gráficas
-      const datosFallback = {
-        agentesConectados: 5,
-        agentesAyer: 3,
-        totalClientes: 1250,
-        clientesSemanaAnterior: 1200,
-        tipificacionesHoy: 45,
-        tipificacionesAyer: 38,
-        topAgentes: [
-          { nombre: 'Juan Pérez', completadas: 12, pendientes: 2, efectividad: 85 },
-          { nombre: 'María García', completadas: 10, pendientes: 1, efectividad: 90 },
-          { nombre: 'Carlos López', completadas: 8, pendientes: 3, efectividad: 75 },
-          { nombre: 'Ana Martínez', completadas: 7, pendientes: 1, efectividad: 88 },
-          { nombre: 'Luis Rodríguez', completadas: 6, pendientes: 2, efectividad: 80 }
-        ],
-        estadosAgentes: [
-          { label: 'Disponible', count: 3, color: '#28a745', porcentaje: 60 },
-          { label: 'En llamada', count: 1, color: '#dc3545', porcentaje: 20 },
-          { label: 'Pausa', count: 1, color: '#ffc107', porcentaje: 20 }
-        ],
-        tipificacionesPorHora: [
-          { hora: 8, count: 2 },
-          { hora: 9, count: 5 },
-          { hora: 10, count: 8 },
-          { hora: 11, count: 12 },
-          { hora: 12, count: 6 },
-          { hora: 13, count: 4 },
-          { hora: 14, count: 7 },
-          { hora: 15, count: 9 },
-          { hora: 16, count: 11 },
-          { hora: 17, count: 8 }
-        ],
-        distribucionNivel1: [
-          { nivel1: 'Consultas', count: 15 },
-          { nivel1: 'Soporte', count: 12 },
-          { nivel1: 'Ventas', count: 8 },
-          { nivel1: 'Reclamos', count: 6 },
-          { nivel1: 'Otros', count: 4 }
-        ]
-      };
-      
-      this.actualizarEstadisticas(datosFallback);
-      
-      // Renderizar Chart.js correctamente - SOLO una vez
-      console.log('🎨 Datos fallback cargados, esperando actualización real...');
-    },
-    
     actualizarEstadisticas(data) {
+      // Actualizar estadísticas del dashboard
+      
       // Agentes Conectados
       this.stats.money.value = String(data.agentesConectados || 0);
+      this.stats.money.detail = 'en tiempo real';
       const agentesAyer = data.agentesAyer || 0;
       if (agentesAyer > 0) {
         const cambio = ((data.agentesConectados - agentesAyer) / agentesAyer * 100).toFixed(1);
         this.stats.money.percentage = `${cambio > 0 ? '+' : ''}${cambio}%`;
       } else {
-        this.stats.money.percentage = '+100%';
+        this.stats.money.percentage = data.agentesConectados > 0 ? '+100%' : '0%';
       }
       
       // Clientes CRM
@@ -518,7 +553,6 @@ export default {
       
       // Distribución por Nivel 1
       this.distribucionNivel1 = data.distribucionNivel1 || [];
-      console.log('📊 Distribución Nivel 1 recibida:', this.distribucionNivel1);
       
       // Actualizar gráficas en tiempo real
       // Si las gráficas ya existen, actualizarlas sin recrear
@@ -540,6 +574,7 @@ export default {
           this.renderChartDistribucion();
         }
       });
+      
     },
     
     getBadgeColor(index) {
@@ -549,7 +584,6 @@ export default {
     
     updateChartHora() {
       // Actualizar datos de la gráfica existente sin recrearla (TIEMPO REAL)
-      console.log('🔄 Actualizando gráfica de hora en tiempo real...');
       
       if (!this.chartHora) {
         console.warn('⚠️ Gráfica no existe, creando nueva...');
@@ -567,11 +601,9 @@ export default {
       // Aplicar la actualización con animación suave
       this.chartHora.update('active');
       
-      console.log('✅ Gráfica de hora actualizada en tiempo real');
     },
     
     renderChartHora() {
-      console.log('🎨 Iniciando renderChartHora...');
       
       // Verificar que el canvas existe y está en el DOM
       const ctx = document.getElementById('chart-tipificaciones-hora');
@@ -580,7 +612,20 @@ export default {
         return;
       }
       
-      console.log('📊 Datos para gráfica de hora:', this.tipificacionesPorHora);
+      
+      // 🔥 USAR Chart.getChart() PARA VERIFICAR Y DESTRUIR GRÁFICAS EXISTENTES
+      try {
+        const existingChart = Chart.getChart(ctx);
+        if (existingChart) {
+          try {
+            existingChart.destroy();
+          } catch (error) {
+            console.warn('⚠️ Error destruyendo gráfica existente con Chart.getChart():', error);
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Error obteniendo gráfica existente:', error);
+      }
       
       // Destruir gráfica anterior de forma completamente segura
       if (this.chartHora) {
@@ -591,11 +636,10 @@ export default {
             const existingCanvas = document.getElementById('chart-tipificaciones-hora');
             if (existingCanvas && this.chartHora.canvas === existingCanvas) {
               this.chartHora.destroy();
-              console.log('🗑️ Gráfica anterior destruida correctamente');
             }
           }
         } catch (error) {
-          console.warn('⚠️ Error destruyendo gráfica anterior:', error);
+          console.warn('⚠️ Error destruyendo instancia local:', error);
         }
         this.chartHora = null;
       }
@@ -603,8 +647,6 @@ export default {
       const labels = this.tipificacionesPorHora.map(item => `${item.hora}:00`);
       const data = this.tipificacionesPorHora.map(item => item.count);
       
-      console.log('📈 Labels:', labels);
-      console.log('📈 Data:', data);
       
       try {
         this.chartError = false; // Resetear flag de error
@@ -669,7 +711,6 @@ export default {
         }
       });
       
-      console.log('✅ Gráfica de hora renderizada exitosamente');
       } catch (error) {
         console.error('❌ Error creando gráfica de hora:', error);
         this.chartError = true; // Activar fallback HTML
@@ -679,7 +720,6 @@ export default {
     
     updateChartDistribucion() {
       // Actualizar datos de la gráfica existente sin recrearla (TIEMPO REAL)
-      console.log('🔄 Actualizando gráfica de distribución en tiempo real...');
       
       if (!this.chartDistribucion) {
         console.warn('⚠️ Gráfica no existe, creando nueva...');
@@ -697,11 +737,9 @@ export default {
       // Aplicar la actualización con animación suave
       this.chartDistribucion.update('active');
       
-      console.log('✅ Gráfica de distribución actualizada en tiempo real');
     },
     
     renderChartDistribucion() {
-      console.log('🎨 Iniciando renderChartDistribucion...');
       
       // Verificar que el canvas existe y está en el DOM
       const ctx = document.getElementById('chart-distribucion-nivel1');
@@ -710,7 +748,20 @@ export default {
         return;
       }
       
-      console.log('📊 Datos para gráfica de distribución:', this.distribucionNivel1);
+      
+      // 🔥 USAR Chart.getChart() PARA VERIFICAR Y DESTRUIR GRÁFICAS EXISTENTES
+      try {
+        const existingChart = Chart.getChart(ctx);
+        if (existingChart) {
+          try {
+            existingChart.destroy();
+          } catch (error) {
+            console.warn('⚠️ Error destruyendo gráfica existente con Chart.getChart():', error);
+          }
+        }
+      } catch (error) {
+        console.warn('⚠️ Error obteniendo gráfica existente:', error);
+      }
       
       // Destruir gráfica anterior de forma completamente segura
       if (this.chartDistribucion) {
@@ -721,18 +772,16 @@ export default {
             const existingCanvas = document.getElementById('chart-distribucion-nivel1');
             if (existingCanvas && this.chartDistribucion.canvas === existingCanvas) {
               this.chartDistribucion.destroy();
-              console.log('🗑️ Gráfica anterior destruida correctamente');
             }
           }
         } catch (error) {
-          console.warn('⚠️ Error destruyendo gráfica anterior:', error);
+          console.warn('⚠️ Error destruyendo instancia local:', error);
         }
         this.chartDistribucion = null;
       }
       
       // Si no hay datos, mostrar mensaje
       if (!this.distribucionNivel1 || this.distribucionNivel1.length === 0) {
-        console.log('⚠️ No hay datos de distribución aún');
         
         // Mostrar gráfica vacía con mensaje
         this.chartDistribucion = new Chart(ctx, {
@@ -834,7 +883,6 @@ export default {
         }
       });
       
-      console.log('✅ Gráfica de distribución renderizada exitosamente');
       } catch (error) {
         console.error('❌ Error creando gráfica de distribución:', error);
         this.chartError = true; // Activar fallback HTML
@@ -843,7 +891,6 @@ export default {
     }
   },
   beforeUnmount() {
-    console.log('Dashboard unmounting - NO desconectar WebSocket (gestión global)');
     
     // Destruir gráficas de Chart.js
     if (this.chartHora) {
@@ -852,6 +899,7 @@ export default {
       } catch (error) {
         console.warn('⚠️ Error destruyendo chartHora:', error);
       }
+
     }
     
     if (this.chartDistribucion) {
@@ -898,3 +946,4 @@ export default {
   opacity: 0;
 }
 </style>
+

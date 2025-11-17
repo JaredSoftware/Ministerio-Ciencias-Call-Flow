@@ -97,7 +97,6 @@ export default {
       this.validation = null;
       
       try {
-        console.log('🔍 Iniciando validación de estados...');
         
         const response = await axios.get('/status-types/validate', {
           withCredentials: true
@@ -105,7 +104,6 @@ export default {
         
         if (response.data.success) {
           this.validation = response.data.validation;
-          console.log('✅ Validación completada:', this.validation);
         } else {
           this.error = response.data.message || 'Error en la validación';
         }

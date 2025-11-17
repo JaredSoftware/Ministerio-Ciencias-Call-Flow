@@ -810,4 +810,66 @@ router.get('/roles', async (req, res) => {
   }
 });
 
+// 🚨 ENDPOINT DE HEARTBEAT PARA MANTENER CONEXIÓN ACTIVA
+router.post('/heartbeat', requireAuth, async (req, res) => {
+  try {
+    const userId = req.session.user._id;
+    const UserStatus = require('../models/userStatus');
+    
+    // Obtener o crear el estado del usuario
+    let userStatus = await UserStatus.getUserStatus(userId);
+    
+    if (!userStatus) {
+      // Si no existe, crear uno por defecto
+      userStatus = await UserStatus.upsertStatus(userId, {
+        isActive: true,
+        sessionId: req.sessionID
+      });
+    } else {
+      // Actualizar lastSeen y asegurar que está activo
+      await userStatus.updateActivity();
+      
+      // Si no está marcado como activo, reactivarlo
+      if (!userStatus.isActive) {
+        userStatus.isActive = true;
+        await userStatus.save();
+      }
+      
+      // Actualizar sessionId si es necesario
+      if (userStatus.sessionId !== req.sessionID) {
+        userStatus.sessionId = req.sessionID;
+        await userStatus.save();
+      }
+    }
+    
+    // Verificar conexión WebSocket si está disponible
+    const io = req.app.get('io');
+    let socketActive = false;
+    if (io && userStatus.socketId) {
+      try {
+        const socket = io.sockets.sockets.get(userStatus.socketId);
+        socketActive = socket && socket.connected;
+      } catch (socketError) {
+        // Ignorar errores de socket
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Heartbeat recibido',
+      timestamp: new Date().toISOString(),
+      lastSeen: userStatus.lastSeen,
+      isActive: userStatus.isActive,
+      socketActive: socketActive
+    });
+  } catch (error) {
+    console.error('❌ Error procesando heartbeat:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Error procesando heartbeat',
+      error: error.message 
+    });
+  }
+});
+
 module.exports = router; 

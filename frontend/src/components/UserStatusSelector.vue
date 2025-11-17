@@ -116,7 +116,6 @@ export default {
     }
   },
   mounted() {
-    console.log('UserStatusSelector mounted');
     // Cargar estados disponibles del backend
     this.loadAvailableStatuses();
     // Cargar datos si están disponibles
@@ -136,24 +135,20 @@ export default {
   methods: {
     initializeWebSocket() {
       try {
-        console.log('🔄 Inicializando WebSocket...');
         
         // NO conectar automáticamente - solo suscribirse a eventos
         // websocketService.connect(); // COMENTADO - NO CONECTAR AUTOMÁTICAMENTE
         
         // Suscribirse a eventos
         websocketService.on('userStatusChanged', (data) => {
-          console.log('Estado de usuario cambiado:', data);
           this.updateUserStatus(data);
         });
         
         websocketService.on('ownStatusChanged', (data) => {
-          console.log('Mi estado cambió:', data);
           this.updateOwnStatus(data);
         });
         
         websocketService.on('activeUsersList', (users) => {
-          console.log('Usuarios activos:', users);
           this.activeUsers = users;
         });
         
@@ -173,9 +168,7 @@ export default {
     
     async loadCurrentStatus() {
       try {
-        console.log('Cargando estado actual...');
         const response = await axios.get('/user-status/my-status');
-        console.log('Respuesta estado:', response.data);
         
         if (response.data.success && response.data.status) {
           this.updateOwnStatus(response.data.status);
@@ -187,9 +180,7 @@ export default {
     
     async loadActiveUsers() {
       try {
-        console.log('Cargando usuarios activos...');
         const response = await axios.get('/user-status/active-users');
-        console.log('Respuesta usuarios:', response.data);
         
         if (response.data.success) {
           this.activeUsers = response.data.users;
@@ -201,7 +192,6 @@ export default {
     
     async changeStatus(status, customStatus = null) {
       try {
-        console.log('🔄 Cambiando estado a:', status, customStatus);
         
         // Usar el servicio WebSocket para cambiar estado
         websocketService.changeStatus(status, customStatus);
@@ -217,7 +207,6 @@ export default {
           customStatus
         });
         
-        console.log('Respuesta cambio estado:', response.data);
         
       } catch (error) {
         console.error('❌ Error cambiando estado:', error);
@@ -254,7 +243,6 @@ export default {
     // Método para asignar estado por defecto
     async assignDefaultStatus() {
       try {
-        console.log('🔄 Asignando estado por defecto en UserStatusSelector...');
         
         // Obtener el estado por defecto del backend
         const response = await axios.get('/status-types/default', {
@@ -263,14 +251,11 @@ export default {
         
         if (response.data.success && response.data.status) {
           const defaultStatus = response.data.status.value;
-          console.log('📡 Estado por defecto obtenido del backend:', defaultStatus);
           
           // Cambiar al estado por defecto real del backend
           await this.changeStatus(defaultStatus);
           
-          console.log('✅ Estado por defecto asignado exitosamente en UserStatusSelector:', defaultStatus);
         } else {
-          console.log('⚠️ No se pudo obtener estado por defecto del backend, usando offline');
           await this.changeStatus('offline');
         }
       } catch (error) {

@@ -108,11 +108,9 @@ export default createStore({
     },
     setPendingTipificacion(state, tipificacionData) {
       state.pendingTipificacion = tipificacionData;
-      console.log('💾 Tipificación pendiente guardada en store:', tipificacionData?.idLlamada);
     },
     clearPendingTipificacion(state) {
       state.pendingTipificacion = null;
-      console.log('🗑️ Tipificación pendiente limpiada del store');
     },
   },
   actions: {

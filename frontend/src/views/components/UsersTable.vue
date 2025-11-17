@@ -503,7 +503,6 @@ export default {
       try {
         // Obtener el ID del usuario actual desde el sessionStorage o store
         const userDataString = sessionStorage.getItem('user');
-        console.log('🔍 userDataString del sessionStorage:', userDataString);
         
         if (userDataString && userDataString.trim() !== '') {
           // Verificar si es un JSON válido
@@ -511,7 +510,6 @@ export default {
             const userData = JSON.parse(userDataString);
             this.currentUserId = userData._id;
           } else {
-            console.log('⚠️ userDataString no es JSON válido, intentando parsear como query string');
             // Intentar parsear como query string
             const params = new URLSearchParams(userDataString);
             this.currentUserId = params.get('_id') || null;
@@ -521,7 +519,6 @@ export default {
           this.currentUserId = this.$store.state.user?._id || null;
         }
         
-        console.log('🔍 currentUserId obtenido:', this.currentUserId);
       } catch (error) {
         console.error('Error obteniendo ID del usuario actual:', error);
         // Intentar obtener desde el store como fallback
@@ -542,9 +539,6 @@ export default {
       try {
         const response = await roleAndActivate.rolChanger(userId, newRoleId);
         
-        console.log('🔍 Respuesta del servicio rolChanger:', response);
-        console.log('🔍 Tipo de respuesta:', typeof response);
-        console.log('🔍 Propiedades de respuesta:', Object.keys(response || {}));
         
         // Verificar si la respuesta es válida
         if (response && response.restart === true) {
@@ -580,7 +574,6 @@ export default {
       try {
         const response = await roleAndActivate.statChanger(userId, newStatus);
         
-        console.log('🔍 Respuesta del servicio statChanger:', response);
         
         // Verificar si la respuesta es válida
         if (response && response.restart === true) {
@@ -856,8 +849,8 @@ export default {
     },
 
     // Métodos de toast simplificados
-    showSuccess(message) {
-      console.log('✅ Success:', message);
+    showSuccess() {
+      // Toast de éxito
     },
     
     showError(message) {

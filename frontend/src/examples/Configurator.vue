@@ -111,6 +111,10 @@ export default {
     },
     sidenavTypeOnResize() {
       let white = document.querySelector("#btn-white");
+      if (!white) {
+        // El elemento no existe, no hacer nada
+        return;
+      }
       if (window.innerWidth < 1200) {
         white.classList.add("disabled");
       } else {

@@ -10,16 +10,13 @@ class StatusTypesService {
   // Cargar todos los estados disponibles
   async loadStatuses() {
     try {
-      console.log('🔄 Haciendo request a /status-types...');
       const response = await axios.get('/status-types', {
         withCredentials: true
       });
       
-      console.log('📡 Response de /status-types:', response.data);
       
       if (response.data.success) {
         this.statuses = response.data.statuses;
-        console.log('✅ Estados cargados:', this.statuses.length, this.statuses);
         return this.statuses;
       } else {
         console.error('❌ Response no exitosa:', response.data);
@@ -50,16 +47,13 @@ class StatusTypesService {
   // Cargar categorías disponibles
   async loadCategories() {
     try {
-      console.log('🔄 Haciendo request a /status-types/categories...');
       const response = await axios.get('/status-types/categories', {
         withCredentials: true
       });
       
-      console.log('📡 Response de /status-types/categories:', response.data);
       
       if (response.data.success) {
         this.categories = response.data.categories;
-        console.log('✅ Categorías cargadas:', this.categories);
         return this.categories;
       } else {
         console.error('❌ Response no exitosa para categorías:', response.data);
@@ -97,7 +91,6 @@ class StatusTypesService {
     }
     
     // Si no se encuentra, crear un estado dinámico con el valor tal como viene
-    console.log(`✅ Estado dinámico creado: ${value}`);
     return {
       value: value,
       label: value, // Usar el valor como label
@@ -152,7 +145,6 @@ class StatusTypesService {
 
   // Inicializar el servicio
   async initialize() {
-    console.log('🔄 Inicializando servicio de tipos de estado...');
     
     await Promise.all([
       this.loadStatuses(),
@@ -160,7 +152,6 @@ class StatusTypesService {
       this.getDefaultStatus()
     ]);
     
-    console.log('✅ Servicio de tipos de estado inicializado');
   }
 
   // Recargar datos

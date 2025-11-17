@@ -124,12 +124,10 @@ export default {
   methods: {
     ...mapMutations(["makelogin", "setToken","setRole","setRoleToken"]),
     async submit() {
-      console.log('🔐 Iniciando proceso de login...');
       const getInfoForLogin = await Login.sendLogin(this.$data);
       
       if (getInfoForLogin.user) {
         if (getInfoForLogin.login) {
-          console.log('✅ Login exitoso, procesando tokens...');
           this.passwordDisabled = false;
           this.emailDisabled = false;
           
@@ -145,21 +143,14 @@ export default {
           sessionStorage.setItem('user', qs.stringify(getInfoForLogin.user));
           
           // SINCRONIZAR SESIÓN EXPRESS ANTES DE REDIRIGIR
-          console.log('🔄 Sincronizando sesión con Express...');
           try {
-            const syncResult = await sessionSync.syncSession();
-            if (syncResult.success) {
-              console.log('✅ Sesión sincronizada exitosamente:', syncResult.user.name);
-            } else {
-              console.log('⚠️ No se pudo sincronizar sesión:', syncResult.message);
-            }
+            await sessionSync.syncSession();
           } catch (syncError) {
             console.error('❌ Error sincronizando sesión:', syncError);
           }
 
           // Redirigir al dashboard
           this.$store.dispatch("login", { token, user: getInfoForLogin.user });
-          console.log('🏠 Redirigiendo al dashboard...');
           this.$router.push("/dashboard");
         } else {
           this.passwordDisabled = true;

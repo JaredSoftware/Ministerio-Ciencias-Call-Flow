@@ -12,7 +12,6 @@ async function processReports() {
   try {
     // Verificar que la conexión esté activa (sin intentar conectar)
     if (mongoose.connection.readyState !== 1) {
-      console.log('⏳ Esperando conexión a MongoDB...');
       return;
     }
     
@@ -30,7 +29,6 @@ async function processReports() {
         rep.status = 'generado';
         rep.archivoUrl = `/csv/${rep.nombreArchivo}`;
         await rep.save();
-        console.log(`✅ Reporte generado: ${rep.nombreArchivo}`);
       } catch (e) {
         rep.status = 'error';
         await rep.save();

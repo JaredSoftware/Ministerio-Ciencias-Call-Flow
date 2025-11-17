@@ -20,22 +20,18 @@ export default {
 		
 		if (cachedRole && cachedToken === token) {
 			const cachedPermissions = localStorage.getItem('cachedRolePermissions');
-			console.log('✅ Usando rol desde cache:', cachedRole);
 			return { 
 				nombre: cachedRole,
 				permissions: cachedPermissions ? JSON.parse(cachedPermissions) : null
 			};
 		}
 		
-		console.log('🔍 Token para roles:', token ? 'Existe' : 'No existe');
 		
 		let data = {
 			'token': token
 		};
 
-		console.log('🔄 Enviando request a /role...');
 		const info = await axios.post('/role', data);
-		console.log('✅ Respuesta de roles recibida:', info.data);
 
 		// El backend devuelve el objeto completo del rol
 		if (info.data && info.data.nombre) {
@@ -45,7 +41,6 @@ export default {
 			localStorage.setItem('cachedRoleToken', token);
 			// Limpiar timestamp de intento fallido
 			localStorage.removeItem('lastRoleAttempt');
-			console.log('💾 Rol y permisos guardados en cache:', info.data.nombre);
 			
 			// Devolver tanto el nombre como los permisos
 			return { 

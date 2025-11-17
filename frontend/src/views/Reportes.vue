@@ -325,19 +325,16 @@ export default {
         
         // Callback para resultados de clientes
         this.mqttCallback = (data) => {
-          console.log('📥 Resultados de clientes recibidos por MQTT:', data);
           this.handleResultados(data);
         };
         
         // Callback para resultados de tipificaciones
         this.mqttCallbackTipif = (data) => {
-          console.log('📥 Resultados de tipificaciones recibidos por MQTT:', data);
           this.handleResultadosTipificaciones(data);
         };
         
         mqttService.on(this.mqttTopic, this.mqttCallback);
         mqttService.on(this.mqttTopicTipif, this.mqttCallbackTipif);
-        console.log('✅ MQTT configurado para reportes:', this.mqttTopic, this.mqttTopicTipif);
         
       } catch (error) {
         console.error('❌ Error configurando MQTT:', error);
@@ -353,8 +350,6 @@ export default {
       try {
         const userId = this.$store.state.user?.id || this.$store.state.user?._id;
         
-        console.log('🔍 Usuario ID:', userId);
-        console.log('🔍 Store user:', this.$store.state.user);
         
         if (!userId) {
           alert('❌ Debes iniciar sesión para buscar clientes');
@@ -369,7 +364,6 @@ export default {
             cedula: this.cedulaBusqueda,
             timestamp: new Date().toISOString()
           });
-          console.log(`📡 Solicitud de búsqueda por cédula publicada en: ${topicBusqueda}`);
         } else {
           // 📡 Publicar solicitud por MQTT - Búsqueda por fechas
           const topicBusqueda = `crm/clientes/buscar/fechas/${userId}`;
@@ -380,10 +374,8 @@ export default {
             limit: 50,
             timestamp: new Date().toISOString()
           });
-          console.log(`📡 Solicitud de búsqueda por fechas publicada en: ${topicBusqueda}`);
         }
         
-        console.log('✅ Solicitud de búsqueda enviada por MQTT, esperando resultados...');
       } catch (error) {
         console.error('❌ Error solicitando búsqueda:', error);
         this.loading = false;
@@ -400,7 +392,6 @@ export default {
       try {
         const userId = this.$store.state.user?.id || this.$store.state.user?._id;
         
-        console.log('🔍 Buscando tipificaciones para usuario:', userId);
         
         if (!userId) {
           alert('❌ Debes iniciar sesión para buscar tipificaciones');
@@ -418,8 +409,6 @@ export default {
           timestamp: new Date().toISOString()
         });
         
-        console.log(`📡 Solicitud de búsqueda de tipificaciones publicada en: ${topicBusqueda}`);
-        console.log(`📅 Rango de fechas: ${this.fechaInicioTipif} a ${this.fechaFinTipif}`);
         
       } catch (error) {
         console.error('❌ Error solicitando búsqueda de tipificaciones:', error);
@@ -442,7 +431,6 @@ export default {
         this.totalClientes = data.total || data.count;
         this.hasMore = data.hasMore || false;
         
-        console.log(`✅ ${this.clientes.length} clientes en memoria`);
       } else {
         this.clientes = [];
         this.totalClientes = 0;
@@ -463,7 +451,6 @@ export default {
         this.totalTipificaciones = data.total || data.count;
         this.hasMoreTipif = data.hasMore || false;
         
-        console.log(`✅ ${this.tipificaciones.length} tipificaciones en memoria`);
       } else {
         this.tipificaciones = [];
         this.totalTipificaciones = 0;
@@ -488,7 +475,6 @@ export default {
         timestamp: new Date().toISOString()
       });
       
-      console.log(`📡 Solicitud de página ${this.currentPage} publicada por MQTT`);
     },
     
     async cargarMasTipificaciones() {
@@ -509,7 +495,6 @@ export default {
         timestamp: new Date().toISOString()
       });
       
-      console.log(`📡 Solicitud de página ${this.currentPageTipif} de tipificaciones publicada por MQTT`);
     },
     
     verDetalles(cliente) {
@@ -523,7 +508,6 @@ export default {
         this.clientes[index] = { ...this.clientes[index], ...datosActualizados };
         this.clienteSeleccionado = this.clientes[index];
       }
-      console.log('✅ Cliente actualizado en la lista');
     },
     
     exportarCSV() {

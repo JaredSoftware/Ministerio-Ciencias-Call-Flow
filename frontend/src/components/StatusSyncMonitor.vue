@@ -92,7 +92,6 @@ export default {
 
         // Verificar si hay usuario en el store antes de hacer la petición
         if (!this.$store.state.user || !this.$store.state.user._id) {
-          console.log('⚠️ No hay usuario en el store, saltando actualización de estado');
           this.isConnected = false;
           return;
         }
@@ -118,9 +117,7 @@ export default {
         } catch (error) {
           this.isConnected = false;
           this.currentStatus = null;
-          if (error.response?.status === 401) {
-            console.log('⚠️ No autenticado - StatusSyncMonitor deshabilitado');
-          } else {
+          if (error.response?.status !== 401) {
             console.error('❌ Error obteniendo estado:', error);
           }
         }

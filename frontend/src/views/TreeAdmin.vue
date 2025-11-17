@@ -381,7 +381,6 @@ export default {
           throw new Error('Formato de archivo no soportado');
         }
 
-        console.log('📤 Subiendo árbol:', treeData);
 
         // Enviar al servidor
         const response = await axios.post('/api/tree/upload', {
@@ -420,8 +419,6 @@ export default {
         const reader = new FileReader();
         reader.onload = (e) => {
           const content = e.target.result;
-          console.log('📄 Archivo leído como UTF-8');
-          console.log('📄 Primeros 200 caracteres:', content.substring(0, 200));
           resolve(content);
         };
         reader.onerror = reject;
@@ -433,7 +430,6 @@ export default {
     csvToJson(csvContent) {
       // Implementación flexible de CSV a JSON para árbol
       // Soporta de 1 a 5 niveles: nivel1,nivel2,nivel3,nivel4,nivel5
-      console.log('📄 Convirtiendo CSV a JSON...');
       
       const lines = csvContent.split('\n').filter(line => line.trim());
       const tree = {
@@ -462,7 +458,6 @@ export default {
         // El archivo ya viene correctamente decodificado como UTF-8
         const [nivel1, nivel2, nivel3, nivel4, nivel5] = parts;
         
-        console.log(`Línea ${index}: ${nivel1} > ${nivel2 || ''} > ${nivel3 || ''} > ${nivel4 || ''} > ${nivel5 || ''}`);
         
         // ====== NIVEL 1 ======
         if (!nivel1Map.has(nivel1)) {
@@ -535,7 +530,6 @@ export default {
         }
       });
 
-      console.log(`✅ CSV convertido: ${tree.root.length} nodos raíz`);
       return tree;
     },
 
@@ -617,7 +611,6 @@ export default {
 
     showNotification(message, type = 'info') {
       // Usar el sistema de notificaciones existente o crear una simple
-      console.log(`[${type.toUpperCase()}] ${message}`);
       
       // Crear notificación visual simple
       const notification = document.createElement('div');

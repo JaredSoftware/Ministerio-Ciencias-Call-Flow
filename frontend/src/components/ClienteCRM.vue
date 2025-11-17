@@ -359,7 +359,6 @@ export default {
           timestamp: new Date().toISOString()
         });
         
-        console.log('✅ Solicitud de actualización enviada por MQTT');
         
         // Emitir evento de actualización al padre
         this.$emit('cliente-actualizado', this.clienteEditado);
@@ -469,7 +468,6 @@ export default {
       link.click();
       document.body.removeChild(link);
       
-      console.log(`✅ Historial descargado: ${nombreArchivo}`);
     }
   }
 };

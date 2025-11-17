@@ -23,7 +23,6 @@ if (config.user.length > 0 && config.password.length > 0) {
 
 const URI = `mongodb://${user}${server}/${config.database}?authSource=admin`;
 
-console.log(URI);
 
 mongoose.set("strictQuery", false);
 
@@ -33,7 +32,7 @@ const db = mongoose.connection;
 
 db.on("error", console.error.bind(console, "connection error: "));
 db.once("open", function () {
-  console.log("Connected successfully");
+  // Conexión establecida
 });
 
 const pool = new Pool({

@@ -5,6 +5,5 @@ export default {
     // Agregar el servicio WebSocket al contexto global de Vue
     app.config.globalProperties.$websocket = websocketService;
     
-    console.log('🔌 Plugin WebSocket instalado');
   }
 }; 

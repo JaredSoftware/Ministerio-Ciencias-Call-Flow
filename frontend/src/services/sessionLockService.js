@@ -20,18 +20,14 @@ class SessionLockService {
   }
 
   // Iniciar sesión única
-  async start(userId, userName) {
+  async start(userId) {
     if (this.isLocked) {
-      console.log('⚠️ Sesión ya iniciada');
       return;
     }
 
     this.userId = userId;
     this.sessionId = this.generateSessionId();
 
-    console.log('🔒 Iniciando sistema de sesión única');
-    console.log(`   - Usuario: ${userName} (${userId})`);
-    console.log(`   - Session ID: ${this.sessionId}`);
 
     // Almacenar sessionId en sessionStorage
     sessionStorage.setItem('sessionId', this.sessionId);
@@ -57,7 +53,6 @@ class SessionLockService {
       return;
     }
 
-    console.log('🔓 Deteniendo sistema de sesión única');
 
     // Limpiar intervalos
     if (this.heartbeatInterval) {
@@ -89,17 +84,14 @@ class SessionLockService {
     const topic = `session/duplicate/${this.userId}`;
 
     this.duplicateSessionCallback = (data) => {
-      console.log('🚨 Notificación de sesión duplicada recibida:', data);
 
       // Si no es nuestra sesión, significa que debemos cerrar
       if (data.newSessionId && data.newSessionId !== this.sessionId) {
-        console.log('❌ Otra sesión ha tomado control - cerrando esta sesión');
         this.handleSessionTakeover(data);
       }
     };
 
     mqttService.on(topic, this.duplicateSessionCallback, 'session');
-    console.log('👂 Escuchando duplicados en:', topic);
   }
 
   // Anunciar esta sesión como activa
@@ -114,7 +106,6 @@ class SessionLockService {
       screenResolution: `${screen.width}x${screen.height}`
     };
 
-    console.log('📢 Anunciando sesión activa');
     mqttService.publish(topic, message);
   }
 
@@ -128,7 +119,6 @@ class SessionLockService {
       action: 'session_end'
     };
 
-    console.log('📢 Anunciando cierre de sesión');
     mqttService.publish(topic, message);
   }
 
@@ -145,7 +135,6 @@ class SessionLockService {
       };
 
       mqttService.publish(topic, message);
-      console.log('💓 Heartbeat enviado');
     }, 30000); // Cada 30 segundos
   }
 
@@ -158,18 +147,16 @@ class SessionLockService {
       
       // Si el sessionId cambió, significa que otra pestaña tomó control
       if (storedSessionId !== this.sessionId) {
-        console.log('⚠️ Session ID cambió - otra pestaña tomó control');
         this.handleLocalSessionTakeover();
       }
     }, 10000); // Cada 10 segundos
   }
 
   // Manejar cuando otra sesión toma control (remoto)
-  handleSessionTakeover(data) {
+  handleSessionTakeover() {
     // Detener servicios
     this.stop();
 
-    console.log('🚨 Sesión tomada por otro dispositivo:', data);
 
     // Mostrar notificación
     this.showSessionTakeoverNotification();
@@ -195,7 +182,6 @@ class SessionLockService {
 
   // Manejar cuando otra pestaña local toma control
   handleLocalSessionTakeover() {
-    console.log('🔄 Otra pestaña de este navegador tiene el control');
     
     // Mostrar advertencia
     this.showLocalTakeoverWarning();

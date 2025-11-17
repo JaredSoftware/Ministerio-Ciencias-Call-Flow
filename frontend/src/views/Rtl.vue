@@ -28,24 +28,19 @@ export default {
   methods: {
     showPopover() {
       // Popper deshabilitado temporalmente
-      console.log('Popover deshabilitado temporalmente');
     },
     hidePopover() {
       // Popper deshabilitado temporalmente
-      console.log('Popover deshabilitado temporalmente');
     },
     createPopper() {
       // Popper deshabilitado temporalmente
-      console.log('Popper deshabilitado temporalmente');
     },
     destroyPopper() {
       // Popper deshabilitado temporalmente
-      console.log('Popper deshabilitado temporalmente');
     }
   },
   beforeUnmount() {
     // Popper deshabilitado temporalmente
-    console.log('Componente Rtl desmontado');
   }
 };
 </script>

@@ -38,7 +38,6 @@ require("dotenv").config();
 const MQTT_PORT = 1884;
 const mqttServer = net.createServer(aedes.handle);
 mqttServer.listen(MQTT_PORT, function () {
-  console.log('🚀 Broker MQTT TCP escuchando en puerto', MQTT_PORT);
 });
 
 // Puerto WebSocket para MQTT (para el frontend)
@@ -50,7 +49,6 @@ wsServer.on('connection', function (socket, request) {
   aedes.handle(stream, request);
 });
 mqttHttpServer.listen(WS_PORT, function () {
-  console.log('🚀 Broker MQTT WebSocket escuchando en puerto', WS_PORT);
 });
 
 // Crear servidor HTTP
@@ -83,7 +81,6 @@ app.use(sessionMiddleware);
 
 // Compartir sesión con Socket.IO de forma más robusta
 io.use((socket, next) => {
-  console.log('🔍 Socket.IO middleware - Verificando sesión...');
   
   // Envolver la request para Socket.IO
   const req = socket.request;
@@ -95,20 +92,9 @@ io.use((socket, next) => {
       return next(err);
     }
     
-    console.log('✅ Session middleware ejecutado');
-    console.log('   - Session ID:', req.sessionID);
-    console.log('   - Session data:', req.session);
-    console.log('   - User en session:', !!req.session?.user);
-    console.log('   - Session keys:', Object.keys(req.session || {}));
     
     if (req.session?.user) {
-      console.log('👤 Usuario autenticado:', req.session.user.name);
     } else {
-      console.log('❌ No hay usuario en la sesión');
-      console.log('   - Posibles causas:');
-      console.log('     * Login no completado');
-      console.log('     * Sesión expirada');
-      console.log('     * Cookies no compartidas');
     }
     
     next();
@@ -255,16 +241,12 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // Manejo de Socket.IO
 io.on('connection', async (socket) => {
-  console.log('🔌 Usuario conectado:', socket.id);
   
   // Obtener información de la sesión
   const session = socket.request.session;
-  console.log('   - Session existe:', !!session);
-  console.log('   - User en session:', !!session?.user);
   
   if (session && session.user) {
     const user = session.user;
-    console.log(`👤 Usuario autenticado: ${user.name} (${user._id})`);
     
     // Unir al usuario a una sala basada en su rol o ID
     socket.join(`user_${user._id}`);
@@ -283,7 +265,6 @@ io.on('connection', async (socket) => {
     try {
       const UserStatus = require('./models/userStatus');
       
-      console.log(`🔄 Inicializando estado para ${user.name} en Socket.IO`);
       
       await UserStatus.upsertStatus(user._id, {
         isActive: true,
@@ -291,7 +272,6 @@ io.on('connection', async (socket) => {
         sessionId: session.sessionID
       });
       
-      console.log(`✅ Usuario ${user.name} inicializado correctamente con estado dinámico`);
       
       // Enviar estado actual al usuario
       const userStatus = await UserStatus.getUserStatus(user._id);
@@ -301,7 +281,6 @@ io.on('connection', async (socket) => {
       try {
         const mqttService = app.get('mqttService');
         if (mqttService && mqttService.isConnected) {
-          console.log(`📤 Publicando conexión de ${user.name} via MQTT`);
           mqttService.publishUserConnected(user._id, user.name, user.role);
         }
       } catch (mqttError) {
@@ -315,12 +294,10 @@ io.on('connection', async (socket) => {
       console.error(`❌ Error inicializando usuario ${user.name}:`, error);
     }
   } else {
-    console.log('⚠️ Usuario no autenticado, solo Socket.IO conectado');
   }
   
   // Manejar eventos de estado de la aplicación
   socket.on('user_action', (data) => {
-    console.log('Acción del usuario:', data);
     
     if (session?.user?._id) {
       // Actualizar estado del usuario
@@ -338,7 +315,6 @@ io.on('connection', async (socket) => {
   
   // Manejar cambios de estado en tiempo real
   socket.on('state_change', (data) => {
-    console.log('Cambio de estado:', data);
     
     if (session?.user?._id) {
       // Actualizar estado en StateManager
@@ -355,7 +331,6 @@ io.on('connection', async (socket) => {
   
   // Manejar flujo de trabajo
   socket.on('workflow_update', (data) => {
-    console.log('Actualización de flujo:', data);
     
     if (session?.user?._id) {
       stateManager.handleWorkflow({
@@ -367,7 +342,6 @@ io.on('connection', async (socket) => {
   
   // Manejar notificaciones
   socket.on('send_notification', (data) => {
-    console.log('Enviando notificación:', data);
     
     if (data.targetUsers) {
       stateManager.sendNotification(data.targetUsers, data);
@@ -384,15 +358,10 @@ io.on('connection', async (socket) => {
   
   // Manejar cambios de estado de usuario
   socket.on('change_status', async (data) => {
-    console.log('🚨 WEBSOCKET: Cambio manual de estado recibido:', data);
     
     if (session?.user?._id) {
       try {
         const user = session.user;
-        console.log(`🚨 WEBSOCKET: Usuario ${user.name} cambió manualmente a: ${data.status}`);
-        console.log(`   - Estado personalizado: ${data.customStatus || 'Ninguno'}`);
-        console.log(`   - Session ID: ${session.sessionID}`);
-        console.log(`   - Socket ID: ${socket.id}`);
         
         const UserStatus = require('./models/userStatus');
         const userStatus = await UserStatus.getUserStatus(user._id);
@@ -435,16 +404,11 @@ io.on('connection', async (socket) => {
           timestamp: new Date().toISOString()
         });
         
-        console.log(`✅ WEBSOCKET: Estado cambiado exitosamente para ${user.name}`);
-        console.log(`   - Nuevo estado: ${updatedStatus.status} (${updatedStatus.label})`);
-        console.log(`   - Color: ${updatedStatus.color}`);
-        console.log(`   - Eventos emitidos: own_status_changed, user_status_changed, active_users_updated`);
       } catch (error) {
         console.error('❌ Error cambiando estado:', error);
         socket.emit('status_change_error', { error: error.message });
       }
     } else {
-      console.log('❌ Usuario no autenticado, no se puede cambiar estado');
     }
   });
   
@@ -459,16 +423,12 @@ io.on('connection', async (socket) => {
   
   // Sincronización de estado desde el frontend
   socket.on('status_sync', async (data) => {
-    console.log('🔄 Sincronización de estado recibida:', data);
     
     if (session?.user?._id) {
       try {
         const user = session.user;
         const { status } = data;
         
-        console.log(`   - Usuario: ${user.name}`);
-        console.log(`   - Estado: ${status.status}`);
-        console.log(`   - Session ID: ${session.sessionID}`);
         
         // Actualizar estado en la base de datos
         const UserStatus = require('./models/userStatus');
@@ -501,7 +461,6 @@ io.on('connection', async (socket) => {
           status: updatedStatus
         });
         
-        console.log(`✅ Estado sincronizado para ${user.name}`);
         
       } catch (error) {
         console.error('❌ Error sincronizando estado:', error);
@@ -515,13 +474,32 @@ io.on('connection', async (socket) => {
     if (session?.user?._id) {
       try {
         const user = session.user;
-        console.log(`💓 Heartbeat recibido de ${user.name} via Socket.IO`);
         
-        // Actualizar actividad del usuario
+        // Actualizar actividad del usuario y asegurar que socketId está actualizado
         const UserStatus = require('./models/userStatus');
-        const userStatus = await UserStatus.getUserStatus(user._id);
+        let userStatus = await UserStatus.getUserStatus(user._id);
+        
         if (userStatus) {
+          // Actualizar lastSeen
           await userStatus.updateActivity();
+          
+          // Si el socketId cambió, actualizarlo
+          if (userStatus.socketId !== socket.id) {
+            userStatus.socketId = socket.id;
+            userStatus.isActive = true;
+            await userStatus.save();
+          } else if (!userStatus.isActive) {
+            // Si no está activo, reactivarlo
+            userStatus.isActive = true;
+            await userStatus.save();
+          }
+        } else {
+          // Crear estado si no existe
+          await UserStatus.upsertStatus(user._id, {
+            isActive: true,
+            socketId: socket.id,
+            sessionId: session.sessionID
+          });
         }
         
         // Confirmar heartbeat
@@ -541,7 +519,6 @@ io.on('connection', async (socket) => {
     if (session?.user?._id) {
       try {
         const user = session.user;
-        console.log(`🔄 Actualizando actividad de ${user.name}`);
         
         // Actualizar lastSeen
         const UserStatus = require('./models/userStatus');
@@ -579,11 +556,8 @@ io.on('connection', async (socket) => {
   
   // 🚨 MANEJAR DESCONEXIÓN CON LIMPIEZA PUB/SUB
   socket.on('disconnect', async (reason) => {
-    console.log('🔌 Usuario desconectado:', socket.id);
-    console.log('   - Razón:', reason);
     
     if (session && session.user) {
-      console.log(`🧹 Limpiando sesión de: ${session.user.name}`);
       
       // Desregistrar usuario del StateManager
       stateManager.unregisterUser(session.user._id);
@@ -599,14 +573,12 @@ io.on('connection', async (socket) => {
           userStatus.lastActivity = new Date();
           await userStatus.save();
           
-          console.log(`✅ Sesión limpiada para: ${session.user.name}`);
         }
         
         // 🚨 PUBLICAR EVENTO MQTT DE DESCONEXIÓN
         try {
           const mqttService = app.get('mqttService');
           if (mqttService && mqttService.isConnected) {
-            console.log(`📤 Publicando desconexión de ${session.user.name} via MQTT`);
             mqttService.publishUserDisconnected(session.user._id, session.user.name);
           }
         } catch (mqttError) {
@@ -638,9 +610,7 @@ io.on('connection', async (socket) => {
         console.error('❌ Error limpiando sesión:', error);
       }
       
-      console.log(`🔌 Usuario ${session.user.name} completamente desconectado`);
     } else {
-      console.log('⚠️ Desconexión sin sesión de usuario');
     }
   });
 });
@@ -663,13 +633,11 @@ async function emitActiveUsersList() {
       const mqttService = app.get('mqttService');
       if (mqttService && mqttService.isConnected) {
         mqttService.publishActiveUsersList(activeUsers);
-        console.log(`📤 Lista de usuarios activos publicada via MQTT: ${activeUsers.length} usuarios`);
       }
     } catch (mqttError) {
       console.error('❌ Error publicando lista via MQTT:', mqttError);
     }
     
-    console.log(`📊 Lista de usuarios activos emitida: ${activeUsers.length} usuarios`);
   } catch (error) {
     console.error('❌ Error emitiendo lista de usuarios activos:', error);
   }
@@ -683,7 +651,6 @@ const { initializeDatabase } = require('./initDb');
 
 // Esperar a que se establezca la conexión a MongoDB
 mongoose.connection.once('open', async () => {
-  console.log('✅ Conexión a MongoDB establecida, inicializando estados...');
   try {
     await initializeDatabase();
   } catch (error) {
@@ -695,7 +662,6 @@ mongoose.connection.once('open', async () => {
 const mqttService = new MQTTService();
 mqttService.connect('mqtt://localhost:1884')
   .then(() => {
-    console.log('✅ Servicio MQTT inicializado correctamente');
     // Suscribirse a topics necesarios
     if (mqttService.client) {
       // Topic de heartbeat
@@ -705,6 +671,9 @@ mqttService.connect('mqtt://localhost:1884')
       mqttService.client.subscribe('crm/clientes/buscar/cedula/+');
       mqttService.client.subscribe('crm/clientes/buscar/fechas/+');
       mqttService.client.subscribe('crm/clientes/actualizar/+');
+      
+      // Topics de búsqueda de tipificaciones
+      mqttService.client.subscribe('crm/tipificaciones/buscar/fechas/+');
       
       // Topic de estadísticas del Dashboard
       mqttService.client.subscribe('crm/estadisticas/solicitar/+');
@@ -720,7 +689,6 @@ mqttService.connect('mqtt://localhost:1884')
               const userStatus = await UserStatus.getUserStatus(userId);
               if (userStatus) {
                 await userStatus.updateActivity();
-                console.log(`💓 Heartbeat MQTT recibido y actualizado para usuario: ${userId}`);
               }
             }
           } catch (err) {
@@ -735,7 +703,6 @@ mqttService.connect('mqtt://localhost:1884')
             const userId = topic.split('/').pop();
             const { cedula } = data;
             
-            console.log(`🔍 MQTT: Búsqueda por cédula: ${cedula} para usuario: ${userId}`);
             
             const Cliente = require('./models/cliente');
             const cliente = await Cliente.findOne({ cedula: cedula, activo: true });
@@ -743,7 +710,6 @@ mqttService.connect('mqtt://localhost:1884')
             const resultTopic = `crm/clientes/resultado/${userId}`;
             
             if (cliente) {
-              console.log(`✅ Cliente encontrado: ${cliente.nombres} ${cliente.apellidos}`);
               mqttService.publish(resultTopic, {
                 success: true,
                 tipoBusqueda: 'cedula',
@@ -752,7 +718,6 @@ mqttService.connect('mqtt://localhost:1884')
                 timestamp: new Date().toISOString()
               });
             } else {
-              console.log(`❌ Cliente no encontrado con cédula: ${cedula}`);
               mqttService.publish(resultTopic, {
                 success: false,
                 tipoBusqueda: 'cedula',
@@ -774,7 +739,6 @@ mqttService.connect('mqtt://localhost:1884')
             const userId = topic.split('/').pop();
             const { fechaInicio, fechaFin, page = 1, limit = 50 } = data;
             
-            console.log(`🔍 MQTT: Búsqueda por fechas: ${fechaInicio} a ${fechaFin} (página ${page})`);
             
             const Cliente = require('./models/cliente');
             
@@ -806,7 +770,6 @@ mqttService.connect('mqtt://localhost:1884')
               }
             });
             
-            console.log(`✅ Clientes encontrados: ${clientes.length} de ${total} total`);
             
             const resultTopic = `crm/clientes/resultado/${userId}`;
             mqttService.publish(resultTopic, {
@@ -832,13 +795,11 @@ mqttService.connect('mqtt://localhost:1884')
             const userId = topic.split('/').pop();
             const { cedula, datosActualizados } = data;
             
-            console.log(`🔄 MQTT: Actualizar cliente: ${cedula} para usuario: ${userId}`);
             
             const Cliente = require('./models/cliente');
             const cliente = await Cliente.findOne({ cedula: cedula, activo: true });
             
             if (!cliente) {
-              console.log(`❌ Cliente no encontrado con cédula: ${cedula}`);
               mqttService.publish(`crm/clientes/actualizado/${userId}`, {
                 success: false,
                 message: 'Cliente no encontrado',
@@ -856,7 +817,6 @@ mqttService.connect('mqtt://localhost:1884')
             
             await cliente.save();
             
-            console.log(`✅ Cliente actualizado: ${cliente.nombres} ${cliente.apellidos}`);
             
             mqttService.publish(`crm/clientes/actualizado/${userId}`, {
               success: true,
@@ -871,8 +831,8 @@ mqttService.connect('mqtt://localhost:1884')
         // 📊 Estadísticas del Dashboard
         if (topic.startsWith('crm/estadisticas/solicitar/')) {
           try {
+            const data = JSON.parse(message.toString());
             const userId = topic.split('/').pop();
-            console.log(`📊 MQTT: Solicitud de estadísticas para usuario: ${userId}`);
             
             const Cliente = require('./models/cliente');
             const Tipificacion = require('./models/tipificacion');
@@ -1063,20 +1023,8 @@ mqttService.connect('mqtt://localhost:1884')
               count: item.count
             }));
             
-            console.log(`📊 Distribución Nivel 1 detalle:`, distribucionNivel1);
             
-            console.log(`📊 Estadísticas calculadas:`);
-            console.log(`   - Agentes Conectados: ${agentesConectados}`);
-            console.log(`   - Total Clientes: ${totalClientes}`);
-            console.log(`   - Tipificaciones Hoy: ${tipificacionesHoy}`);
-            console.log(`   - Llamadas en Cola: ${llamadasEnCola}`);
-            console.log(`   - Top Agentes: ${topAgentes.length}`);
-            console.log(`   - Estados: ${estadosAgentes.length}`);
-            console.log(`   - Tipificaciones por Hora: ${tipificacionesPorHora.length} horas`);
-            console.log(`   - Distribución Nivel 1: ${distribucionNivel1.length} categorías`);
-            
-            // Publicar estadísticas
-            mqttService.publish(`crm/estadisticas/respuesta/${userId}`, {
+            const estadisticasCalculadas = {
               agentesConectados,
               agentesAyer,
               totalClientes,
@@ -1089,10 +1037,155 @@ mqttService.connect('mqtt://localhost:1884')
               tipificacionesPorHora,
               distribucionNivel1,
               timestamp: new Date().toISOString()
-            });
+            };
+            
+            
+            // Publicar estadísticas
+            const topicRespuesta = `crm/estadisticas/respuesta/${userId}`;
+            
+            mqttService.publish(topicRespuesta, estadisticasCalculadas);
+            
             
           } catch (err) {
             console.error('❌ Error calculando estadísticas MQTT:', err);
+          }
+        }
+        
+        // 📊 Búsqueda de Tipificaciones por Fechas
+        if (topic.startsWith('crm/tipificaciones/buscar/fechas/')) {
+          try {
+            const data = JSON.parse(message.toString());
+            const userId = topic.split('/').pop();
+            const { fechaInicio, fechaFin, page = 1, limit = 100 } = data;
+            
+            
+            const Tipificacion = require('./models/tipificacion');
+            const User = require('./models/users');
+            
+            // Convertir fechas - Colombia está en UTC-5
+            // Cuando el usuario busca "2025-10-28", quiere desde las 00:00 hasta las 23:59 hora Colombia
+            // Eso equivale a 05:00 UTC del día 28 hasta las 04:59 UTC del día 29
+            const inicio = new Date(fechaInicio + 'T00:00:00-05:00');
+            const fin = new Date(fechaFin + 'T23:59:59.999-05:00');
+            
+            
+            // Buscar tipificaciones con paginación
+            const skip = (page - 1) * limit;
+            
+            // Primero contar todas sin paginación
+            const totalSinFiltro = await Tipificacion.countDocuments({});
+            
+            // Buscar por createdAt
+            const tipificaciones = await Tipificacion.find({
+              createdAt: { 
+                $gte: inicio, 
+                $lte: fin 
+              }
+            })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
+            .lean();
+            
+            
+            // Enriquecer con datos de agente (cliente ya está en la tipificación)
+            const tipificacionesEnriquecidas = await Promise.all(
+              tipificaciones.map(async (tipif) => {
+                // Obtener agente
+                let agente = null;
+                if (tipif.assignedTo) {
+                  try {
+                    const user = await User.findById(tipif.assignedTo).select('name email').lean();
+                    if (user) {
+                      agente = {
+                        _id: user._id,
+                        nombre: user.name,
+                        email: user.email
+                      };
+                    }
+                  } catch (err) {
+                    console.warn(`⚠️ Error obteniendo agente ${tipif.assignedTo}:`, err.message);
+                  }
+                }
+                
+                // Cliente: usar datos de la tipificación (ya están ahí)
+                const cliente = {
+                  cedula: tipif.cedula || '',
+                  tipoDocumento: tipif.tipoDocumento || '',
+                  nombres: tipif.nombres || '',
+                  apellidos: tipif.apellidos || '',
+                  telefono: tipif.telefono || '',
+                  correo: tipif.correo || '',
+                  ciudad: tipif.ciudad || '',
+                  departamento: tipif.departamento || '',
+                  pais: tipif.pais || ''
+                };
+                
+                // Calcular duración en minutos si existe
+                let duracionMinutos = 0;
+                if (tipif.duracion) {
+                  duracionMinutos = Math.round(tipif.duracion / 60);
+                } else if (tipif.startTime && tipif.endTime) {
+                  const start = new Date(tipif.startTime);
+                  const end = new Date(tipif.endTime);
+                  duracionMinutos = Math.round((end - start) / 1000 / 60);
+                } else if (tipif.timeInQueue) {
+                  duracionMinutos = Math.round(tipif.timeInQueue);
+                }
+                
+                return {
+                  _id: tipif._id,
+                  fecha: tipif.createdAt || tipif.fecha || tipif.timestamp,
+                  agente: agente,
+                  cliente: cliente,
+                  nivel1: tipif.nivel1 || '',
+                  nivel2: tipif.nivel2 || '',
+                  nivel3: tipif.nivel3 || '',
+                  nivel4: tipif.nivel4 || '',
+                  nivel5: tipif.nivel5 || '',
+                  observaciones: tipif.observacion || tipif.observaciones || '',
+                  duracionMinutos: duracionMinutos,
+                  status: tipif.status,
+                  idLlamada: tipif.idLlamada || ''
+                };
+              })
+            );
+            
+            // Contar total con el mismo filtro
+            const total = await Tipificacion.countDocuments({
+              createdAt: {
+                $gte: inicio,
+                $lte: fin
+              }
+            });
+            
+            
+            
+            const resultTopic = `crm/tipificaciones/resultado/${userId}`;
+            mqttService.publish(resultTopic, {
+              success: true,
+              tipificaciones: tipificacionesEnriquecidas,
+              count: tipificacionesEnriquecidas.length,
+              total: total,
+              page: page,
+              limit: limit,
+              hasMore: total > (page * limit),
+              timestamp: new Date().toISOString()
+            });
+            
+            
+          } catch (err) {
+            console.error('❌ Error en búsqueda de tipificaciones MQTT:', err);
+            const userId = topic.split('/').pop();
+            const resultTopic = `crm/tipificaciones/resultado/${userId}`;
+            mqttService.publish(resultTopic, {
+              success: false,
+              tipificaciones: [],
+              count: 0,
+              total: 0,
+              error: err.message,
+              timestamp: new Date().toISOString()
+            });
           }
         }
       });
@@ -1110,26 +1203,64 @@ app.set('mqttService', mqttService);
 // 🚨 LIMPIEZA AUTOMÁTICA DE SESIONES FANTASMA CADA 2 MINUTOS
 setInterval(async () => {
   try {
-    console.log('🧹 Ejecutando limpieza automática de sesiones fantasma...');
     
     const UserStatus = require('./models/userStatus');
     
-    // Limpiar usuarios inactivos (más de 3 minutos sin heartbeat)
-    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000);
-    const result = await UserStatus.updateMany(
-      { 
-        isActive: true, 
-        lastActivity: { $lt: threeMinutesAgo } 
-      },
-      { 
-        isActive: false,
-        status: 'offline'
-      }
-    );
+    // Limpiar usuarios inactivos (más de 5 minutos sin heartbeat)
+    // ⚠️ IMPORTANTE: Usar lastSeen (no lastActivity) porque es el campo que actualiza el heartbeat
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const io = app.get('io');
     
-    if (result.modifiedCount > 0) {
-      console.log(`✅ Limpieza automática: ${result.modifiedCount} sesiones fantasma eliminadas`);
+    // Obtener usuarios que podrían estar inactivos
+    const potentiallyInactiveUsers = await UserStatus.find({
+      isActive: true,
+      lastSeen: { $lt: fiveMinutesAgo }
+    }).lean();
+    
+    let cleanedCount = 0;
+    
+    // Verificar cada usuario para ver si realmente está desconectado
+    for (const userStatus of potentiallyInactiveUsers) {
+      let shouldMarkInactive = false;
       
+      // Si no tiene socketId, marcarlo como inactivo
+      if (!userStatus.socketId) {
+        shouldMarkInactive = true;
+      } else {
+        // Si tiene socketId, verificar si el socket realmente está conectado
+        try {
+          if (io && io.sockets) {
+            const socket = io.sockets.sockets.get(userStatus.socketId);
+            if (!socket || !socket.connected) {
+              // Socket no existe o no está conectado
+              shouldMarkInactive = true;
+            }
+            // Si el socket existe y está conectado, mantenerlo activo
+          } else {
+            // Si no hay io disponible, usar el campo lastSeen como criterio
+            shouldMarkInactive = true;
+          }
+        } catch (socketError) {
+          // Error verificando socket, asumir que está desconectado
+          shouldMarkInactive = true;
+        }
+      }
+      
+      // Marcar como inactivo si corresponde
+      if (shouldMarkInactive) {
+        await UserStatus.updateOne(
+          { _id: userStatus._id },
+          {
+            isActive: false,
+            status: 'offline'
+          }
+        );
+        cleanedCount++;
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`🧹 Limpieza automática: ${cleanedCount} usuarios marcados como inactivos`);
       // Emitir lista actualizada después de la limpieza
       await emitActiveUsersList();
     }
@@ -1178,7 +1309,6 @@ app.use((req, res, next) => {
 module.exports = { app, server, io, emitActiveUsersList };
 
 aedes.on('client', function (client) {
-  console.log('🔗 Cliente MQTT conectado:', client ? client.id : client, 'username:', client?.connDetails?.username || client?.username);
   aedes.publish({
     topic: 'activeUsers/connected',
     payload: JSON.stringify({ clientId: client.id, username: client?.connDetails?.username || client?.username }),
@@ -1188,7 +1318,6 @@ aedes.on('client', function (client) {
 });
 
 aedes.on('clientDisconnect', function (client) {
-  console.log('❌ Cliente MQTT desconectado:', client ? client.id : client, 'username:', client?.connDetails?.username || client?.username);
   aedes.publish({
     topic: 'activeUsers/disconnected',
     payload: JSON.stringify({ clientId: client.id, username: client?.connDetails?.username || client?.username }),
@@ -1198,25 +1327,17 @@ aedes.on('clientDisconnect', function (client) {
 });
 
 aedes.authenticate = function (client, username, password, callback) {
-  console.log('Autenticando MQTT:', {
-    clientId: client && client.id,
-    username,
-    password: password && password.toString()
-  });
   
   // Permitir conexiones sin autenticación para el backend interno
   if (client && client.id && client.id.startsWith('backend_')) {
-    console.log('✅ Autenticación MQTT permitida para backend interno');
     callback(null, true);
     return;
   }
   
   // Para otros clientes, permitir si tienen username o si no lo requieren
   if (username || !username) {
-    console.log('✅ Autenticación MQTT permitida');
     callback(null, true);
   } else {
-    console.log('❌ Autenticación MQTT rechazada');
     callback(null, false);
   }
 };

@@ -88,8 +88,12 @@ export default {
           if (!mqttService.isConnected) {
             // Usar configuración dinámica para MQTT
             const mqttUrl = environmentConfig.getMQTTBrokerUrl();
-            console.log('🔌 App.vue: Conectando MQTT a:', mqttUrl);
             mqttService.connect(mqttUrl, this.$store.state.user._id, this.$store.state.user.name);
+            
+            // 🔒 CONFIGURAR CALLBACK PARA CERRAR SESIÓN SI HAY MÚLTIPLES DESCONEXIONES
+            mqttService.onSystemEvent('onForceLogout', () => {
+              this.handleMQTTForceLogout();
+            });
           }
           if (!websocketService.isConnected) {
             websocketService.connect({
@@ -103,16 +107,13 @@ export default {
           
           // 🕐 Iniciar monitoreo de inactividad
           inactivityService.start();
-          console.log('✅ Servicio de inactividad iniciado para usuario:', this.$store.state.user.name);
           
           // 🔒 Iniciar sistema de sesión única
           sessionLockService.start(this.$store.state.user._id, this.$store.state.user.name);
-          console.log('✅ Sistema de sesión única iniciado para usuario:', this.$store.state.user.name);
         } else {
           // Usuario deslogueado - detener servicios
           inactivityService.stop();
           sessionLockService.stop();
-          console.log('🛑 Servicios detenidos (inactividad y sesión única)');
         }
       }
     },
@@ -123,8 +124,12 @@ export default {
           if (!mqttService.isConnected) {
             // Usar configuración dinámica para MQTT
             const mqttUrl = environmentConfig.getMQTTBrokerUrl();
-            console.log('🔌 App.vue: Conectando MQTT a:', mqttUrl);
             mqttService.connect(mqttUrl, user._id, user.name);
+            
+            // 🔒 CONFIGURAR CALLBACK PARA CERRAR SESIÓN SI HAY MÚLTIPLES DESCONEXIONES
+            mqttService.onSystemEvent('onForceLogout', () => {
+              this.handleMQTTForceLogout();
+            });
           }
           if (!websocketService.isConnected) {
             websocketService.connect({
@@ -135,6 +140,15 @@ export default {
           }
           // Configurar listeners para cambios de estado automáticos
           this.setupAutoStatusChangeListeners();
+        }
+      }
+    },
+    // ✅ ESCUCHAR CAMBIOS DE RUTA PARA REINICIAR TIMER DE INACTIVIDAD
+    '$route.path': {
+      handler(newPath, oldPath) {
+        if (newPath !== oldPath && inactivityService.isActive) {
+          console.log(`🔄 [APP] Cambio de ruta detectado: ${oldPath} → ${newPath}`);
+          inactivityService.handleRouteChange();
         }
       }
     }
@@ -152,12 +166,8 @@ export default {
       const token = sessionStorage.getItem('token');
       const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
       
-      console.log('🔍 Verificando estado de autenticación al cargar app...');
-      console.log('   - Token existe:', !!token);
-      console.log('   - isLoggedIn en sessionStorage:', isLoggedIn);
       
       if (token && !isLoggedIn) {
-        console.log('🔄 Token encontrado pero isLoggedIn es false - Restaurando estado...');
         this.$store.commit('makelogin');
       }
     },
@@ -168,7 +178,6 @@ export default {
       const token = sessionStorage.getItem('token');
       
       if (!isLoggedIn || !token) {
-        console.log('🧹 No hay sesión activa - limpiando cookies HTTP huérfanas...');
         
         // Limpiar todas las cookies
         const cookies = document.cookie.split(";");
@@ -181,30 +190,20 @@ export default {
           document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
         }
         
-        console.log('✅ Cookies HTTP limpiadas');
       }
     },
     
     logEnvironmentInfo() {
       // Log información del entorno para debug
-      const envInfo = environmentConfig.getDebugInfo();
-      console.log('🌐 Información del entorno:');
-      console.log('   - URL Base:', envInfo.baseUrl);
-      console.log('   - Es desarrollo:', envInfo.isDevelopment);
-      console.log('   - WebSocket URL:', envInfo.websocketUrl);
-      console.log('   - MQTT Broker URL:', envInfo.mqttBrokerUrl);
-      console.log('   - API URL:', envInfo.apiUrl);
-      console.log('   - URL actual:', envInfo.userAgent);
+      environmentConfig.getDebugInfo();
     },
     
     setupAutoStatusChangeListeners() {
       if (!this.$store.state.user || !this.$store.state.user._id) {
-        console.log('⚠️ No se puede configurar listeners sin usuario');
         return;
       }
       
       const userId = this.$store.state.user._id;
-      console.log('🔧 Configurando listeners para cambios de estado automáticos para usuario:', userId);
       
       // 1️⃣ Listener para cambios de estado del usuario específico
       const statusChangeTopic = `telefonia/users/status-change/${userId}`;
@@ -216,7 +215,6 @@ export default {
       
       // Crear nuevo callback
       this.statusChangeCallback = (data) => {
-        console.log('🔄 Cambio de estado recibido por MQTT:', data);
         this.handleAutoStatusChange(data);
       };
       
@@ -233,25 +231,19 @@ export default {
       
       // Crear callback para tipificaciones
       this.nuevaTipificacionCallback = (data) => {
-        console.log('📞 GLOBAL: Nueva tipificación recibida:', data);
         this.handleNuevaTipificacionGlobal(data);
       };
       
       // Registrar listener
       mqttService.on(nuevaTipificacionTopic, this.nuevaTipificacionCallback, 'tipificacion');
       
-      console.log('✅ Listeners configurados:');
-      console.log('   - Cambios de estado:', statusChangeTopic);
-      console.log('   - Nuevas tipificaciones:', nuevaTipificacionTopic);
     },
     
     async handleAutoStatusChange(data) {
       try {
-        console.log('🎯 Procesando cambio automático de estado:', data);
         
         // Verificar si el cambio fue automático por asignación de llamada
         if (data.changedBy === 'system_auto_assignment' && data.reason === 'incoming_call') {
-          console.log('🚀 Cambio automático detectado por llamada entrante');
           
           // Actualizar estado en el store
           if (data.newStatus) {
@@ -260,10 +252,8 @@ export default {
           
           // Verificar si necesita redirigir a /work
           const currentRoute = this.$route.path;
-          console.log('📍 Ruta actual:', currentRoute);
           
           if (currentRoute !== '/work') {
-            console.log('🔄 Redirigiendo automáticamente a /work...');
             
             // Mostrar notificación antes de redirigir
             this.showAutoStatusChangeNotification(data);
@@ -273,13 +263,75 @@ export default {
               this.$router.push('/work');
             }, 2000);
           } else {
-            console.log('✅ Usuario ya está en /work, solo mostrando notificación');
             this.showAutoStatusChangeNotification(data);
           }
         }
       } catch (error) {
         console.error('❌ Error procesando cambio automático de estado:', error);
       }
+    },
+    
+    // 🔒 MANEJAR LOGOUT FORZADO POR MQTT
+    async handleMQTTForceLogout() {
+      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.error(`🚨 [APP] MQTT forzando cierre de sesión | ${timestamp}`);
+      
+      // Mostrar notificación al usuario
+      const notification = document.createElement('div');
+      notification.className = 'mqtt-logout-notification';
+      notification.innerHTML = `
+        <div class="notification-content">
+          <div class="notification-icon">⚠️</div>
+          <div class="notification-text">
+            <h4>Pérdida de Conexión</h4>
+            <p>La conexión MQTT se ha perdido múltiples veces.</p>
+            <p class="notification-detail">Tu sesión será cerrada por seguridad...</p>
+          </div>
+        </div>
+      `;
+      
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        color: white;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 8px 25px rgba(220, 53, 69, 0.3);
+        z-index: 10000;
+        min-width: 350px;
+        animation: slideInRight 0.5s ease-out;
+      `;
+      
+      document.body.appendChild(notification);
+      
+      // Esperar 3 segundos y luego hacer logout
+      setTimeout(async () => {
+        try {
+          // Desconectar servicios
+          if (mqttService) {
+            mqttService.disconnect();
+          }
+          if (websocketService) {
+            websocketService.disconnect();
+          }
+          
+          // Hacer logout del store
+          await this.$store.dispatch('logout');
+          
+          // Limpiar almacenamiento
+          localStorage.clear();
+          sessionStorage.clear();
+          
+          // Redirigir a login
+          this.$router.push('/signin?reason=mqtt_connection_lost');
+        } catch (error) {
+          console.error('❌ Error en logout forzado:', error);
+          // Forzar redirección de todas formas
+          window.location.href = '/signin?reason=mqtt_connection_lost';
+        }
+      }, 3000);
     },
     
     showAutoStatusChangeNotification(data) {
@@ -349,31 +401,65 @@ export default {
         oscillator.start(audioContext.currentTime);
         oscillator.stop(audioContext.currentTime + 0.3);
       } catch (error) {
-        console.log('No se pudo reproducir sonido de notificación:', error);
+        // Silenciar errores de audio
       }
     },
     
     // 📞 Manejar nueva tipificación recibida globalmente
     async handleNuevaTipificacionGlobal(data) {
+      // 🚨 LOG DE RECEPCIÓN GLOBAL
+      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const userId = this.$store.state.user?._id || 'N/A';
+      const logLine = `${timestamp} ✅ [FRONTEND] TIPIFICACION_RECIBIDA_GLOBAL | idLlamada:${data?.idLlamada || 'N/A'} | cedula:${data?.cedula || 'N/A'} | userId:${userId} | route:${this.$route.path}`;
+      console.log(logLine);
+      console.log('📦 [DEBUG] Datos recibidos:', JSON.stringify(data, null, 2));
+      
       try {
-        console.log('🎯 GLOBAL: Procesando nueva tipificación:', data);
+        // 🚨 VALIDAR DATOS ANTES DE PROCESAR
+        if (!data || !data.idLlamada) {
+          console.error('❌ [FRONTEND] Datos inválidos recibidos:', data);
+          return;
+        }
         
-        // 1️⃣ Guardar tipificación en el store
+        // Siempre guardar en el store para que el watcher en Work.vue lo procese
+        const storeLog = `${timestamp} 💾 [FRONTEND] GUARDANDO_EN_STORE | idLlamada:${data.idLlamada}`;
+        console.log(storeLog);
         this.$store.commit('setPendingTipificacion', data);
         
-        // 2️⃣ Verificar si ya estamos en /work
+        // Verificar si el store se actualizó correctamente
+        const pendingCheck = this.$store.state.pendingTipificacion;
+        if (pendingCheck && pendingCheck.idLlamada === data.idLlamada) {
+          console.log(`✅ [FRONTEND] Store actualizado correctamente | idLlamada:${data.idLlamada}`);
+        } else {
+          console.error(`❌ [FRONTEND] Store NO se actualizó correctamente | esperado:${data.idLlamada} | recibido:${pendingCheck?.idLlamada || 'null'}`);
+        }
+        
+        // Verificar si ya estamos en /work
         const currentRoute = this.$route.path;
-        console.log('📍 Ruta actual:', currentRoute);
         
         if (currentRoute !== '/work') {
-          console.log('🔄 NO estamos en /work, redirigiendo...');
-          // Redirigir a Work
+          const redirectLog = `${timestamp} ↪️ [FRONTEND] REDIRIGIENDO_A_WORK | idLlamada:${data.idLlamada}`;
+          console.log(redirectLog);
+          // Redirigir a Work - el watcher de Work.vue procesará la tipificación pendiente
           this.$router.push('/work');
         } else {
-          console.log('✅ Ya estamos en /work, la vista procesará la tipificación pendiente');
+          const alreadyWorkLog = `${timestamp} ✓ [FRONTEND] YA_EN_WORK | idLlamada:${data.idLlamada} | Esperando watcher de Work.vue...`;
+          console.log(alreadyWorkLog);
+          // El watcher de Work.vue procesará automáticamente la tipificación pendiente
+          // Forzar actualización después de un breve delay
+          setTimeout(() => {
+            const pendingAfterDelay = this.$store.state.pendingTipificacion;
+            if (pendingAfterDelay && pendingAfterDelay.idLlamada === data.idLlamada) {
+              console.warn(`⚠️ [FRONTEND] Tipificación aún pendiente después de 1s | idLlamada:${data.idLlamada}`);
+            }
+          }, 1000);
         }
       } catch (error) {
+        const errorTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const errorLog = `${errorTimestamp} ❌ [FRONTEND] ERROR_PROCESANDO_GLOBAL | idLlamada:${data?.idLlamada || 'N/A'} | RAZON:${error.message || 'Error desconocido'}`;
+        console.error(errorLog);
         console.error('❌ Error procesando tipificación global:', error);
+        console.error('❌ Stack trace:', error.stack);
       }
     }
   },

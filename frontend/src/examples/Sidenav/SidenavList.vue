@@ -284,11 +284,9 @@ export default {
       this._loadingPermissions = true;
       
       try {
-        console.log('🔄 Cargando permisos del usuario...');
         
         // Si el usuario es admin, otorgar todos los permisos automáticamente
         if (this.userRole === 'admin' || this.userRole === 'administrador') {
-          console.log('👑 Usuario admin detectado - otorgando todos los permisos');
           this.canViewUsers = true;
           this.canViewActiveUsers = true;
           this.canManageTree = true;
@@ -302,11 +300,6 @@ export default {
         }
         
         this.permissionsLoaded = true;
-        console.log('✅ Permisos del usuario cargados');
-        console.log('   - Users:', this.canViewUsers);
-        console.log('   - Active Users:', this.canViewActiveUsers);
-        console.log('   - Tree Admin:', this.canManageTree);
-        console.log('   - Admin Panels:', this.canAccessAdminPanels);
         
       } catch (error) {
         console.error('❌ Error cargando permisos del usuario:', error);
@@ -330,7 +323,6 @@ export default {
     openAdminPanel1(event) {
       event.preventDefault();
       const url = 'https://172.16.116.3:7070/WebManagement/index.html';
-      console.log('🌐 Abriendo Grabaciones en nueva pestaña:', url);
       
       // Abrir en nueva pestaña con configuración de seguridad
       window.open(url, '_blank', 'noopener,noreferrer,width=1200,height=800');
@@ -347,7 +339,6 @@ export default {
     openAdminPanel2(event) {
       event.preventDefault();
       const url = 'http://172.16.116.16:9080/web/login';
-      console.log('🌐 Abriendo Reporte de Llamadas en nueva pestaña:', url);
       
       // Abrir en nueva pestaña con configuración de seguridad
       window.open(url, '_blank', 'noopener,noreferrer,width=1200,height=800');

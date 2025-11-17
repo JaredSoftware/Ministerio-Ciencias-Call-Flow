@@ -509,22 +509,17 @@ export default {
     }
   },
   async mounted() {
-    console.log('🚀 ActiveUsers mounted - Iniciando sistema de monitoreo en tiempo real...');
     
     // 1. Cargar datos iniciales
     await this.loadStatusTypes();
     await this.loadUsers();
-    console.log('🔄 Antes de cargar roles...');
     await this.loadRoles();
-    console.log('🟢 Mapeo de roles (roleMap):', this.roleMap);
-    console.log('🟢 Lista de usuarios (users):', this.users);
     
     // 2. Usar conexión MQTT global (ya conectada desde Dashboard)
     this.initMQTT();
     
     // 3. Configurar actualización automática cada 30 segundos
     this.refreshInterval = setInterval(() => {
-      console.log('🔄 Actualización automática de usuarios activos...');
       this.loadUsers();
     }, 30000); // 30 segundos
     
@@ -537,7 +532,6 @@ export default {
     // 5. Configurar event listener para actualizaciones forzadas
     window.addEventListener('forceUpdate', this.handleForceUpdate);
     
-    console.log('✅ Sistema de monitoreo en tiempo real inicializado');
   },
   beforeUnmount() {
     // NO desconectar MQTT, solo limpiar listeners específicos de este componente
@@ -553,16 +547,11 @@ export default {
   methods: {
     async initUserStatus() {
       try {
-        console.log('🔄 Inicializando estado del usuario...');
-        const response = await axios.post('/user-status/init-status', {}, {
+        await axios.post('/user-status/init-status', {}, {
           withCredentials: true
         });
         
-        if (response.data.success) {
-          console.log('✅ Estado del usuario inicializado:', response.data.status.status);
-        } else {
-          console.log('⚠️ Error inicializando estado:', response.data.message);
-        }
+        // Estado inicializado
       } catch (error) {
         console.error('❌ Error inicializando estado del usuario:', error);
       }
@@ -577,9 +566,6 @@ export default {
         
         if (response.data.success) {
           this.users = response.data.users;
-          console.log('✅ Usuarios activos cargados:', this.users.length);
-        } else {
-          console.log('⚠️ Respuesta sin éxito:', response.data);
         }
       } catch (error) {
         console.error('❌ Error cargando usuarios activos:', error);
@@ -599,9 +585,6 @@ export default {
         
         if (response.data.success) {
           this.availableStatuses = response.data.statuses;
-          console.log('✅ Tipos de estado cargados:', this.availableStatuses.length);
-        } else {
-          console.log('⚠️ Respuesta sin éxito para tipos de estado:', response.data);
         }
       } catch (error) {
         console.error('❌ Error cargando tipos de estado:', error);
@@ -612,16 +595,13 @@ export default {
     },
     
     async loadRoles() {
-      console.log('🔄 Iniciando carga de roles...');
       try {
         const response = await axios.get('user-status/roles');
-        console.log('🟢 Respuesta del API de roles:', response.data);
         if (response.data.success) {
           this.roleMap = {};
           response.data.roles.forEach(role => {
             this.roleMap[role._id] = role.nombre;
           });
-          console.log('🟢 Mapeo de roles creado:', this.roleMap);
         }
       } catch (error) {
         console.error('❌ Error cargando roles:', error);
@@ -738,14 +718,12 @@ export default {
       modal.show();
     },
     
-    sendMessage(user) {
+    sendMessage() {
       // Implementar envío de mensajes
-      console.log('Enviar mensaje a:', user.name);
     },
     
-    changeUserStatus(user) {
+    changeUserStatus() {
       // Implementar cambio de estado
-      console.log('Cambiar estado de:', user.name);
     },
     
     exportToCSV() {
@@ -774,11 +752,9 @@ export default {
     // 🚨 INICIALIZAR MQTT PARA TIEMPO REAL
     initMQTT() {
       try {
-        console.log('🔌 Usando conexión MQTT global para ActiveUsers...');
         
         // Verificar si la conexión global está disponible
         if (mqttService.isConnected) {
-          console.log('✅ MQTT global conectado, configurando listeners...');
           this.usingMQTT = true;
           
           // Usar métodos específicos del nuevo servicio MQTT
@@ -832,9 +808,7 @@ export default {
             });
           });
           
-          console.log('✅ MQTT listeners configurados para ActiveUsers');
         } else {
-          console.log('⚠️ MQTT global no está conectado aún');
           this.usingMQTT = false;
           
           // Intentar de nuevo en 2 segundos
@@ -853,7 +827,6 @@ export default {
       try {
         const { userId, userName, newStatus, newLabel, newColor, timestamp } = data;
         
-        console.log(`🚨 MQTT - Cambio de estado detectado: ${userName} → ${newStatus}`);
         
         // Buscar el usuario en la lista
         const userIndex = this.users.findIndex(u => u._id === userId);
@@ -867,7 +840,6 @@ export default {
           this.users[userIndex].color = newColor;
           this.users[userIndex].lastActivity = timestamp;
           
-          console.log(`🚨 MQTT TIEMPO REAL: ${userName} ${oldStatus} → ${newStatus}`);
           
           // Agregar evento a la lista de eventos en tiempo real
           this.addRealTimeEvent({
@@ -885,7 +857,6 @@ export default {
           // Mostrar notificación visual
           this.showStatusChangeNotification(userName, oldStatus, newStatus);
         } else {
-          console.log('⚠️ Usuario no encontrado para cambio de estado, recargando lista...');
           // Recargar lista completa si el usuario no está
           this.loadUsers();
         }
@@ -896,32 +867,15 @@ export default {
 
     // 🚨 MANEJAR LISTA DE USUARIOS ACTIVOS VIA MQTT
     handleActiveUsersList(data) {
-      console.log('🚀 INICIO handleActiveUsersList - Método ejecutándose');
       try {
-        console.log('👥 MQTT - Lista de usuarios activos recibida:', data.users?.length || 0);
-        console.log('🔍 Debug roleMap:', this.roleMap);
-        console.log('🔍 roleMap keys:', Object.keys(this.roleMap));
-        console.log('🔍 roleMap length:', Object.keys(this.roleMap).length);
         
         if (data.users && Array.isArray(data.users)) {
           // Cargar roles si no se han cargado aún
           if (Object.keys(this.roleMap).length === 0) {
-            console.log('🔄 roleMap está vacío, cargando roles...');
             this.loadRoles();
-          } else {
-            console.log('⚠️ roleMap ya tiene contenido, no cargando roles');
           }
           this.users = data.users;
-          // Debug: Verificar el rol del primer usuario
-          if (this.users.length > 0) {
-            const firstUser = this.users[0];
-            console.log('🔍 Estructura del primer usuario:', firstUser);
-            console.log('🔍 user.userId:', firstUser.userId);
-            console.log('🔍 user.userId.role:', firstUser.userId?.role);
-            console.log('🔍 user.userId.role.nombre:', firstUser.userId?.role?.nombre || 'N/A');
-          }
           this.$forceUpdate();
-          console.log('✅ Lista de usuarios actualizada via MQTT');
         }
       } catch (error) {
         console.error('❌ Error procesando lista de usuarios MQTT:', error);
@@ -932,7 +886,6 @@ export default {
     handleUserConnected(data) {
       try {
         const { userName, role } = data;
-        console.log(`🔗 MQTT - Usuario conectado: ${userName} (${role})`);
         
         // Agregar evento a la lista
         this.addRealTimeEvent({
@@ -953,7 +906,6 @@ export default {
     handleUserDisconnected(data) {
       try {
         const { userId, userName } = data;
-        console.log(`🔌 MQTT - Usuario desconectado: ${userName}`);
         
         // Agregar evento a la lista
         this.addRealTimeEvent({
@@ -965,7 +917,6 @@ export default {
         // Remover el usuario de la lista de activos
         const userIndex = this.users.findIndex(u => u._id === userId);
         if (userIndex !== -1) {
-          console.log(`🔌 Usuario ${userName} desconectado, removiendo de lista activa`);
           this.users.splice(userIndex, 1);
           this.$forceUpdate();
         }
@@ -981,10 +932,9 @@ export default {
     },
 
     // 🚨 MOSTRAR NOTIFICACIÓN VISUAL DE CAMBIO DE ESTADO
-    showStatusChangeNotification(userName, oldStatus, newStatus) {
+    showStatusChangeNotification() {
       try {
         // Crear notificación simple en consola por ahora
-        console.log(`🔔 Notificación: ${userName} cambió de ${oldStatus} a ${newStatus}`);
         
         // TODO: Implementar notificación visual en UI si se requiere
       } catch (error) {
@@ -1035,7 +985,6 @@ export default {
     // 🚨 MÉTODO PARA MANEJAR ACTUALIZACIÓN FORZADA
     handleForceUpdate(event) {
       try {
-        console.log('🚨 ACTUALIZACIÓN FORZADA RECIBIDA:', event.detail);
         
         const { userId, newStatus, newLabel, newColor, timestamp } = event.detail;
         
@@ -1043,26 +992,19 @@ export default {
           // Buscar el usuario en la lista y actualizar
           const userIndex = this.users.findIndex(u => u._id === userId);
           if (userIndex !== -1) {
-            const oldStatus = this.users[userIndex].status;
-            
             // Actualizar el usuario en la lista
             this.users[userIndex].status = newStatus;
             this.users[userIndex].label = newLabel;
             this.users[userIndex].color = newColor;
             this.users[userIndex].lastActivity = timestamp;
             
-            console.log(`🚨 Usuario actualizado FORZADAMENTE: ${this.users[userIndex].name} ${oldStatus} → ${newStatus}`);
-            
             // Forzar re-renderizado
             this.$forceUpdate();
-          } else {
-            console.log('⚠️ Usuario no encontrado en lista para actualización forzada');
           }
         }
         
         // También recargar desde servidor para estar seguros
         setTimeout(() => {
-          console.log('🔄 Recargando desde servidor tras actualización forzada...');
           this.loadUsers();
         }, 1000);
         

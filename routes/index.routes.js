@@ -15,6 +15,60 @@ const Tipificacion = require("../models/tipificacion");
 // 🔄 CONTADOR GLOBAL PARA ROUND ROBIN
 let roundRobinCounter = 0;
 
+// 🚨 HELPER PARA LOGS ESTRUCTURADOS TIPO MORGAN
+const tipificacionLogger = {
+  formatTimestamp: () => {
+    const date = new Date();
+    return date.toISOString().replace('T', ' ').substring(0, 19);
+  },
+  
+  logDeployment: (req, agentInfo, tipificacionInfo, status, reason = null) => {
+    const timestamp = tipificacionLogger.formatTimestamp();
+    const method = 'TIPIF';
+    const statusSymbol = status === 'success' ? '✅' : '❌';
+    const statusText = status === 'success' ? 'DESPLEGADA' : 'RECHAZADA';
+    
+    let logLine = `${timestamp} ${statusSymbol} [${method}] ${statusText} | `;
+    logLine += `idLlamada:${tipificacionInfo.idLlamada || 'N/A'} | `;
+    logLine += `agente:${agentInfo.name || 'N/A'} (idAgent:${agentInfo.idAgent || 'N/A'}) | `;
+    logLine += `userId:${agentInfo.userId || 'N/A'} | `;
+    
+    if (status === 'success') {
+      logLine += `topic:telefonia/tipificacion/nueva/${agentInfo.userId} | `;
+      logLine += `MQTT:${tipificacionInfo.mqttPublished ? 'PUBLISHED' : 'FAILED'} | `;
+      logLine += `cedula:${tipificacionInfo.cedula || 'N/A'}`;
+    } else {
+      logLine += `RAZON:${reason || 'UNKNOWN'} | `;
+      if (agentInfo.detailedReasons) {
+        logLine += `detalles:[${agentInfo.detailedReasons.join(', ')}] | `;
+      }
+      if (agentInfo.timeSinceLastSeen) {
+        logLine += `ultimaActividad:${agentInfo.timeSinceLastSeen}`;
+      }
+    }
+    
+    console.log(logLine);
+  },
+  
+  logValidation: (req, stage, result, details = {}) => {
+    const timestamp = tipificacionLogger.formatTimestamp();
+    const symbol = result === 'pass' ? '✓' : '✗';
+    let logLine = `${timestamp} ${symbol} [VALIDATE] ${stage} | `;
+    
+    if (result === 'pass') {
+      logLine += `OK`;
+    } else {
+      logLine += `FAIL: ${details.message || 'Unknown error'}`;
+    }
+    
+    if (Object.keys(details).length > 0) {
+      logLine += ` | ${JSON.stringify(details)}`;
+    }
+    
+    console.log(logLine);
+  }
+};
+
 // 🔐 Middleware para verificar que el usuario sea administrador
 const requireAdmin = async (req, res, next) => {
   if (!req.session?.user) {
@@ -24,7 +78,6 @@ const requireAdmin = async (req, res, next) => {
   try {
     // Verificar si el usuario tiene el rol de administrador
     if (req.session.user.role === 'admin' || req.session.user.role === 'administrador') {
-      console.log('✅ Usuario es admin por rol:', req.session.user.role);
       return next();
     }
     
@@ -33,7 +86,6 @@ const requireAdmin = async (req, res, next) => {
     const userRole = await Role.findById(req.session.user.role);
     
     if (!userRole) {
-      console.log('❌ Rol no encontrado para usuario:', req.session.user.name);
       return res.status(403).json({ 
         success: false, 
         message: 'Acceso denegado. No tienes permisos para gestionar el árbol de tipificación.' 
@@ -42,11 +94,9 @@ const requireAdmin = async (req, res, next) => {
     
     // Verificar si tiene permiso admin.manageTree
     if (userRole.permissions?.admin?.manageTree === true) {
-      console.log('✅ Usuario tiene permiso admin.manageTree:', req.session.user.name);
       return next();
     }
     
-    console.log('❌ Usuario no tiene permiso admin.manageTree:', req.session.user.name);
     return res.status(403).json({ 
       success: false, 
       message: 'Acceso denegado. No tienes permisos para gestionar el árbol de tipificación.' 
@@ -69,7 +119,6 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024 // Límite de 5MB
   },
   fileFilter: (req, file, cb) => {
-    console.log('🔍 Archivo recibido:', file.originalname, file.mimetype);
     // Permitir archivos JSON y CSV
     if (file.mimetype === 'application/json' || 
         file.mimetype === 'text/csv' ||
@@ -125,15 +174,8 @@ router.post("/api/generateHash", login.generateHashedPassword);
 
 // Ruta simple para verificar autenticación
 router.get("/api/auth/check", (req, res) => {
-  console.log('🔍🔍🔍 VERIFICANDO AUTENTICACIÓN 🔍🔍🔍');
-  console.log('   - Session:', !!req.session);
-  console.log('   - User:', !!req.session?.user);
-  console.log('   - Session ID:', req.sessionID);
-  console.log('   - Session data:', req.session);
-  console.log('   - Cookies:', req.headers.cookie);
   
   if (req.session?.user) {
-    console.log('✅ Usuario autenticado:', req.session.user.name);
     res.json({
       authenticated: true,
       user: {
@@ -144,7 +186,6 @@ router.get("/api/auth/check", (req, res) => {
       sessionId: req.sessionID
     });
   } else {
-    console.log('❌ Usuario no autenticado');
     res.json({
       authenticated: false,
       message: 'Usuario no autenticado',
@@ -157,10 +198,6 @@ router.get("/api/auth/check", (req, res) => {
 
 // ENDPOINT DE PRUEBA SIMPLE
 router.get("/api/test/session", (req, res) => {
-  console.log('🧪🧪🧪 TEST SESSION ENDPOINT 🧪🧪🧪');
-  console.log('   - Session ID:', req.sessionID);
-  console.log('   - Session:', req.session);
-  console.log('   - Headers:', req.headers);
   
   res.json({
     sessionId: req.sessionID,
@@ -172,9 +209,6 @@ router.get("/api/test/session", (req, res) => {
 
 // ENDPOINT PARA DEBUGGEAR COOKIES
 router.get("/api/test/cookies", (req, res) => {
-  console.log('🍪🍪🍪 TEST COOKIES ENDPOINT 🍪🍪🍪');
-  console.log('   - Cookies header:', req.headers.cookie);
-  console.log('   - All headers:', req.headers);
   
   res.json({
     cookies: req.headers.cookie || 'No cookies',
@@ -185,14 +219,15 @@ router.get("/api/test/cookies", (req, res) => {
 
 // Endpoint para sincronizar autenticación con sesión Express
 router.post("/api/auth/sync-session", async (req, res) => {
-  console.log('🔄 Sincronizando autenticación con sesión Express...');
-  console.log('📥 Request body:', req.body);
-  console.log('📥 Headers:', req.headers);
   
   const { token } = req.body;
   
   if (!token) {
-    console.log('❌ No se recibió token en el body');
+    console.error('[AUTH] ❌ Error: Token requerido en sync-session', {
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+      hasBody: !!req.body
+    });
     return res.status(400).json({
       success: false,
       message: 'Token requerido'
@@ -204,18 +239,13 @@ router.post("/api/auth/sync-session", async (req, res) => {
     const jwt = require("jsonwebtoken");
     const decoded = jwt.decode(token, "g8SlhhpH6O");
     
-    console.log('🔍 Token decodificado:', decoded);
-    console.log('🔍 ¿Tiene userId?:', !!decoded?.userId);
-    console.log('🔍 ¿Tiene role?:', !!decoded?.role);
     
     if (decoded && decoded.userId) {
-      console.log('✅ Token válido, userId:', decoded.userId);
       
       // Buscar usuario en la base de datos
       const user = await User.findOne({ _id: decoded.userId });
       
       if (user) {
-        console.log('✅ Usuario encontrado:', user.name);
         
         // Guardar en sesión Express
         req.session.user = user;
@@ -225,16 +255,19 @@ router.post("/api/auth/sync-session", async (req, res) => {
         
         req.session.save((err) => {
           if (err) {
-            console.error('❌ Error guardando sesión:', err);
+            console.error('[AUTH] ❌ Error guardando sesión:', {
+              error: err.message,
+              userId: user._id,
+              sessionId: req.sessionID,
+              ip: req.ip,
+              timestamp: new Date().toISOString()
+            });
             return res.status(500).json({
               success: false,
               message: 'Error guardando sesión'
             });
           }
           
-          console.log('✅ Sesión sincronizada correctamente');
-          console.log('   - User:', user.name);
-          console.log('   - Session ID:', req.sessionID);
           
           res.json({
             success: true,
@@ -247,21 +280,36 @@ router.post("/api/auth/sync-session", async (req, res) => {
           });
         });
       } else {
-        console.log('❌ Usuario no encontrado en BD');
+        console.error('[AUTH] ❌ Error: Usuario no encontrado', {
+          userId: decoded.userId,
+          ip: req.ip,
+          userAgent: req.get('user-agent')
+        });
         res.status(404).json({
           success: false,
           message: 'Usuario no encontrado en la base de datos'
         });
       }
     } else {
-      console.log('❌ Token inválido o sin userId');
+      console.error('[AUTH] ❌ Error: Token inválido', {
+        hasDecoded: !!decoded,
+        hasUserId: decoded?.userId,
+        ip: req.ip,
+        userAgent: req.get('user-agent')
+      });
       res.status(401).json({
         success: false,
         message: 'Token inválido o sin información de usuario'
       });
     }
   } catch (error) {
-    console.error('❌ Error sincronizando sesión:', error);
+    console.error('[AUTH] ❌ Error crítico sincronizando sesión:', {
+      error: error.message,
+      stack: error.stack,
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor: ' + error.message
@@ -271,14 +319,8 @@ router.post("/api/auth/sync-session", async (req, res) => {
 
 // Endpoint para inicializar WebSocket con sesión
 router.post("/api/websocket/init", (req, res) => {
-  console.log('🔄 Inicializando WebSocket con sesión...');
-  console.log('   - Session:', !!req.session);
-  console.log('   - User:', !!req.session?.user);
-  console.log('   - Session ID:', req.sessionID);
-  console.log('   - Session keys:', Object.keys(req.session || {}));
   
   if (req.session?.user) {
-    console.log('✅ Usuario encontrado en sesión HTTP');
     res.json({
       success: true,
       user: {
@@ -289,7 +331,6 @@ router.post("/api/websocket/init", (req, res) => {
       sessionId: req.sessionID
     });
   } else {
-    console.log('❌ No hay usuario en sesión HTTP');
     res.status(401).json({
       success: false,
       message: 'Usuario no autenticado',
@@ -303,15 +344,27 @@ router.post("/api/websocket/init", (req, res) => {
 router.get('/api/tipificacion/formulario', async (req, res) => {
   try {
     const params = req.query;
-    console.log('📞 Nueva solicitud de tipificación:', params);
     
     // 🚨 VALIDACIÓN OBLIGATORIA: idAgent es requerido
     if (!params.idAgent) {
+      tipificacionLogger.logValidation(req, 'idAgent_check', 'fail', {
+        message: 'idAgent es requerido',
+        url: req.url,
+        query: req.query
+      });
+      console.error('[TIPIFICACION] ❌ Error: idAgent es requerido', {
+        url: req.url,
+        query: req.query,
+        ip: req.ip,
+        userAgent: req.get('user-agent')
+      });
       return res.status(400).json({ 
         success: false, 
         message: 'El parámetro idAgent es obligatorio' 
       });
     }
+    
+    tipificacionLogger.logValidation(req, 'idAgent_check', 'pass', { idAgent: params.idAgent });
 
     // 🔧 DECODIFICAR IDAGENT DEL SISTEMA TELEFÓNICO
     // El sistema telefónico envía: 7621%287621%29 -> necesitamos extraer: 7621
@@ -319,15 +372,12 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     try {
       // Primero decodificar URL
       const decodedIdAgent = decodeURIComponent(params.idAgent);
-      console.log('🔍 idAgent decodificado:', decodedIdAgent);
       
       // Extraer el primer número del formato: 7621(7621) o similar
       const match = decodedIdAgent.match(/^(\d+)/);
       if (match && match[1]) {
         idAgentReal = match[1];
-        console.log('✅ ID Agent extraído:', idAgentReal);
       } else {
-        console.log('⚠️ No se pudo extraer ID numérico, usando valor original:', params.idAgent);
       }
     } catch (error) {
       console.error('❌ Error decodificando idAgent:', error);
@@ -341,10 +391,6 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     const decodeText = (text, fieldName = '') => {
       if (!text) return text;
       
-      console.log(`🔍 DEBUG DECODE ${fieldName}:`);
-      console.log(`  📥 Original: "${text}"`);
-      console.log(`  📥 Length: ${text.length}`);
-      console.log(`  📥 Bytes: ${Buffer.from(text, 'utf8').toString('hex')}`);
       
       try {
         // 1. Intentar diferentes decodificaciones
@@ -352,13 +398,10 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
         
         // Si contiene caracteres de reemplazo UTF-8, intentar recuperar
         if (text.includes('')) {
-          console.log(`  🔧 Detectado carácter de reemplazo UTF-8`);
           // Intentar decodificar desde diferentes codificaciones
           try {
             decoded = Buffer.from(text, 'latin1').toString('utf8');
-            console.log(`  🔧 Latin1→UTF8: "${decoded}"`);
           } catch (e) {
-            console.log(`  ❌ Latin1 falló: ${e.message}`);
           }
         }
         
@@ -367,10 +410,8 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
           const urlDecoded = decodeURIComponent(decoded);
           if (urlDecoded !== decoded) {
             decoded = urlDecoded;
-            console.log(`  🔧 URL decoded: "${decoded}"`);
           }
         } catch (e) {
-          console.log(`  ❌ URL decode falló: ${e.message}`);
         }
         
         // 3. Decodificar HTML entities
@@ -390,15 +431,11 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
           return entities[entity] || entity;
         });
         if (beforeEntities !== decoded) {
-          console.log(`  🔧 HTML entities: "${decoded}"`);
         }
         
         // 4. Limpiar caracteres de control y espacios extra
         decoded = decoded.replace(/\s+/g, ' ').trim();
         
-        console.log(`  📤 Final: "${decoded}"`);
-        console.log(`  📤 Bytes: ${Buffer.from(decoded, 'utf8').toString('hex')}`);
-        console.log(`  ✅ Cambió: ${text !== decoded}`);
         
         return decoded;
         
@@ -428,17 +465,10 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     if (params.cedula) {
       const Cliente = require('../models/cliente');
       try {
-        console.log(`🔍 Buscando cliente con cédula: "${params.cedula}"`);
         clienteExistente = await Cliente.buscarPorCedula(params.cedula);
         if (clienteExistente) {
-          console.log(`👤 ✅ Cliente existente encontrado: ${clienteExistente.nombres} ${clienteExistente.apellidos}`);
-          console.log(`   - Cédula en BD: "${clienteExistente.cedula}"`);
-          console.log(`   - Total Interacciones: ${clienteExistente.totalInteracciones}`);
-          console.log(`   - Última interacción: ${clienteExistente.fechaUltimaInteraccion}`);
           historialCliente = clienteExistente.obtenerHistorial(5); // Últimas 5 interacciones
-          console.log(`📋 Historial del cliente: ${historialCliente.length} interacciones`);
         } else {
-          console.log(`🆕 ❌ Cliente NO encontrado en BD - Se creará uno nuevo`);
         }
       } catch (error) {
         console.error('❌ Error buscando cliente:', error);
@@ -468,10 +498,6 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       }
     }
     
-    console.log(`🎯 Prioridad asignada: ${priority} (${priority === 5 ? 'CRÍTICA' : priority === 4 ? 'ALTA' : priority === 3 ? 'MEDIA' : priority === 2 ? 'NORMAL' : 'BAJA'})`);
-    console.log(`👤 Segmento cliente: ${customerSegment}`);
-    console.log(`⏱️ Tiempo estimado: ${estimatedTime} minutos`);
-    console.log(`🎯 ID Agent del sistema telefónico: ${params.idAgent}`);
     
     // 🚨 BUSCAR AGENTE POR IDAGENT EN LA BASE DE DATOS
     const User = require('../models/users');
@@ -485,14 +511,23 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     
     // Si no encuentra agente específico, retornar error
     if (!assignedAgent) {
-      console.log(`🚨 CRÍTICO: No se encontró agente con idAgent: ${params.idAgent}`);
-      console.log(`🔍 Agentes disponibles en la BD:`);
+      tipificacionLogger.logValidation(req, 'agent_lookup', 'fail', {
+        message: 'Agente no encontrado en BD',
+        idAgentRecibido: params.idAgent,
+        idAgentDecodificado: idAgentReal,
+        idLlamada: params.idLlamada
+      });
+      
+      console.error('[TIPIFICACION] ❌ Error: Agente no encontrado', {
+        idAgentRecibido: params.idAgent,
+        idAgentDecodificado: idAgentReal,
+        idLlamada: params.idLlamada,
+        url: req.url,
+        ip: req.ip
+      });
       
       // Listar todos los agentes disponibles para debug
       const allAgents = await User.find({ active: true }).select('name idAgent correo').lean();
-      allAgents.forEach(agent => {
-        console.log(`   - ${agent.name}: idAgent="${agent.idAgent}" (${agent.correo})`);
-      });
       
       // TODO: Implementar lógica de fallback cuando se defina el comportamiento deseado
       // Por ahora, retornar error 404 cuando no se encuentra el agente específico
@@ -510,7 +545,12 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       });
     }
     
-    console.log(`✅ Agente encontrado: ${assignedAgent.name} (${assignedAgent.correo})`);
+    tipificacionLogger.logValidation(req, 'agent_lookup', 'pass', {
+      agentName: assignedAgent.name,
+      agentId: assignedAgent._id.toString(),
+      idAgent: params.idAgent
+    });
+    
     
     // Obtener estado actual del agente
     const userStatus = await UserStatus.findOne({ 
@@ -518,6 +558,13 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     }).lean();
     
     if (!userStatus) {
+      tipificacionLogger.logDeployment(req, 
+        { name: assignedAgent.name, idAgent: params.idAgent, userId: assignedAgent._id.toString() },
+        { idLlamada: params.idLlamada },
+        'failed',
+        'no_status_registered'
+      );
+      
       return res.status(400).json({ 
         success: false, 
         message: `El agente ${assignedAgent.name} no tiene estado registrado en el sistema`,
@@ -532,6 +579,13 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     
     // Verificar que el agente esté activo
     if (!userStatus.isActive) {
+      tipificacionLogger.logDeployment(req, 
+        { name: assignedAgent.name, idAgent: params.idAgent, userId: assignedAgent._id.toString() },
+        { idLlamada: params.idLlamada },
+        'failed',
+        'agent_inactive'
+      );
+      
       return res.status(400).json({ 
         success: false, 
         message: `El agente ${assignedAgent.name} no está activo en la plataforma`,
@@ -570,8 +624,6 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     let previousStatus = null;
     
     if (statusType.category !== 'work') {
-      console.log(`🔄 Agente ${assignedAgent.name} está en estado '${statusType.label}' (${statusType.category})`);
-      console.log(`🚀 CAMBIANDO AUTOMÁTICAMENTE A ESTADO DE TRABAJO...`);
       
       // Guardar estado anterior
       previousStatus = userStatus.status;
@@ -603,7 +655,6 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
                             workStatusTypes.find(st => st.value === 'available') ||
                             workStatusTypes[0];
       
-      console.log(`🎯 Cambiando estado de '${userStatus.status}' a '${targetWorkStatus.value}' (${targetWorkStatus.label})`);
       
       try {
         // Actualizar el estado del usuario
@@ -631,7 +682,6 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
           });
         }
         
-        console.log(`✅ Estado del agente ${assignedAgent.name} cambiado exitosamente a '${targetWorkStatus.label}'`);
         
         // Publicar cambio de estado por MQTT
         const mqttService = req.app.get('mqttService');
@@ -655,7 +705,6 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
           const userSpecificTopic = `telefonia/users/status-change/${assignedAgent._id}`;
           mqttService.publish(userSpecificTopic, statusChangeData);
           
-          console.log(`📡 Evento de cambio automático publicado en: ${userSpecificTopic}`);
         }
         
         // Actualizar la variable local para continuar con el flujo
@@ -677,16 +726,105 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       }
     }
     
-    console.log(`📊 Estado del agente: ${userStatus.status} (${statusType.label}) - ✅ VÁLIDO PARA TRABAJO`);
     
-    // Verificar conexión MQTT/WebSocket (opcional pero recomendado)
-    const hasConnection = userStatus.socketId || userStatus.sessionId;
-    if (!hasConnection) {
-      console.warn(`⚠️ El agente ${assignedAgent.name} no tiene conexión MQTT/WebSocket activa`);
-      // No bloquear la asignación, pero advertir
-    } else {
-      console.log(`🔌 Agente conectado - SocketId: ${userStatus.socketId || 'N/A'}, SessionId: ${userStatus.sessionId || 'N/A'}`);
+    // 🚨 VERIFICACIÓN ESTRICTA DE CONEXIÓN ACTIVA
+    const io = req.app.get('io');
+    let isSocketActive = false;
+    let socketConnectionDetails = null;
+    
+    // Verificar si el socket realmente existe y está conectado
+    if (userStatus.socketId && io) {
+      try {
+        const socket = io.sockets.sockets.get(userStatus.socketId);
+        if (socket && socket.connected) {
+          isSocketActive = true;
+          socketConnectionDetails = {
+            socketId: userStatus.socketId,
+            connected: socket.connected,
+            rooms: Array.from(socket.rooms || [])
+          };
+        }
+      } catch (socketError) {
+        console.error(`❌ Error verificando socket ${userStatus.socketId}:`, socketError);
+      }
     }
+    
+    // Verificar lastSeen: debe ser de los últimos 2 minutos (120 segundos)
+    const lastSeenTime = userStatus.lastSeen ? new Date(userStatus.lastSeen) : null;
+    const now = new Date();
+    const timeSinceLastSeen = lastSeenTime ? (now - lastSeenTime) / 1000 : Infinity; // en segundos
+    const MAX_IDLE_SECONDS = 120; // 2 minutos máximo de inactividad
+    
+    const isLastSeenRecent = lastSeenTime && timeSinceLastSeen <= MAX_IDLE_SECONDS;
+    
+    // Verificar que tenga al menos una conexión activa (socketId o sessionId)
+    const hasConnectionRecord = !!(userStatus.socketId || userStatus.sessionId);
+    
+    // 🚨 VALIDACIÓN ESTRICTA: El agente DEBE estar completamente activo
+    if (!isSocketActive || !isLastSeenRecent || !hasConnectionRecord) {
+      const reasons = [];
+      if (!isSocketActive) reasons.push('socket_no_activo');
+      if (!isLastSeenRecent) {
+        const minutesAgo = Math.floor(timeSinceLastSeen / 60);
+        reasons.push(`sin_actividad_${minutesAgo}_minutos`);
+      }
+      if (!hasConnectionRecord) reasons.push('sin_registro_conexion');
+      
+      const reasonText = `agent_not_actively_connected: ${reasons.join(', ')}`;
+      
+      tipificacionLogger.logDeployment(req, 
+        { 
+          name: assignedAgent.name, 
+          idAgent: params.idAgent, 
+          userId: assignedAgent._id.toString(),
+          detailedReasons: reasons,
+          timeSinceLastSeen: `${Math.floor(timeSinceLastSeen)} segundos`
+        },
+        { idLlamada: params.idLlamada },
+        'failed',
+        reasonText
+      );
+      
+      console.error('[TIPIFICACION] ❌ Error: Agente no está activo y conectado', {
+        idAgent: params.idAgent,
+        agentName: assignedAgent.name,
+        isSocketActive,
+        isLastSeenRecent,
+        hasConnectionRecord,
+        timeSinceLastSeen: `${Math.floor(timeSinceLastSeen)} segundos`,
+        socketId: userStatus.socketId,
+        sessionId: userStatus.sessionId,
+        lastSeen: lastSeenTime?.toISOString(),
+        reasons
+      });
+      
+      return res.status(400).json({ 
+        success: false, 
+        message: `El agente ${assignedAgent.name} no está activo y conectado en la plataforma`,
+        agentInfo: {
+          idAgent: params.idAgent,
+          agentName: assignedAgent.name,
+          agentEmail: assignedAgent.correo,
+          currentStatus: userStatus.status,
+          isSocketActive,
+          isLastSeenRecent,
+          hasConnectionRecord,
+          timeSinceLastSeen: `${Math.floor(timeSinceLastSeen)} segundos`,
+          lastSeen: lastSeenTime?.toISOString(),
+          socketId: userStatus.socketId,
+          sessionId: userStatus.sessionId,
+          reason: 'agent_not_actively_connected',
+          detailedReasons: reasons
+        }
+      });
+    }
+    
+    tipificacionLogger.logValidation(req, 'connection_check', 'pass', {
+      agentName: assignedAgent.name,
+      socketActive: isSocketActive,
+      lastSeenRecent: isLastSeenRecent,
+      hasConnectionRecord: hasConnectionRecord
+    });
     
     // Calcular carga de trabajo del agente
     const pendingCount = await Tipificacion.countDocuments({ 
@@ -694,27 +832,11 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       status: 'pending' 
     });
     
-    console.log(`📋 Carga de trabajo actual: ${pendingCount} tipificaciones pendientes`);
     
     // 🌳 Buscar árbol de tipificaciones desde BD
     const Tree = require('../models/tree');
     const arbolDocument = await Tree.getTipificacionesTree();
     const arbolTipificaciones = arbolDocument ? arbolDocument.root : [];
-    
-    console.log('🌳 Árbol de tipificaciones encontrado:', arbolDocument ? 'SÍ' : 'NO');
-    if (arbolDocument) {
-      console.log('📊 Árbol completo:', {
-        _id: arbolDocument._id,
-        name: arbolDocument.name,
-        description: arbolDocument.description,
-        isActive: arbolDocument.isActive,
-        rootLength: arbolDocument.root?.length || 0
-      });
-      console.log('📊 Cantidad de nodos raíz:', arbolTipificaciones.length);
-      console.log('📊 Primeros 3 nodos:', JSON.stringify(arbolTipificaciones.slice(0, 3), null, 2));
-    } else {
-      console.log('❌ No se encontró ningún árbol en la base de datos');
-    }
     
     // 📋 Crear historial básico para la nueva tipificación (solo el item actual)
     const historialNuevo = [
@@ -732,8 +854,6 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     const mqttService = req.app.get('mqttService');
     // Usar el userId del agente encontrado por idAgent
     const userIdPlano = assignedAgent._id;
-    console.log('DEBUG assignedAgent:', assignedAgent);
-    console.log('DEBUG userIdPlano:', userIdPlano);
     const topic = `telefonia/tipificacion/nueva/${userIdPlano}`;
     
     // 🎯 FUNCIÓN DE MAPEO PARA VALORES DEL MODELO
@@ -807,12 +927,6 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       fechaUltimaInteraccion: clienteExistente?.fechaUltimaInteraccion || null
     };
     
-    console.log('📤 Enviando tipificación por MQTT:');
-    console.log(`   - Topic: ${topic}`);
-    console.log(`   - Agente: ${assignedAgent.name}`);
-    console.log(`   - ID Llamada: ${params.idLlamada}`);
-    console.log(`   - Árbol: ${arbolTipificaciones.length} nodos`);
-    console.log(`   - 🎯 CRM: clienteExistente=${tipificacionData.clienteExistente}, totalInteracciones=${tipificacionData.totalInteracciones}`);
     
     // 1. Crear la nueva tipificación (pending)
     let tipificacionDoc = null;
@@ -901,14 +1015,12 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       
       // 🌳 ACTUALIZAR EL ÁRBOL EN CADA TIPIFICACIÓN DEL HISTORIAL
       // Reemplazar el árbol viejo con el árbol actual de la BD
-      console.log(`🔄 Actualizando árbol en ${historialPrevio.length} tipificaciones del historial...`);
       historialPrevio = historialPrevio.map(tip => {
         return {
           ...tip,
           arbol: arbolTipificaciones // ✅ Usar el árbol actual en lugar del viejo
         };
       });
-      console.log(`✅ Árbol actualizado en historial (${arbolTipificaciones.length} nodos raíz)`);
       
     } catch (err) {
       console.error('❌ Error buscando historial de tipificaciones:', err);
@@ -916,22 +1028,14 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
 
     // 🎯 CRM: SOLO CREAR/ACTUALIZAR CLIENTE SIN AGREGAR INTERACCIÓN (se hará al completar)
     if (params.cedula) {
-      console.log('🎯 INICIANDO CREACIÓN/ACTUALIZACIÓN DE CLIENTE CRM (sin interacción)');
-      console.log('📋 Datos del cliente:', JSON.stringify(datosCliente, null, 2));
       
       try {
         const Cliente = require('../models/cliente');
-        console.log('✅ Modelo Cliente importado correctamente');
         
         // Solo crear o actualizar cliente, SIN agregar interacción
-        console.log('🔄 Llamando a Cliente.crearOActualizar...');
         const clienteActualizado = await Cliente.crearOActualizar(datosCliente);
-        console.log(`✅ Cliente ${clienteActualizado.nombres} ${clienteActualizado.apellidos} creado/actualizado en CRM`);
-        console.log('📊 Cliente ID:', clienteActualizado._id);
-        console.log('📊 Total interacciones:', clienteActualizado.totalInteracciones);
         
         // NO agregar interacción aquí - se hará al completar la tipificación
-        console.log('⏭️ Interacción se agregará al completar la tipificación');
         
         // Actualizar datos del cliente en tipificacionData
         // Si el cliente se creó o ya existía, marcarlo como existente
@@ -939,11 +1043,6 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
         tipificacionData.totalInteracciones = clienteActualizado.totalInteracciones;
         tipificacionData.fechaUltimaInteraccion = clienteActualizado.fechaUltimaInteraccion;
         
-        console.log('🎉 CRM COMPLETADO EXITOSAMENTE (sin duplicar interacción)');
-        console.log('📊 Datos actualizados para MQTT:');
-        console.log(`   - clienteExistente: ${tipificacionData.clienteExistente}`);
-        console.log(`   - totalInteracciones: ${tipificacionData.totalInteracciones}`);
-        console.log(`   - fechaUltimaInteraccion: ${tipificacionData.fechaUltimaInteraccion}`);
         
       } catch (error) {
         console.error('❌ Error creando/actualizando cliente:', error);
@@ -951,17 +1050,38 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
         // Continuar sin fallar la tipificación
       }
     } else {
-      console.log('⚠️ No se proporcionó cédula, saltando creación de cliente CRM');
     }
 
     // 3. Asigna el historial y publica MQTT
     tipificacionData.historial = historialPrevio;
     
+    let mqttPublished = false;
     if (mqttService && mqttService.publish) {
-      mqttService.publish(topic, tipificacionData);
+      try {
+        mqttService.publish(topic, tipificacionData);
+        mqttPublished = true;
+      } catch (mqttError) {
+        console.error('❌ Error publicando por MQTT:', mqttError);
+      }
     } else {
       console.error('❌ mqttService no disponible');
     }
+    
+    // 🚨 LOG DE DESPLIEGUE EXITOSO
+    tipificacionLogger.logDeployment(req, 
+      { 
+        name: assignedAgent.name, 
+        idAgent: params.idAgent, 
+        userId: userIdPlano.toString()
+      },
+      { 
+        idLlamada: params.idLlamada,
+        cedula: params.cedula || 'N/A',
+        mqttPublished: mqttPublished,
+        topic: topic
+      },
+      'success'
+    );
     
     res.json({ 
       success: true, 
@@ -984,7 +1104,15 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error en /api/tipificacion/formulario:', error);
+    console.error('[TIPIFICACION] ❌ Error crítico en /api/tipificacion/formulario:', {
+      error: error.message,
+      stack: error.stack,
+      url: req.url,
+      query: req.query,
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({ 
       success: false, 
       message: 'Error interno del servidor',
@@ -996,6 +1124,14 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
 // Endpoint para actualizar tipificación (desde el frontend)
 router.post('/api/tipificacion/actualizar', async (req, res) => {
   try {
+    if (!req.body.idLlamada || !req.body.assignedTo) {
+      console.error('[TIPIFICACION] ❌ Error actualizando: Faltan parámetros requeridos', {
+        hasIdLlamada: !!req.body.idLlamada,
+        hasAssignedTo: !!req.body.assignedTo,
+        ip: req.ip,
+        userAgent: req.get('user-agent')
+      });
+    }
     // 🔧 DECODIFICAR CARACTERES ESPECIALES (tildes, acentos, etc.)
     const decodeText = (text) => {
       if (!text) return text;
@@ -1073,6 +1209,12 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
     const Tipificacion = require('../models/tipificacion');
     const tip = await Tipificacion.findOne({ idLlamada, assignedTo, status: 'pending' });
     if (!tip) {
+      console.error('[TIPIFICACION] ❌ Error actualizando: Tipificación no encontrada', {
+        idLlamada,
+        assignedTo,
+        ip: req.ip,
+        userAgent: req.get('user-agent')
+      });
       return res.status(404).json({ success: false, message: 'Tipificación no encontrada' });
     }
     
@@ -1103,7 +1245,6 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
       try {
         // Crear o actualizar cliente
         clienteActualizado = await Cliente.crearOActualizar(datosCliente);
-        console.log(`✅ Cliente ${clienteActualizado.nombres} ${clienteActualizado.apellidos} actualizado en CRM`);
         
         // Agregar nueva interacción al cliente
         const nuevaInteraccion = {
@@ -1122,7 +1263,6 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
         };
         
         await clienteActualizado.agregarInteraccion(nuevaInteraccion);
-        console.log(`✅ INTERACCIÓN FINAL agregada al historial del cliente (tipificación completada)`);
         
       } catch (error) {
         console.error('❌ Error actualizando cliente en CRM:', error);
@@ -1171,7 +1311,15 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('❌ Error actualizando tipificación:', error);
+    console.error('[TIPIFICACION] ❌ Error crítico actualizando tipificación:', {
+      error: error.message,
+      stack: error.stack,
+      idLlamada: req.body.idLlamada,
+      assignedTo: req.body.assignedTo,
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({ success: false, message: 'Error actualizando tipificación', error: error.message });
   }
 });
@@ -1218,7 +1366,6 @@ router.get('/api/tipificacion/cola/:userId', async (req, res) => {
       status: 'success' 
     });
     
-    console.log(`📋 Cola de ${userId}: ${pendingTipificaciones.length} pendientes, ${agentCompleted} completadas`);
     
     res.json({
       success: true,
@@ -1231,7 +1378,13 @@ router.get('/api/tipificacion/cola/:userId', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('❌ Error obteniendo cola:', error);
+    console.error('[TIPIFICACION] ❌ Error obteniendo cola:', {
+      error: error.message,
+      userId: req.params.userId,
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({ 
       success: false, 
       message: 'Error obteniendo cola de trabajo',
@@ -1252,7 +1405,6 @@ router.get('/api/agentes/conectados', async (req, res) => {
     
     // Debug: mostrar todos los estados de trabajo
     const workStatusTypes = await StatusType.find({ category: 'work', isActive: true }).lean();
-    console.log('🔍 Estados de trabajo en BD:', workStatusTypes.map(s => ({ value: s.value, label: s.label, category: s.category })));
     
     const workStatusValues = workStatusTypes.map(st => st.value);
     
@@ -1262,7 +1414,6 @@ router.get('/api/agentes/conectados', async (req, res) => {
       status: { $in: workStatusValues }
     }).populate('userId').lean();
     
-    console.log(`👥 Usuarios activos con estados de trabajo: ${activeUserStatuses.length}`);
     
     const availableUsers = [];
     
@@ -1270,19 +1421,7 @@ router.get('/api/agentes/conectados', async (req, res) => {
       if (userStatus.userId) {
         const user = userStatus.userId;
         
-        console.log(`👤 Usuario ${user.name}:`, {
-          status: userStatus.status,
-          isActive: userStatus.isActive,
-          label: userStatus.label
-        });
-        
         const statusType = await StatusType.findOne({ value: userStatus.status, isActive: true });
-        
-        console.log(`📋 StatusType para '${userStatus.status}':`, statusType ? {
-          value: statusType.value,
-          category: statusType.category,
-          isActive: statusType.isActive
-        } : 'No encontrado');
         
         if (statusType && statusType.category === 'work') {
           // Contar tipificaciones pendientes
@@ -1311,7 +1450,6 @@ router.get('/api/agentes/conectados', async (req, res) => {
     const stateManager = require('../services/stateManager');
     const stateManagerUsers = stateManager.getConnectedUsers();
     
-    console.log(`📊 Comparación: StateManager: ${stateManagerUsers.length}, Base de datos: ${availableUsers.length}`);
     
     res.json({
       success: true,
@@ -1344,13 +1482,26 @@ router.post('/api/tipificacion/cancelar', async (req, res) => {
     // Buscar la tipificación pendiente por idLlamada y assignedTo
     const tip = await Tipificacion.findOne({ idLlamada, assignedTo, status: 'pending' });
     if (!tip) {
+      console.error('[TIPIFICACION] ❌ Error cancelando: Tipificación no encontrada', {
+        idLlamada,
+        assignedTo,
+        ip: req.ip,
+        userAgent: req.get('user-agent')
+      });
       return res.status(404).json({ success: false, message: 'Tipificación no encontrada o ya procesada' });
     }
     tip.status = 'cancelada_por_agente';
     await tip.save();
     res.json({ success: true, message: 'Tipificación cancelada por el agente', tipificacion: tip });
   } catch (error) {
-    console.error('❌ Error cancelando tipificación:', error);
+    console.error('[TIPIFICACION] ❌ Error crítico cancelando tipificación:', {
+      error: error.message,
+      idLlamada: req.body.idLlamada,
+      assignedTo: req.body.assignedTo,
+      ip: req.ip,
+      userAgent: req.get('user-agent'),
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({ success: false, message: 'Error cancelando tipificación', error: error.message });
   }
 });
@@ -1373,7 +1524,14 @@ router.post('/api/reportes/solicitar', async (req, res) => {
     });
     res.json({ success: true, reporte: nuevoReporte });
   } catch (error) {
-    console.error('❌ Error creando solicitud de reporte:', error);
+    console.error('[REPORTES] ❌ Error creando solicitud de reporte:', {
+      error: error.message,
+      fechaInicio: req.body.fechaInicio,
+      fechaFin: req.body.fechaFin,
+      usuario: req.session?.user?.name || 'No autenticado',
+      ip: req.ip,
+      timestamp: new Date().toISOString()
+    });
     res.status(500).json({ success: false, message: 'Error creando solicitud de reporte', error: error.message });
   }
 });
@@ -1398,7 +1556,6 @@ router.get('/api/reportes/mis-reportes', async (req, res) => {
 // 🚀 FUNCIÓN PARA ASIGNAR AUTOMÁTICAMENTE TIPIFICACIONES PENDIENTES
 async function assignPendingTipificaciones() {
   try {
-    console.log('🔄 Iniciando asignación automática de tipificaciones pendientes...');
     
     // Obtener tipificaciones sin asignar (status: 'pending' y assignedTo: null o vacío)
     const unassignedTipificaciones = await Tipificacion.find({ 
@@ -1416,11 +1573,9 @@ async function assignPendingTipificaciones() {
     .lean();
     
     if (unassignedTipificaciones.length === 0) {
-      console.log('✅ No hay tipificaciones pendientes sin asignar');
       return { assigned: 0, message: 'No hay tipificaciones pendientes' };
     }
     
-    console.log(`📋 Encontradas ${unassignedTipificaciones.length} tipificaciones sin asignar`);
     
     // 🚨 CAMBIO: OBTENER USUARIOS ACTIVOS DIRECTAMENTE DE LA BASE DE DATOS
     const StatusType = require('../models/statusType');
@@ -1431,7 +1586,6 @@ async function assignPendingTipificaciones() {
     const workStatusTypes = await StatusType.find({ category: 'work', isActive: true }).lean();
     const workStatusValues = workStatusTypes.map(st => st.value);
     
-    console.log('🎯 Estados de trabajo disponibles:', workStatusValues);
     
     // BUSCAR USUARIOS ACTIVOS CON ESTADOS DE TRABAJO DIRECTAMENTE EN BD
     const activeUserStatuses = await UserStatus.find({ 
@@ -1439,10 +1593,8 @@ async function assignPendingTipificaciones() {
       status: { $in: workStatusValues }
     }).populate('userId').lean();
     
-    console.log(`👥 Usuarios activos encontrados en assignPendingTipificaciones: ${activeUserStatuses.length}`);
     
     if (activeUserStatuses.length === 0) {
-      console.log('⚠️ No hay agentes disponibles para trabajar');
       return { assigned: 0, message: 'No hay agentes disponibles' };
     }
     
@@ -1462,11 +1614,9 @@ async function assignPendingTipificaciones() {
     }
     
     if (availableUsers.length === 0) {
-      console.log('⚠️ No hay agentes disponibles para trabajar');
       return { assigned: 0, message: 'No hay agentes disponibles' };
     }
     
-    console.log(`👥 ${availableUsers.length} agentes disponibles`);
     
     // Obtener carga de trabajo actual de cada agente
     const agentWorkloads = await Promise.all(
@@ -1496,11 +1646,9 @@ async function assignPendingTipificaciones() {
     const availableAgents = agentWorkloads;
     
     if (availableAgents.length === 0) {
-      console.log('⚠️ No hay agentes disponibles');
       return { assigned: 0, message: 'No hay agentes disponibles' };
     }
     
-    console.log(`🎯 ${availableAgents.length} agentes disponibles`);
     
     // Asignar tipificaciones usando round robin
     let assignedCount = 0;
@@ -1529,14 +1677,11 @@ async function assignPendingTipificaciones() {
       const topic = `telefonia/tipificacion/nueva/${selectedAgent.userId}`;
       if (mqttService && mqttService.publish) {
         mqttService.publish(topic, tipificacionData);
-        console.log(`📡 Tipificación ${tipificacion.idLlamada} enviada por MQTT a ${selectedAgent.name}`);
       }
       
       assignedCount++;
-      console.log(`✅ Asignada tipificación ${tipificacion.idLlamada} a ${selectedAgent.name} (${selectedAgent.pendingCount + 1} pendientes)`);
     }
     
-    console.log(`🎉 Asignación completada: ${assignedCount} tipificaciones asignadas`);
     return { 
       assigned: assignedCount, 
       message: `${assignedCount} tipificaciones asignadas automáticamente`,
@@ -1765,10 +1910,8 @@ router.get('/api/crm/clientes', async (req, res) => {
 // 🧪 ENDPOINT DE PRUEBA PARA CRM
 router.get('/api/test/crm', async (req, res) => {
   try {
-    console.log('🧪 PROBANDO CREACIÓN DE CLIENTE CRM...');
     
     const Cliente = require('../models/cliente');
-    console.log('✅ Modelo Cliente importado');
     
     const datosPrueba = {
       cedula: '123456789',
@@ -1779,10 +1922,8 @@ router.get('/api/test/crm', async (req, res) => {
       correo: 'prueba@test.com'
     };
     
-    console.log('📋 Datos de prueba:', datosPrueba);
     
     const cliente = await Cliente.crearOActualizar(datosPrueba);
-    console.log('✅ Cliente creado:', cliente._id);
     
     res.json({
       success: true,
@@ -1819,12 +1960,9 @@ function csvToJsonTree(csvData) {
       
       // Si contiene caracteres de reemplazo UTF-8, intentar recuperar
       if (text.includes('')) {
-        console.log(`  🔧 CSV: Detectado carácter de reemplazo UTF-8 en "${text}"`);
         try {
           decoded = Buffer.from(text, 'latin1').toString('utf8');
-          console.log(`  🔧 CSV: Latin1→UTF8: "${text}" → "${decoded}"`);
         } catch (e) {
-          console.log(`  ❌ CSV: Latin1 falló: ${e.message}`);
         }
       }
       
@@ -1833,10 +1971,8 @@ function csvToJsonTree(csvData) {
         const urlDecoded = decodeURIComponent(decoded);
         if (urlDecoded !== decoded) {
           decoded = urlDecoded;
-          console.log(`  🔧 CSV: URL decoded: "${decoded}"`);
         }
       } catch (e) {
-        console.log(`  ❌ CSV: URL decode falló: ${e.message}`);
       }
       
       // 3. Decodificar HTML entities
@@ -1856,13 +1992,11 @@ function csvToJsonTree(csvData) {
         return entities[entity] || entity;
       });
       if (beforeEntities !== decoded) {
-        console.log(`  🔧 CSV: HTML entities: "${decoded}"`);
       }
       
       // 4. Limpiar caracteres de control y espacios extra
       decoded = decoded.replace(/\s+/g, ' ').trim();
       
-      console.log(`  📤 CSV: Final: "${text}" → "${decoded}"`);
       return decoded;
       
     } catch (error) {
@@ -1874,7 +2008,6 @@ function csvToJsonTree(csvData) {
   const tree = [];
   const nodeMap = new Map();
   
-  console.log('🌳 CSV: Iniciando conversión de CSV a árbol...');
   
   csvData.forEach((row, rowIndex) => {
     // Decodificar cada nivel del CSV
@@ -1887,7 +2020,6 @@ function csvToJsonTree(csvData) {
     ].map(level => level ? decodeText(level) : level)
      .filter(level => level && level.trim() !== '');
     
-    console.log(`🌳 CSV: Fila ${rowIndex + 1}:`, levels);
     
     let currentPath = '';
     let parentNode = null;
@@ -1919,7 +2051,6 @@ function csvToJsonTree(csvData) {
     });
   });
   
-  console.log('🌳 CSV: Conversión completada, árbol generado');
   return tree;
 }
 
@@ -1935,7 +2066,6 @@ router.get('/api/test', (req, res) => {
 // Endpoint para crear árbol de tipificación (solo para administradores)
 router.post('/api/tree/create', requireAdmin, async (req, res) => {
   try {
-    console.log('📤 Creando árbol de tipificación desde datos predefinidos...');
     
     // Crear un árbol simple desde datos CSV predefinidos
     const csvData = [
@@ -1952,11 +2082,9 @@ router.post('/api/tree/create', requireAdmin, async (req, res) => {
       { nivel1: 'Solicitud', nivel2: 'Documentos', nivel3: '', nivel4: '', nivel5: '' }
     ];
     
-    console.log('📁 Procesando datos CSV predefinidos...');
     
     // Convertir CSV a estructura JSON jerárquica
     const treeData = csvToJsonTree(csvData);
-    console.log('✅ CSV convertido a estructura JSON jerárquica');
     
     // Actualizar o crear el árbol en la base de datos
     const Tree = require('../models/tree');
@@ -1972,7 +2100,6 @@ router.post('/api/tree/create', requireAdmin, async (req, res) => {
       existingTree.updatedAt = new Date();
       
       const savedTree = await existingTree.save();
-      console.log('✅ Árbol existente actualizado:', savedTree._id);
     } else {
       // Solo crear si no existe
       const newTree = new Tree({
@@ -1983,7 +2110,6 @@ router.post('/api/tree/create', requireAdmin, async (req, res) => {
       });
       
       const savedTree = await newTree.save();
-      console.log('✅ Nuevo árbol creado:', savedTree._id);
     }
     
     res.json({
@@ -2013,7 +2139,6 @@ router.post('/api/tree/create', requireAdmin, async (req, res) => {
 // Endpoint de prueba simple sin multer
 router.post('/api/simple-test', (req, res) => {
   try {
-    console.log('📤 Prueba simple recibida');
     res.json({
       success: true,
       message: 'Endpoint simple funcionando',
@@ -2033,9 +2158,6 @@ router.post('/api/simple-test', (req, res) => {
 // Endpoint de prueba sin multer para recibir archivos
 router.post('/api/raw-upload', (req, res) => {
   try {
-    console.log('📤 Raw upload recibido');
-    console.log('Content-Type:', req.headers['content-type']);
-    console.log('Content-Length:', req.headers['content-length']);
     
     let body = '';
     req.on('data', chunk => {
@@ -2064,7 +2186,6 @@ router.post('/api/raw-upload', (req, res) => {
 // Endpoint de prueba para subir archivos
 router.post('/api/test-upload', upload.any(), (req, res) => {
   try {
-    console.log('📤 Prueba de upload:', req.files);
     res.json({
       success: true,
       message: 'Archivo recibido correctamente',
@@ -2088,26 +2209,14 @@ router.post('/api/test-upload', upload.any(), (req, res) => {
 // Endpoint para obtener el árbol actual
 router.get('/api/tree', async (req, res) => {
   try {
-    console.log('🌳 Obteniendo árbol de tipificaciones...');
     
     const Tree = require('../models/tree');
     
     // Buscar el árbol más reciente y activo
     let arbolDocument = await Tree.findOne({ isActive: true }).sort({ updatedAt: -1 }).lean();
-    console.log('🔍 Búsqueda (isActive=true):', arbolDocument ? 'Encontrado' : 'No encontrado');
-    
-    if (arbolDocument) {
-      console.log('📊 Árbol encontrado:', {
-        _id: arbolDocument._id,
-        name: arbolDocument.name,
-        rootLength: arbolDocument.root?.length || 0,
-        updatedAt: arbolDocument.updatedAt
-      });
-    }
     
     if (!arbolDocument) {
       // Si no hay ningún árbol, crear uno por defecto
-      console.log('📝 Creando árbol por defecto...');
       const defaultTree = new Tree({
         name: 'tipificaciones',
         description: 'Árbol de tipificaciones por defecto',
@@ -2128,11 +2237,8 @@ router.get('/api/tree', async (req, res) => {
       });
       
       arbolDocument = await defaultTree.save();
-      console.log('✅ Árbol por defecto creado');
     }
     
-    console.log(`✅ Árbol final tiene: ${arbolDocument.root.length} nodos raíz`);
-    console.log('📊 Primeros 2 nodos del árbol final:', JSON.stringify(arbolDocument.root.slice(0, 2), null, 2));
     
     res.json({
       success: true,
@@ -2160,7 +2266,6 @@ router.get('/api/tree', async (req, res) => {
 // Endpoint para subir archivo JSON del árbol de tipificación (sin multer para evitar errores)
 router.post('/api/tree/upload', async (req, res) => {
   try {
-    console.log('📤 Subiendo árbol de tipificación desde cliente...');
     
     const { tree, fileName } = req.body;
     
@@ -2171,18 +2276,15 @@ router.post('/api/tree/upload', async (req, res) => {
       });
     }
     
-    console.log(`📁 Procesando árbol desde archivo: ${fileName || 'sin nombre'}...`);
     
     let treeData;
     
     // Si el árbol viene con estructura completa (name, description, root)
     if (tree.root && Array.isArray(tree.root)) {
-      console.log('✅ Árbol con estructura completa detectado');
       treeData = tree.root;
     } 
     // Si el árbol es directamente un array de nodos
     else if (Array.isArray(tree)) {
-      console.log('✅ Árbol como array de nodos detectado');
       treeData = tree;
     } 
     else {
@@ -2192,7 +2294,6 @@ router.post('/api/tree/upload', async (req, res) => {
       });
     }
     
-    console.log(`📊 Árbol contiene ${treeData.length} nodos raíz`);
     
     // Validar estructura del árbol
     if (!treeData || !Array.isArray(treeData)) {
@@ -2218,7 +2319,6 @@ router.post('/api/tree/upload', async (req, res) => {
       treeData.forEach((node, index) => {
         validateNode(node, `[${index}]`);
       });
-      console.log('✅ Estructura del árbol validada correctamente');
     } catch (validationError) {
       return res.status(400).json({
         success: false,
@@ -2236,13 +2336,6 @@ router.post('/api/tree/upload', async (req, res) => {
     const treeName = tree.name || 'tipificaciones';
     const treeDescription = tree.description || `Árbol subido desde ${fileName || 'archivo'} el ${new Date().toLocaleDateString()}`;
     
-    console.log('📝 Procesando árbol con datos:', {
-      name: treeName,
-      description: treeDescription,
-      rootLength: treeData.length,
-      firstNode: treeData[0]
-    });
-    
     let savedTree;
     
     if (existingTree) {
@@ -2253,7 +2346,6 @@ router.post('/api/tree/upload', async (req, res) => {
       existingTree.updatedAt = new Date();
       
       savedTree = await existingTree.save();
-      console.log('✅ Árbol existente actualizado:', savedTree._id);
     } else {
       // Solo crear si no existe
       const newTree = new Tree({
@@ -2268,15 +2360,11 @@ router.post('/api/tree/upload', async (req, res) => {
       newTree.markModified('root');
       
       savedTree = await newTree.save();
-      console.log('✅ Nuevo árbol creado:', savedTree._id);
     }
     
-    console.log('📊 Árbol guardado tiene:', savedTree.root.length, 'nodos raíz');
     
     // Verificar inmediatamente que se guardó correctamente (con .lean() para ver datos puros)
     const verificacion = await Tree.findById(savedTree._id).lean();
-    console.log('🔍 Verificación inmediata:', verificacion.root.length, 'nodos raíz en BD');
-    console.log('🔍 Primeros 2 nodos verificados:', JSON.stringify(verificacion.root.slice(0, 2), null, 2));
     
     res.json({
       success: true,
@@ -2310,7 +2398,6 @@ router.post('/api/tree/upload', async (req, res) => {
 // Endpoint para descargar el árbol actual como archivo JSON
 router.get('/api/tree/download', requireAdmin, async (req, res) => {
   try {
-    console.log('📥 Descargando árbol de tipificaciones...');
     
     const Tree = require('../models/tree');
     const arbolDocument = await Tree.getTipificacionesTree();
@@ -2337,7 +2424,6 @@ router.get('/api/tree/download', requireAdmin, async (req, res) => {
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     
-    console.log(`✅ Descargando archivo: ${filename}`);
     
     res.json(downloadData);
     
@@ -2354,7 +2440,6 @@ router.get('/api/tree/download', requireAdmin, async (req, res) => {
 // Endpoint temporal para dar permisos de administrador (SOLO PARA DESARROLLO)
 router.post('/api/admin/give-permissions', async (req, res) => {
   try {
-    console.log('🔧 Dando permisos de administrador temporalmente...');
     
     // Crear permisos de administrador temporal
     const adminPermissions = {
@@ -2387,7 +2472,6 @@ router.post('/api/admin/give-permissions', async (req, res) => {
 // Endpoint para crear árbol por defecto (si no existe)
 router.post('/api/tree/initialize', requireAdmin, async (req, res) => {
   try {
-    console.log('🚀 Inicializando árbol de tipificación por defecto...');
     
     const Tree = require('../models/tree');
     
@@ -2448,7 +2532,6 @@ router.post('/api/tree/initialize', requireAdmin, async (req, res) => {
     });
     
     await defaultTree.save();
-    console.log('✅ Árbol por defecto creado');
     
     res.json({
       success: true,

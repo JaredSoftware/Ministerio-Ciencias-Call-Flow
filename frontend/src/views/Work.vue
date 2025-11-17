@@ -423,6 +423,7 @@ import axios from '@/router/services/axios';
 import toastMixin from '@/mixins/toastMixin';
 import { mqttService } from '@/router/services/mqttService';
 import statusTypes from '@/router/services/statusTypes';
+import environmentConfig from '@/config/environment';
 
 export default {
   name: 'Work',
@@ -518,7 +519,6 @@ export default {
   },
   methods: {
     guardarModal() {
-      console.log('🎯 Guardando modal y activando formulario');
       this.idLlamada = this.modalData.idLlamada;
       this.tipoDocumento = this.modalData.tipoDocumento;
       this.cedula = this.modalData.cedula;
@@ -526,22 +526,19 @@ export default {
       
       // ✅ ACTIVAR FORMULARIO DESPUÉS DE ACEPTAR MODAL
       this.tipificacionActiva = true;
-      console.log('✅ Formulario activado - tipificacionActiva:', this.tipificacionActiva);
     },
     
-         // Método para inicializar el árbol - SIN HARDCODE, espera MQTT
-     initializeArbol() {
-       // ❌ NO HARDCODE - El árbol viene SOLO por MQTT
-       this.arbol = [];
-       console.log('⏳ Esperando árbol de tipificaciones por MQTT...');
-     },
+    // Método para inicializar el árbol - SIN HARDCODE, espera MQTT
+    initializeArbol() {
+      // ❌ NO HARDCODE - El árbol viene SOLO por MQTT
+      this.arbol = [];
+    },
     
     // Método para cargar historial (fallback)
     loadHistorial() {
       // Inicializar historial vacío
       // El historial real se recibirá por MQTT
       this.historial = [];
-      console.log('✅ Historial inicializado');
     },
     
     // Método para limpiar el formulario
@@ -552,7 +549,6 @@ export default {
       this.nivel4 = '';
       this.nivel5 = '';
       this.observacion = '';
-      console.log('✅ Formulario limpiado');
     },
     
     // Método para formatear fechas
@@ -582,6 +578,7 @@ export default {
         };
         
         // Llamar al endpoint de actualización con body parameters
+        // Nota: axios ya tiene /api/ en baseURL, así que no debemos duplicarlo
         const response = await axios.post('/tipificacion/actualizar', {
           idLlamada: this.idLlamada || '',
           cedula: this.cedula || '',
@@ -643,6 +640,8 @@ export default {
           this.showModal = false;
           this.skipNextEvent = true;
           
+          // 🔥 IMPORTANTE: Limpiar la tipificación pendiente del store para evitar que vuelva a aparecer
+          this.$store.commit('clearPendingTipificacion');
           
           this.showToast('Tipificación guardada correctamente', 'success');
         } else {
@@ -656,29 +655,24 @@ export default {
     },
          async setupMQTT() {
        try {
-         console.log('🔌🔌🔌 CONFIGURANDO MQTT PARA WORK 🔌🔌🔌');
          
          // Obtener el userId del store
          const userId = this.$store.state.user?.id || this.$store.state.user?._id;
-         console.log('👤 User ID desde store:', userId);
-         console.log('🏪 Store completo:', this.$store.state.user);
          
          if (!userId) {
            console.warn('⚠️⚠️⚠️ NO SE PUEDE CONFIGURAR MQTT SIN USERID');
-           console.log('🔍 Verificando store state:', this.$store.state);
            return;
          }
          
          // Configurar topic personalizado para este usuario
          this.mqttTopic = `telefonia/tipificacion/nueva/${userId}`;
-         console.log('📡📡📡 TOPIC MQTT CONFIGURADO:', this.mqttTopic);
          
          // Asegurar que MQTT esté conectado
          if (!mqttService.isConnected) {
-           console.log('🔄 Conectando MQTT Service...');
            try {
-             await mqttService.connect('ws://localhost:9001', userId, this.$store.state.user?.name);
-             console.log('✅ MQTT Service conectado exitosamente');
+             // Usar configuración dinámica para MQTT
+             const mqttUrl = environmentConfig.getMQTTBrokerUrl();
+             await mqttService.connect(mqttUrl, userId, this.$store.state.user?.name);
            } catch (error) {
              console.error('❌ Error conectando MQTT Service:', error);
              // Reintentar en 3 segundos
@@ -689,49 +683,62 @@ export default {
            }
          }
          
-         console.log('✅✅✅ MQTT GLOBAL CONECTADO, CONFIGURANDO LISTENER');
          
          // Limpiar listener anterior si existe
          if (this.mqttCallback) {
            mqttService.off(this.mqttTopic, this.mqttCallback);
          }
          
-         // Crear callback para nueva tipificación
-         this.mqttCallback = (data) => {
-           console.log('📥📥📥 NUEVA TIPIFICACIÓN RECIBIDA POR MQTT:', data);
-           this.handleNuevaTipificacion(data);
-         };
+        // Crear callback para nueva tipificación
+        this.mqttCallback = (data) => {
+          const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+          const callbackLog = `${timestamp} 🔔 [WORK] CALLBACK_DIRECTO_MQTT | topic:${this.mqttTopic} | idLlamada:${data?.idLlamada || 'N/A'}`;
+          console.log(callbackLog);
+          console.log('📦 [WORK] Datos recibidos en callback directo:', JSON.stringify(data, null, 2));
+          
+          // Procesar directamente (no usar store, procesar inmediatamente)
+          this.handleNuevaTipificacion(data);
+        };
+        
+        // Suscribirse al topic personalizado del usuario
+        console.log(`📡 [WORK] Suscribiéndose al topic: ${this.mqttTopic}`);
+        mqttService.on(this.mqttTopic, this.mqttCallback);
          
-         // Suscribirse al topic personalizado del usuario
-         mqttService.on(this.mqttTopic, this.mqttCallback);
          
-         console.log('✅✅✅ MQTT CONFIGURADO PARA RECIBIR TIPIFICACIONES');
-         console.log('📡 Esperando mensajes en topic:', this.mqttTopic);
-         
-       } catch (error) {
-         console.error('❌❌❌ ERROR CONFIGURANDO MQTT:', error);
-       }
-     },
+      } catch (error) {
+        console.error('❌❌❌ ERROR CONFIGURANDO MQTT:', error);
+      }
+    },
     
-         handleNuevaTipificacion(data) {
-       try {
-         console.log('🎯🎯🎯 PROCESANDO NUEVA TIPIFICACIÓN 🎯🎯🎯');
-         console.log('📥 Data completa recibida:', JSON.stringify(data, null, 2));
-         console.log('🌳 Árbol recibido:', data.arbol ? 'SÍ (' + data.arbol.length + ' nodos)' : 'NO');
-         console.log('👤 Agente asignado:', data.assignedToName, '- ID:', data.assignedAgentId);
-         
-         if (data.arbol) {
-           console.log('🌳 ESTRUCTURA DEL ÁRBOL RECIBIDO:');
-           data.arbol.forEach((node, index) => {
-             console.log(`   ${index + 1}. ${node.label} (${node.value})`);
-             if (node.children && node.children.length > 0) {
-               node.children.forEach((child) => {
-                 console.log(`      - ${child.label} (${child.value})`);
-               });
-             }
-           });
-         }
-         
+    handleNuevaTipificacion(data) {
+      // 🚨 LOG DE RECEPCIÓN DE TIPIFICACIÓN
+      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const logLine = `${timestamp} ✅ [FRONTEND] TIPIFICACION_RECIBIDA | idLlamada:${data.idLlamada || 'N/A'} | cedula:${data.cedula || 'N/A'} | assignedTo:${data.assignedTo || 'N/A'} | topic:telefonia/tipificacion/nueva/${this.$store.state.user?._id || 'N/A'}`;
+      console.log(logLine);
+      
+      try {
+        // 🚨 VALIDACIÓN: NO PROCESAR SI ES LA MISMA TIPIFICACIÓN QUE YA ESTÁ ACTIVA
+        if (this.tipificacionActiva && this.idLlamada && this.idLlamada === data.idLlamada) {
+          const duplicateLog = `${timestamp} ⚠️ [FRONTEND] TIPIFICACION_DUPLICADA_IGNORADA | idLlamada:${data.idLlamada || 'N/A'}`;
+          console.warn(duplicateLog);
+          return;
+        }
+        
+        // 🚨 VALIDACIÓN: NO PROCESAR SI LA TIPIFICACIÓN YA FUE GUARDADA
+        if (data.status === 'success') {
+          const alreadySavedLog = `${timestamp} ⚠️ [FRONTEND] TIPIFICACION_YA_GUARDADA_IGNORADA | idLlamada:${data.idLlamada || 'N/A'}`;
+          console.warn(alreadySavedLog);
+          return;
+        }
+        // Procesar árbol de tipificaciones si existe
+        if (data.arbol) {
+          data.arbol.forEach((node) => {
+            if (node.children && node.children.length > 0) {
+              // Procesar hijos si es necesario
+            }
+          });
+        }
+        
         // Actualizar datos del formulario - Campos básicos
         this.cedula = data.cedula || '';
         this.idLlamada = data.idLlamada || '';
@@ -758,41 +765,26 @@ export default {
         this.nivelEscolaridad = data.nivelEscolaridad || '';
         this.grupoEtnico = data.grupoEtnico || '';
         this.discapacidad = data.discapacidad || '';
-         
-         console.log('📝 Datos del formulario actualizados:');
-         console.log(`   - ID Llamada: ${this.idLlamada}`);
-         console.log(`   - Cédula: ${this.cedula}`);
-         console.log(`   - Tipo Doc: ${this.tipoDocumento}`);
-         console.log(`   - Nombres: ${this.nombres}`);
-         console.log(`   - Apellidos: ${this.apellidos}`);
-         console.log(`   - Teléfono: ${this.telefono}`);
-         console.log(`   - Correo: ${this.correo}`);
-         console.log(`   - Departamento: ${this.departamento}`);
-         console.log(`   - Ciudad: ${this.ciudad}`);
-         
-         // Actualizar historial
-         if (Array.isArray(data.historial)) {
-           this.historial = data.historial;
-           console.log('📋 Historial actualizado:', this.historial.length, 'items');
-         } else {
-           this.historial.unshift(data);
-           console.log('📋 Item agregado al historial');
-         }
-         
-         // ✅ IMPORTANTE: Actualizar el árbol de tipificaciones
-         if (data.arbol && Array.isArray(data.arbol)) {
-           this.arbol = data.arbol;
-           console.log('✅✅✅ ÁRBOL ACTUALIZADO CON ÉXITO ✅✅✅');
-           console.log('🌳 Nuevo árbol en this.arbol:', this.arbol.length, 'nodos raíz');
-           console.log('🌳 Primer nodo:', this.arbol[0]?.label, '(', this.arbol[0]?.value, ')');
-           
-           // Forzar actualización del componente
-           this.$forceUpdate();
-           console.log('🔄 Componente forzado a actualizar');
-         } else {
-           console.warn('⚠️ NO SE RECIBIÓ ÁRBOL O ÁRBOL INVÁLIDO');
-         }
-         
+        
+        // Actualizar historial
+        if (Array.isArray(data.historial)) {
+          this.historial = data.historial;
+        } else {
+          this.historial.unshift(data);
+        }
+        
+        // ✅ IMPORTANTE: Actualizar el árbol de tipificaciones
+        if (data.arbol && Array.isArray(data.arbol)) {
+          this.arbol = data.arbol;
+          
+          // Forzar actualización del componente
+          this.$forceUpdate();
+        } else {
+          const errorTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+          const errorLog = `${errorTimestamp} ⚠️ [FRONTEND] TIPIFICACION_INCOMPLETA | idLlamada:${data.idLlamada || 'N/A'} | RAZON:arbol_no_recibido_o_invalido`;
+          console.warn(errorLog);
+        }
+        
         // Mostrar modal con la información de la tipificación
         this.modalData = {
           idLlamada: data.idLlamada || '',
@@ -805,22 +797,16 @@ export default {
         };
         
         // 🎯 MOSTRAR INFORMACIÓN CRM EN EL MODAL
-        console.log('🔍 DEBUG CRM Frontend:');
-        console.log(`   - data.clienteExistente: ${data.clienteExistente}`);
-        console.log(`   - data.totalInteracciones: ${data.totalInteracciones}`);
-        console.log(`   - data.fechaUltimaInteraccion: ${data.fechaUltimaInteraccion}`);
         
         // Determinar si es cliente existente (puede ser true/false o undefined)
         const esClienteExistente = data.clienteExistente === true;
         const totalInteracciones = data.totalInteracciones || 0;
         
         if (esClienteExistente && totalInteracciones > 0) {
-          console.log(`👤 Cliente existente detectado - Total interacciones: ${totalInteracciones}`);
           this.modalData.esClienteExistente = true;
           this.modalData.totalInteracciones = totalInteracciones;
           this.modalData.fechaUltimaInteraccion = data.fechaUltimaInteraccion;
         } else {
-          console.log('🆕 Cliente nuevo detectado');
           this.modalData.esClienteExistente = false;
           this.modalData.totalInteracciones = 0;
         }
@@ -828,25 +814,27 @@ export default {
         this.showModal = true;
         // ✅ ASEGURAR QUE EL FORMULARIO SE ACTIVE CUANDO LLEGUE NUEVA TIPIFICACIÓN
         this.tipificacionActiva = true;
-        console.log('🗂️ Modal mostrado con datos:', this.modalData);
-        console.log('✅ Formulario pre-activado para nueva tipificación');
-         
+        
         // Reproducir sonido de notificación (opcional)
         this.playNotificationSound();
         
-        
       } catch (error) {
+        const errorTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const errorLog = `${errorTimestamp} ❌ [FRONTEND] ERROR_PROCESANDO_TIPIFICACION | idLlamada:${data?.idLlamada || 'N/A'} | RAZON:${error.message || 'Error desconocido'} | stack:${error.stack?.substring(0, 100) || 'N/A'}`;
+        console.error(errorLog);
         console.error('❌❌❌ ERROR PROCESANDO TIPIFICACIÓN:', error);
       }
-     },
+    },
     
     playNotificationSound() {
       try {
-        // Reproducir sonido de notificación
+        // Intentar reproducir sonido de notificación (si existe)
         const audio = new Audio('/notification.mp3');
-        audio.play().catch(e => console.log('No se pudo reproducir sonido:', e));
+        audio.play().catch(() => {
+          // Silenciar errores de reproducción (archivo no existe o no se puede reproducir)
+        });
       } catch (error) {
-        console.log('No se pudo reproducir sonido de notificación');
+        // Silenciar errores de audio (archivo no existe)
       }
     },
     editarCliente() {
@@ -962,7 +950,6 @@ export default {
     '$store.state.user._id': {
       immediate: true,
       async handler(newUserId) {
-        console.log('🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍🔍jared valdiar handle', newUserId)
         if (!newUserId) return;
         const topic = `telefonia/tipificacion/nueva/${newUserId}`;
         // Limpiar listener anterior si existe
@@ -976,62 +963,158 @@ export default {
             return;
           }
           
-          console.log('🔥 WATCHER: Nueva tipificación recibida', data);
           // Usar el método principal para procesar
           this.handleNuevaTipificacion(data);
         };
         this.mqttCallback = callback;
         if (!mqttService.isConnected) {
-          await mqttService.connect('ws://localhost:9001', newUserId);
+          // Usar configuración dinámica para MQTT
+          const mqttUrl = environmentConfig.getMQTTBrokerUrl();
+          await mqttService.connect(mqttUrl, newUserId);
         }
         mqttService.on(topic, callback);
         this.mqttTopic = topic;
       }
     },
     
+    // 🔥 WATCHER PARA PROCESAR TIPIFICACIÓN PENDIENTE CUANDO CAMBIE
+    '$store.state.pendingTipificacion': {
+      handler(newTipificacion) {
+        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const logLine = `${timestamp} 👀 [WATCHER] TIPIFICACION_PENDIENTE_CAMBIO | idLlamada:${newTipificacion?.idLlamada || 'null'} | mounted:${this._isMounted} | active:${this.tipificacionActiva}`;
+        console.log(logLine);
+        
+        // Solo procesar si el componente está montado y hay una tipificación pendiente
+        if (!this._isMounted) {
+          console.warn(`⚠️ [WATCHER] Componente NO montado, ignorando tipificación | idLlamada:${newTipificacion?.idLlamada || 'null'}`);
+          return;
+        }
+        
+        if (!newTipificacion) {
+          console.log(`ℹ️ [WATCHER] No hay tipificación pendiente`);
+          return;
+        }
+        
+        // 🚨 NO PROCESAR SI YA EXISTE UNA TIPIFICACIÓN ACTIVA CON EL MISMO ID LLAMADA
+        if (this.tipificacionActiva && this.idLlamada && this.idLlamada === newTipificacion.idLlamada) {
+          console.log(`⚠️ [WATCHER] Ignorando tipificación duplicada | idLlamada:${newTipificacion.idLlamada}`);
+          // Limpiar del store para evitar que vuelva a aparecer
+          this.$store.commit('clearPendingTipificacion');
+          return;
+        }
+        
+        // 🚨 NO PROCESAR SI LA TIPIFICACIÓN YA FUE GUARDADA (status: 'success')
+        if (newTipificacion.status === 'success') {
+          console.log(`⚠️ [WATCHER] Ignorando tipificación ya guardada | idLlamada:${newTipificacion.idLlamada}`);
+          // Limpiar del store
+          this.$store.commit('clearPendingTipificacion');
+          return;
+        }
+        
+        // ✅ PROCESAR LA TIPIFICACIÓN
+        const processLog = `${timestamp} 🚀 [WATCHER] PROCESANDO_TIPIFICACION | idLlamada:${newTipificacion.idLlamada}`;
+        console.log(processLog);
+        console.log('📦 [WATCHER] Datos de tipificación:', JSON.stringify(newTipificacion, null, 2));
+        
+        try {
+          this.handleNuevaTipificacion(newTipificacion);
+          
+          // Verificar si se procesó correctamente
+          setTimeout(() => {
+            if (this.idLlamada === newTipificacion.idLlamada && this.tipificacionActiva) {
+              console.log(`✅ [WATCHER] Tipificación procesada correctamente | idLlamada:${newTipificacion.idLlamada}`);
+            } else {
+              console.error(`❌ [WATCHER] Tipificación NO se procesó correctamente | esperado:${newTipificacion.idLlamada} | actual:${this.idLlamada} | activa:${this.tipificacionActiva}`);
+            }
+          }, 500);
+          
+          // Limpiar del store después de procesar
+          this.$store.commit('clearPendingTipificacion');
+        } catch (error) {
+          console.error(`❌ [WATCHER] Error procesando tipificación | idLlamada:${newTipificacion.idLlamada} | error:${error.message}`);
+          console.error('❌ Stack trace:', error.stack);
+        }
+      },
+      immediate: false // No procesar inmediatamente, solo cuando cambie
+    },
+    
     // 🔒 WATCHER PARA VALIDAR QUE EL USUARIO TENGA EL ESTADO CORRECTO PARA WORK
     '$store.state.userStatus.status': {
       handler(newStatus, oldStatus) {
-        // Solo validar si ya estamos montados y el estado cambió realmente
-        if (!this._isMounted || newStatus === oldStatus) {
+        // ⚠️ IMPORTANTE: Solo validar si realmente estamos en la ruta /work
+        // Esto evita redirecciones durante el login o cuando estamos navegando a otra ruta
+        if (this.$route.path !== '/work') {
           return;
         }
         
-        console.log('🔍 CAMBIO DE ESTADO DETECTADO EN WORK');
-        console.log('   - Estado anterior:', oldStatus);
-        console.log('   - Estado nuevo:', newStatus);
+        // Solo validar si ya estamos montados
+        if (!this._isMounted) {
+          return;
+        }
+        
+        // ⚠️ CRÍTICO: Comparar valores reales, no referencias de objetos
+        // Normalizar valores (pueden ser strings, null, undefined)
+        const newStatusValue = newStatus === null || newStatus === undefined ? null : String(newStatus).trim();
+        const oldStatusValue = oldStatus === null || oldStatus === undefined ? null : String(oldStatus).trim();
+        
+        // Solo validar si el estado REALMENTE cambió de valor
+        // StatusSyncMonitor actualiza el store cada 5 segundos incluso si el estado no cambió
+        if (newStatusValue === oldStatusValue) {
+          return;
+        }
+        
+        // ⚠️ Evitar validación durante los primeros 10 segundos después del montaje
+        // Esto previene redirecciones durante la inicialización del componente y login
+        if (!this._mountedTime) {
+          this._mountedTime = Date.now();
+        }
+        const timeSinceMount = Date.now() - this._mountedTime;
+        if (timeSinceMount < 10000) {
+          console.log(`⚠️ [WORK] Ignorando cambio de estado durante inicialización (${Math.round(timeSinceMount/1000)}s / 10s)`);
+          return;
+        }
         
         // No validar si los estados aún no están cargados
         if (!statusTypes.statuses || statusTypes.statuses.length === 0) {
-          console.log('⚠️ Estados aún no cargados - no validando');
+          console.log('⚠️ [WORK] Estados aún no cargados, ignorando validación');
           return;
         }
         
-        if (!newStatus) {
-          console.warn('⚠️ Usuario sin estado definido, redirigiendo a dashboard');
-          this.showToast('No tienes un estado asignado. Por favor, selecciona un estado.', 'warning');
-          
-          // Limpiar formulario y datos antes de redirigir
-          this.limpiarTipificacion();
-          this.tipificacionActiva = false;
-          this.showModal = false;
-          
-          this.$router.push('/dashboard');
+        // Solo validar si hay un estado nuevo definido
+        if (!newStatusValue || newStatusValue === 'null' || newStatusValue === 'undefined') {
+          // Solo redirigir si antes tenía un estado válido (no es la primera vez)
+          if (oldStatusValue && oldStatusValue !== 'null' && oldStatusValue !== 'undefined') {
+            console.warn('⚠️ [WORK] Usuario perdió estado, redirigiendo a dashboard');
+            this.showToast('Tu estado cambió. Por favor, selecciona un estado válido.', 'warning');
+            
+            // Limpiar formulario y datos antes de redirigir
+            this.limpiarTipificacion();
+            this.tipificacionActiva = false;
+            this.showModal = false;
+            
+            this.$router.push('/dashboard');
+          }
           return;
         }
         
         // Validar si el estado actual es de categoría 'work'
-        const statusObj = statusTypes.getStatusByValue(newStatus);
+        const newStatusObj = statusTypes.getStatusByValue(newStatusValue);
+        const oldStatusObj = oldStatusValue ? statusTypes.getStatusByValue(oldStatusValue) : null;
         
-        console.log('📋 Estado encontrado:', statusObj);
-        console.log('   - Categoría:', statusObj?.category);
+        // ⚠️ Solo redirigir si el NUEVO estado NO permite work Y el ANTERIOR sí permitía
+        // Esto evita redirecciones cuando el usuario ya estaba en un estado que no permite work
+        const newStatusAllowsWork = !newStatusObj || 
+                                   !newStatusObj.category || 
+                                   newStatusObj.category === 'work' || 
+                                   newStatusObj.category === 'custom';
+        const oldStatusAllowedWork = !oldStatusObj || 
+                                    !oldStatusObj.category || 
+                                    oldStatusObj.category === 'work' || 
+                                    oldStatusObj.category === 'custom';
         
-        // Solo bloquear si el estado tiene una categoría definida que NO es 'work'
-        // Permitir estados 'custom' (estados dinámicos no reconocidos)
-        if (statusObj && statusObj.category && statusObj.category !== 'work' && statusObj.category !== 'custom') {
-          console.warn('⚠️ Estado actual NO es de categoría WORK, redirigiendo a dashboard');
-          console.log('   - Estado actual:', newStatus);
-          console.log('   - Categoría:', statusObj.category);
+        // Solo redirigir si cambió DE un estado válido A uno inválido
+        if (oldStatusAllowedWork && !newStatusAllowsWork) {
+          console.warn(`⚠️ [WORK] Estado cambió de '${oldStatusValue}' (permite work) a '${newStatusValue}' (NO permite work), redirigiendo`);
           
           this.showToast('Tu estado cambió a uno que no permite acceder a Work. Has sido redirigido al Dashboard.', 'warning');
           
@@ -1043,12 +1126,18 @@ export default {
           // Redirigir al dashboard
           this.$router.push('/dashboard');
         } else {
-          console.log('✅ Estado válido para Work - Categoría:', statusObj?.category || 'custom/desconocido');
+          console.log(`ℹ️ [WORK] Estado cambió a '${newStatusValue}' pero permite work o ya estaba en estado no válido`);
         }
-      }
+      },
+      // 🔥 IMPORTANTE: deep: false para evitar reaccionar a cambios en propiedades del objeto
+      // Solo queremos reaccionar cuando el valor del status cambia
+      deep: false
     }
   },
   async mounted() {
+    // Marcar tiempo de montaje para evitar redirecciones durante inicialización
+    this._mountedTime = Date.now();
+    
     // Cargar usuario desde sessionStorage si no está en el store
     let user = this.$store.state.user;
     if (!user) {
@@ -1070,34 +1159,24 @@ export default {
 
     // 🔒 VALIDACIÓN INICIAL: Verificar que el usuario tenga un estado de categoría 'work'
     const currentStatus = this.$store.state.userStatus?.status;
-    console.log('🔍 VALIDACIÓN INICIAL EN WORK - Estado actual:', currentStatus);
     
     // Solo validar si el estado existe y statusTypes tiene estados cargados
     if (currentStatus && statusTypes.statuses && statusTypes.statuses.length > 0) {
       const statusObj = statusTypes.getStatusByValue(currentStatus);
       
-      console.log('📋 Estado encontrado:', statusObj);
-      console.log('   - Categoría:', statusObj?.category);
       
       // Solo bloquear si encontramos el estado Y su categoría NO es 'work' Y NO es 'custom'
       if (statusObj && statusObj.category !== 'work' && statusObj.category !== 'custom') {
         console.warn('⚠️ Estado actual NO es de categoría WORK al entrar');
-        console.log('   - Estado:', currentStatus);
-        console.log('   - Categoría:', statusObj.category);
         this.showToast('Tu estado actual no permite acceder a Work. Por favor, cambia a un estado de trabajo.', 'warning');
         this.$router.push('/dashboard');
         return;
       }
-      
-      console.log('✅ Usuario tiene estado válido para Work:', statusObj?.label || currentStatus);
-    } else {
-      console.log('⚠️ Estados aún no cargados o usuario sin estado - permitiendo acceso');
     }
 
     // ✅ Validación del frontend ya completada arriba
     // La validación del estado se hace con statusTypes.getStatusByValue()
     // No necesitamos validación adicional del backend aquí
-    console.log('✅ Validación de estado completada - permitiendo acceso a Work');
     
     // Inicializar componente
     this.initializeArbol();
@@ -1106,18 +1185,14 @@ export default {
     
     // Marcar que el componente está montado
     this._isMounted = true;
-    console.log('✅ Componente Work montado completamente');
     
     // 🔥 PROCESAR TIPIFICACIÓN PENDIENTE SI EXISTE
     const pendingTipificacion = this.$store.state.pendingTipificacion;
     if (pendingTipificacion) {
-      console.log('🔥🔥🔥 TIPIFICACIÓN PENDIENTE DETECTADA, PROCESANDO...', pendingTipificacion);
       // Procesar inmediatamente
       this.handleNuevaTipificacion(pendingTipificacion);
       // Limpiar del store
       this.$store.commit('clearPendingTipificacion');
-    } else {
-      console.log('✅ No hay tipificación pendiente al montar Work');
     }
   },
   beforeUnmount() {
@@ -1130,7 +1205,6 @@ export default {
       this.mqttCallback = null;
     }
     
-    console.log('🔚 Componente Work desmontado');
   }
 };
 </script>

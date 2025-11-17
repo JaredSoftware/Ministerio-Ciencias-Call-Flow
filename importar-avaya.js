@@ -10,14 +10,11 @@ const Cliente = require('./models/cliente');
 // Configurar conexión a MongoDB
 const mongoUri = `mongodb://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB}?authSource=admin`;
 
-console.log('🔄 Conectando a MongoDB...');
 
 mongoose.connect(mongoUri, {
   useNewUrlParser: true,
   useUnifiedTopology: true
 }).then(() => {
-  console.log('✅ Conectado a MongoDB');
-  console.log('📂 Leyendo archivo CSV...');
   importarDatos();
 }).catch(err => {
   console.error('❌ Error conectando a MongoDB:', err);
@@ -79,7 +76,6 @@ async function importarDatos() {
       resultados.push(row);
     })
     .on('end', async () => {
-      console.log(`📊 Total de registros en CSV: ${resultados.length}`);
       
       let insertados = 0;
       let actualizados = 0;
@@ -132,7 +128,6 @@ async function importarDatos() {
           if (resultado) {
             insertados++;
             if (insertados % 100 === 0) {
-              console.log(`📝 Procesados: ${insertados} registros...`);
             }
           }
           
@@ -142,13 +137,9 @@ async function importarDatos() {
         }
       }
       
-      console.log('\n🎉 Importación completada!');
-      console.log(`✅ Registros procesados: ${insertados}`);
-      console.log(`⚠️  Errores: ${errores}`);
       
       // Cerrar conexión
       await mongoose.connection.close();
-      console.log('👋 Conexión cerrada');
       process.exit(0);
     })
     .on('error', (error) => {

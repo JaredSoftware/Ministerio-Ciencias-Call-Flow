@@ -250,24 +250,19 @@ export default {
     // Métodos del popover deshabilitados temporalmente
     showPopover() {
       // Popover deshabilitado para evitar errores de Popper.js
-      console.log('Popover deshabilitado temporalmente');
     },
     hidePopover() {
       // Popover deshabilitado para evitar errores de Popper.js
-      console.log('Popover deshabilitado temporalmente');
     },
     createPopper() {
       // Popper deshabilitado temporalmente
-      console.log('Popper deshabilitado temporalmente');
     },
     destroyPopper() {
       // Popper deshabilitado temporalmente
-      console.log('Popper deshabilitado temporalmente');
     },
   },
   beforeUnmount() {
     // Popper deshabilitado temporalmente
-    console.log('Componente navbar desmontado');
   },
   components: {
     Breadcrumbs,

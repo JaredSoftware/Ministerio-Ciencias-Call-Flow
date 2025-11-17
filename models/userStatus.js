@@ -120,7 +120,7 @@ userStatusSchema.methods.changeStatus = async function(newStatus, customStatus =
 userStatusSchema.statics.getActiveUsers = function() {
   return this.find({ 
     isActive: true,
-    lastSeen: { $gte: new Date(Date.now() - 10 * 60 * 1000) }, // Últimos 10 minutos (más estricto)
+    lastSeen: { $gte: new Date(Date.now() - 2 * 60 * 1000) }, // Últimos 2 minutos (MUY ESTRICTO)
     $or: [
       { socketId: { $ne: null } }, // Tiene socket activo
       { sessionId: { $ne: null } }  // Tiene sesión activa
@@ -142,14 +142,15 @@ userStatusSchema.statics.cleanupGhostUsers = async function() {
     
     // Marcar como inactivos a usuarios que:
     // 1. No tienen socketId ni sessionId
-    // 2. Su lastSeen es mayor a 15 minutos
+    // 2. Su lastSeen es mayor a 5 minutos (aumentado de 3 a 5 minutos para dar más margen)
     // 3. Están marcados como activos
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     const result = await this.updateMany(
       {
         isActive: true,
         $or: [
           { socketId: null, sessionId: null },
-          { lastSeen: { $lt: new Date(Date.now() - 15 * 60 * 1000) } }
+          { lastSeen: { $lt: fiveMinutesAgo } } // 5 minutos sin actividad (aumentado de 3)
         ]
       },
       {

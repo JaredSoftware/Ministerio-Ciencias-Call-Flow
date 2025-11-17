@@ -113,14 +113,12 @@ export default {
   },
   mounted() {
     // No inicializar nada aquí, el watcher se encargará cuando el usuario esté logueado
-    console.log('🎯 UserStatusConfigurator montado - Esperando autenticación...');
     
     // Escuchar eventos de sincronización de estado
     window.addEventListener('status-updated', this.handleStatusUpdate);
   },
   watch: {
     currentStatus(newStatus) {
-      console.log('👀 Estado cambiado a:', newStatus);
       // Actualizar colores y labels cuando cambie el estado
       let selectedStatus = statusTypes.getStatusByValue(newStatus);
       
@@ -138,7 +136,6 @@ export default {
     '$store.state.isLoggedIn': {
       handler(newValue) {
         if (newValue) {
-          console.log('🔐 Usuario logueado detectado - Inicializando sistema de estados...');
           // Usar setTimeout para asegurar que el store esté completamente actualizado
           setTimeout(async () => {
             await this.loadCurrentStatus();
@@ -150,7 +147,6 @@ export default {
             // Eliminar importación y uso de statusSyncService
           }, 100);
         } else {
-          console.log('🚪 Usuario deslogueado - Limpiando sistema de estados...');
           // Eliminar llamada a websocketService.disconnect();
           // Limpiar estados
           this.availableStatuses = [];
@@ -164,7 +160,6 @@ export default {
     // 🚨 WATCHER PARA CARGAR ESTADOS CUANDO SE ABRE EL MODAL
     showStatusModal(newValue) {
       if (newValue && this.availableStatuses.length === 0) {
-        console.log('🚨 Modal abierto sin estados - Cargando automáticamente...');
         this.forceLoadStatuses();
       }
     }
@@ -182,11 +177,9 @@ export default {
   methods: {
     ...mapMutations(['setUserStatus', 'updateUserStatus']),
     initializeWebSocket() {
-      console.log('🔌 Inicializando WebSocket en UserStatusConfigurator...');
       
       // Suscribirse a eventos de WebSocket
       websocketService.on('own_status_changed', (data) => {
-        console.log('📡 Evento own_status_changed recibido en UserStatusConfigurator:', data);
         this.updateOwnStatus(data);
       });
       websocketService.on('user_status_changed', this.updateUserStatus);
@@ -194,29 +187,18 @@ export default {
     
     async loadDynamicStatuses() {
       try {
-        console.log('🔄 Cargando estados dinámicos...');
         
         // Inicializar el servicio de tipos de estado
         await statusTypes.initialize();
-        console.log('✅ Servicio de estados inicializado');
         
         // Cargar todos los estados
         this.availableStatuses = await statusTypes.loadStatuses();
-        console.log('📊 Estados cargados:', this.availableStatuses);
         
         // Cargar categorías
         this.categories = await statusTypes.loadCategories();
-        console.log('📊 Categorías cargadas:', this.categories);
         
         // Agrupar estados por categoría
         this.statusesByCategory = statusTypes.getStatusesGroupedByCategory();
-        console.log('📊 Estados agrupados:', this.statusesByCategory);
-        
-        console.log('✅ Estados dinámicos cargados:', {
-          total: this.availableStatuses.length,
-          categories: this.categories,
-          grouped: this.statusesByCategory
-        });
         
         // Forzar actualización del componente
         this.$forceUpdate();
@@ -225,7 +207,6 @@ export default {
         console.error('❌ Error cargando estados dinámicos:', error);
         
         // Estados de fallback si no se pueden cargar desde el servidor
-        console.log('🔄 Usando estados de fallback...');
         this.availableStatuses = [
           { value: 'offline', label: 'Desconectado', color: '#6c757d', category: 'out', icon: 'fas fa-times-circle' },
           { value: 'available', label: 'Disponible', color: '#00d25b', category: 'work', icon: 'fas fa-circle' },
@@ -246,13 +227,11 @@ export default {
           out: this.availableStatuses.filter(s => s.category === 'out')
         };
         
-        console.log('✅ Estados de fallback cargados');
         this.$forceUpdate();
       }
     },
     
     loadFallbackStatuses() {
-      console.log('🔄 Cargando estados de fallback...');
       this.availableStatuses = [
         { value: 'offline', label: 'Desconectado', color: '#6c757d', category: 'out', icon: 'fas fa-times-circle' },
         { value: 'available', label: 'Disponible', color: '#00d25b', category: 'work', icon: 'fas fa-circle' },
@@ -273,16 +252,13 @@ export default {
         out: this.availableStatuses.filter(s => s.category === 'out')
       };
       
-      console.log('✅ Estados de fallback cargados');
       this.$forceUpdate();
     },
 
     // 🚨 MÉTODO PARA FORZAR CARGA DE ESTADOS
     async forceLoadStatuses() {
-      console.log('🚨 Forzando carga de estados...');
       try {
         await this.loadDynamicStatuses();
-        console.log('✅ Estados cargados forzadamente');
       } catch (error) {
         console.error('❌ Error forzando carga:', error);
       }
@@ -310,11 +286,9 @@ export default {
       try {
         // Verificar que el usuario esté logueado en el store
         if (!this.$store.state.isLoggedIn) {
-          console.log('🚪 Usuario no logueado en store, esperando...');
           return;
         }
         
-        console.log('✅ Usuario logueado en store - Inicializando...');
         
         // Cargar estados dinámicos primero
         await this.loadDynamicStatuses();
@@ -332,7 +306,6 @@ export default {
       } catch (error) {
         console.error('Error cargando estado:', error);
         // Si hay error, usar estados de fallback
-        console.log('🔄 Usando estados de fallback debido a error...');
         this.loadFallbackStatuses();
       }
     },
@@ -341,7 +314,6 @@ export default {
     
     selectStatus(status) {
       this.currentStatus = status;
-      console.log('🎯 MANUAL: Estado seleccionado por usuario:', status);
       
       // Actualizar store inmediatamente cuando se selecciona un estado
       this.$store.commit('setUserStatus', {
@@ -364,15 +336,10 @@ export default {
         this.currentStatusLabel = selectedStatus.label;
       }
       
-      console.log('✅ Store actualizado al seleccionar estado:', status);
       
       // 🚨 NOTIFICAR CAMBIO MANUAL AL WEBSOCKET
-      console.log('🚨 Enviando cambio manual al WebSocket...');
       if (websocketService.isConnected) {
         websocketService.changeStatus(status, null);
-        console.log('✅ Cambio manual enviado al WebSocket');
-      } else {
-        console.log('⚠️ WebSocket no conectado para cambio manual');
       }
     },
     
@@ -381,7 +348,6 @@ export default {
       
       this.isChangingStatus = true;
       try {
-        console.log('🔄 Cambiando estado a:', status, customStatus);
         
         // Pequeño delay para asegurar que la sesión esté sincronizada
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -389,8 +355,6 @@ export default {
         // Cambiar estado a través de WebSocket solo si está conectado
         if (websocketService.isConnected) {
           websocketService.changeStatus(status, customStatus);
-        } else {
-          console.log('⚠️ WebSocket no conectado, solo usando API REST');
         }
         
         // Cambiar estado a través del servicio de sincronización
@@ -408,7 +372,6 @@ export default {
         });
         
         if (response.data.success) {
-          console.log('✅ Estado cambiado exitosamente');
           
           // Actualizar el estado visual inmediatamente
           const selectedStatus = this.availableStatuses.find(s => s.value === status);
@@ -438,7 +401,6 @@ export default {
           // Emitir evento personalizado para que otros componentes lo detecten
           this.$root.$emit('status-changed', { status: status });
           
-          console.log('✅ Store actualizado con nuevo estado:', status);
           
           // Notificar cambio a otros componentes
           // this.notifyStatusChange(status);
@@ -448,7 +410,6 @@ export default {
           
           // Forzar actualización del componente
           this.$forceUpdate();
-          console.log('✅ Estado visual actualizado:', this.currentStatusLabel);
         } else {
           console.error('❌ Error en respuesta del servidor:', response.data);
           alert('Error: ' + (response.data.message || 'Error desconocido'));
@@ -462,7 +423,6 @@ export default {
     },
     
     updateOwnStatus(data) {
-      console.log('🔄 Actualizando estado propio:', data);
       
       if (data && data.status) {
         this.currentStatus = data.status;
@@ -493,7 +453,6 @@ export default {
         
         // Forzar actualización del componente
         this.$forceUpdate();
-        console.log('✅ Estado actualizado visualmente:', this.currentStatusLabel);
       }
     },
     
@@ -508,7 +467,6 @@ export default {
     
     // Método para forzar actualización del estado en otros componentes
     forceStatusUpdate(status) {
-      console.log('🔄 Forzando actualización de estado:', status);
       
       // Actualizar store directamente
       this.$store.commit('setUserStatus', {
@@ -520,30 +478,25 @@ export default {
       // Emitir evento personalizado
       this.$emit('status-changed', { status });
       
-      console.log('✅ Estado forzado actualizado');
     },
     
     // Método para asignar estado por defecto
     async assignDefaultStatus() {
       try {
-        console.log('🔄 Asignando estado por defecto...');
         
         // Obtener estado por defecto del servicio
         const defaultStatus = await statusTypes.getDefaultStatus();
         const statusToAssign = defaultStatus ? defaultStatus.value : 'available';
         
-        console.log(`   - Estado por defecto encontrado: ${statusToAssign}`);
         
         // Cambiar al estado por defecto
         await this.changeStatus(statusToAssign);
         
-        console.log('✅ Estado por defecto asignado exitosamente');
       } catch (error) {
         console.error('❌ Error asignando estado por defecto:', error);
         // Fallback a 'available' si hay error
         try {
           await this.changeStatus('available');
-          console.log('✅ Estado por defecto asignado con fallback');
         } catch (fallbackError) {
           console.error('❌ Error en fallback:', fallbackError);
         }
@@ -552,7 +505,6 @@ export default {
     
     // Manejar actualizaciones de estado desde el servicio de sincronización
     handleStatusUpdate(event) {
-      console.log('📡 Evento de actualización de estado recibido:', event.detail);
       
       const { status } = event.detail;
       if (status) {
@@ -563,14 +515,12 @@ export default {
     // Método para forzar estado por defecto
     async forceDefaultStatus() {
       try {
-        console.log('🔄 Forzando estado por defecto...');
         
         const response = await axios.post('/user-status/force-default-status', {}, {
           withCredentials: true
         });
         
         if (response.data.success) {
-          console.log('✅ Estado por defecto forzado:', response.data.status);
           
           // Actualizar estado local
           this.currentStatus = response.data.status.status;
@@ -584,7 +534,6 @@ export default {
             lastActivity: new Date().toISOString()
           });
           
-          console.log('✅ Estado actualizado en frontend');
         }
       } catch (error) {
         console.error('❌ Error forzando estado por defecto:', error);

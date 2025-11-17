@@ -4,9 +4,7 @@ async function initializeDatabase() {
   try {
     // Verificar si ya hay una conexión activa
     if (mongoose.connection.readyState === 1) {
-      console.log('🔗 Usando conexión existente a MongoDB');
     } else {
-      console.log('⏳ Esperando conexión a MongoDB...');
       // Esperar a que se establezca la conexión
       await new Promise((resolve) => {
         if (mongoose.connection.readyState === 1) {
@@ -23,7 +21,6 @@ async function initializeDatabase() {
 
     // 2. Verificar que los estados están disponibles
     const statusTypes = await StatusType.find({ isActive: true }).sort('order');
-    console.log(`📋 Estados disponibles: ${statusTypes.length}`);
     
     // Mostrar estados por categoría
     const categories = {};
@@ -34,11 +31,7 @@ async function initializeDatabase() {
       categories[status.category].push(status);
     });
 
-    Object.keys(categories).forEach(category => {
-      console.log(`   ${category.toUpperCase()}: ${categories[category].length} estados`);
-    });
 
-    console.log('✅ Sistema de estados listo para usar!');
 
   } catch (error) {
     console.error('❌ Error inicializando base de datos:', error);

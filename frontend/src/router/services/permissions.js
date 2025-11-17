@@ -30,7 +30,6 @@ class PermissionsService {
         this.userPermissions = JSON.parse(storedPermissions);
         this.userRole = storedRole;
         this.lastUpdate = Date.now();
-        console.log('✅ Usando permisos desde localStorage cache:', this.userRole);
         return this.userPermissions;
       } catch (error) {
         console.error('❌ Error parseando permisos desde localStorage:', error);
@@ -39,7 +38,6 @@ class PermissionsService {
 
     // Si no hay cache válido, hacer request al servidor
     try {
-      console.log('🔐 Obteniendo permisos del servidor...');
       const roleData = await tokens.sendRole();
       
       if (roleData && roleData.permissions) {
@@ -51,7 +49,6 @@ class PermissionsService {
         localStorage.setItem('userPermissions', JSON.stringify(this.userPermissions));
         localStorage.setItem('userRoleName', this.userRole);
         
-        console.log('✅ Permisos obtenidos del servidor:', this.userRole);
         return this.userPermissions;
       } else {
         console.warn('⚠️ No se pudieron obtener permisos del servidor, usando fallback');
@@ -103,7 +100,6 @@ class PermissionsService {
     }
 
     const hasAccess = permissions[module][permission] === true;
-    console.log(`🔍 Permiso ${module}.${permission}: ${hasAccess ? '✅' : '❌'}`);
     return hasAccess;
   }
 
@@ -185,7 +181,6 @@ class PermissionsService {
     localStorage.removeItem('cachedRole');
     localStorage.removeItem('cachedRolePermissions');
     localStorage.removeItem('cachedRoleToken');
-    console.log('🧹 Cache de permisos limpiado');
   }
 
   /**

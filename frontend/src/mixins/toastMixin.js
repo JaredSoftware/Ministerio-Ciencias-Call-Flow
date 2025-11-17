@@ -10,7 +10,6 @@ export default {
       // Fallback a console según el tipo
       switch (type) {
         case 'success':
-          console.log('✅ Success:', message);
           break;
         case 'error':
           console.error('❌ Error:', message);
@@ -25,8 +24,8 @@ export default {
       }
     },
     $toast: {
-      success(message) {
-        console.log('✅ Success:', message);
+      success() {
+        // Toast de éxito (sin mensaje)
       },
       error(message) {
         console.error('❌ Error:', message);

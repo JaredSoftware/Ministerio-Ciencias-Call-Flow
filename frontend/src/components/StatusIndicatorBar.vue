@@ -39,7 +39,6 @@ export default {
     // Observar cambios en el store directamente
     '$store.state.userStatus': {
       handler(newStatus) {
-        console.log('🔄 Estado detectado desde store directo:', newStatus);
         if (newStatus && newStatus.status) {
           this.updateStatus(newStatus);
         }
@@ -51,12 +50,10 @@ export default {
     '$store.state.isLoggedIn': {
       handler(newValue) {
         if (newValue) {
-          console.log('🔐 Usuario logueado detectado en StatusIndicatorBar - Inicializando...');
           this.initializeStatusService();
           this.initializeWebSocket();
           this.loadCurrentStatus();
         } else {
-          console.log('🚪 Usuario deslogueado detectado en StatusIndicatorBar');
           // Limpiar estado
           this.currentStatus = 'offline';
           this.statusColor = '#6c757d';
@@ -69,7 +66,6 @@ export default {
   mounted() {
     // Solo inicializar si el usuario está logueado
     if (this.$store.state.isLoggedIn) {
-      console.log('🔐 Usuario logueado, inicializando StatusIndicatorBar...');
       this.initializeStatusService();
       this.initializeWebSocket();
       this.loadCurrentStatus();
@@ -78,21 +74,14 @@ export default {
       if (this.userStatus && this.userStatus.status) {
         this.updateStatus(this.userStatus);
       }
-    } else {
-      console.log('🚪 Usuario no logueado, no inicializando StatusIndicatorBar');
     }
   },
   beforeUnmount() {
-    console.log('🧹 Limpiando suscripciones de StatusIndicatorBar');
   },
   methods: {
     async initializeStatusService() {
       try {
-        console.log('🔄 Inicializando servicio de tipos de estado en StatusIndicatorBar...');
         await statusTypes.initialize();
-        console.log('✅ Servicio de tipos de estado inicializado');
-        console.log('📊 Estados cargados:', statusTypes.statuses.length);
-        console.log('📊 Estados disponibles:', statusTypes.statuses.map(s => `${s.value}:${s.color}`));
       } catch (error) {
         console.error('❌ Error inicializando servicio de tipos de estado:', error);
       }
@@ -101,7 +90,6 @@ export default {
     initializeWebSocket() {
       // Solo suscribirse a eventos de WebSocket, no conectar ni desconectar
       websocketService.on('own_status_changed', (data) => {
-        console.log('📡 Evento own_status_changed recibido en StatusIndicatorBar:', data);
         if (data && data.status) {
           this.updateStatus(data);
         }
@@ -112,12 +100,10 @@ export default {
     async loadCurrentStatus() {
       // Solo cargar si el usuario está logueado
       if (!this.$store.state.isLoggedIn) {
-        console.log('🚪 Usuario no logueado, saltando carga de estado');
         return;
       }
       
       try {
-        console.log('🔄 Cargando estado actual del usuario...');
         const response = await axios.get('/user-status/my-status', {
           withCredentials: true
         });
@@ -130,7 +116,6 @@ export default {
         
         // Si hay error de autenticación, limpiar estado
         if (error.response && error.response.status === 401) {
-          console.log('⚠️ Usuario no autenticado, limpiando estado del indicador');
           this.currentStatus = 'offline';
           this.statusColor = '#6c757d';
           this.statusLabel = 'Desconectado';
@@ -139,30 +124,21 @@ export default {
     },
     
     updateStatus(data) {
-      console.log('🔄 Actualizando indicador de estado:', data);
       
       // Verificar que data no sea null o undefined
       if (!data || !data.status) {
-        console.log('⚠️ Datos inválidos, usando estado por defecto');
         data = { status: 'offline' };
       }
       
-      console.log('   - Estado actual:', this.currentStatus);
-      console.log('   - Color actual:', this.statusColor);
-      console.log('   - Nuevo estado:', data.status);
       
       // Verificar que el servicio esté inicializado
-      console.log('   - Estados en servicio:', statusTypes.statuses.length);
-      console.log('   - Estados disponibles:', statusTypes.statuses.map(s => `${s.value}:${s.color}`));
       
       // Usar el servicio de tipos de estado para obtener información
       let selectedStatus = statusTypes.getStatusByValue(data.status);
       
-      console.log('   - Estado encontrado en servicio:', selectedStatus);
       
       // El servicio siempre devuelve un estado (dinámico si no existe)
       if (!selectedStatus) {
-        console.log('⚠️ Error: servicio no devolvió estado, usando valores por defecto');
         selectedStatus = {
           color: '#6c757d',
           label: data.status || 'Desconectado',
@@ -173,12 +149,9 @@ export default {
       const newColor = selectedStatus.color;
       const newLabel = selectedStatus.label;
       
-      console.log('   - Nuevo color:', newColor);
-      console.log('   - Nuevo label:', newLabel);
       
       // Solo animar si el color cambió
       if (this.statusColor !== newColor) {
-        console.log('   - Color cambió, activando animación');
         this.triggerAnimation();
       }
       
@@ -186,8 +159,6 @@ export default {
       this.statusColor = newColor;
       this.statusLabel = newLabel;
       
-      console.log('✅ Indicador actualizado:', this.statusLabel);
-      console.log('   - Color final:', this.statusColor);
     },
     
     triggerAnimation() {

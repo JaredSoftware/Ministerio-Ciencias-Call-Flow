@@ -12,9 +12,17 @@ class MQTTService {
     this.userId = null;
     this.userName = null;
     
+    // ✅ Control de primera desconexión para logs
+    this.firstDisconnectionTime = null;
+    
     // Configuración centralizada desde archivo de configuración
     // Usar configuración dinámica basada en el entorno actual
     this.config = getMQTTConfig(environmentConfig.isDevelopment ? 'development' : 'production');
+    
+    // Configuración para conexión más robusta con reintentos automáticos
+    this.config.broker.keepalive = 120; // 120 segundos en lugar de 60
+    this.config.broker.connectTimeout = 10000; // 10 segundos en lugar de 4
+    this.config.broker.reconnectPeriod = 5000; // ✅ REINTENTOS AUTOMÁTICOS cada 5 segundos (sin logout)
     
     // Topics centralizados desde configuración
     this.topics = {
@@ -49,7 +57,8 @@ class MQTTService {
       onConnect: null,
       onDisconnect: null,
       onError: null,
-      onReconnect: null
+      onReconnect: null,
+      onForceLogout: null // Nuevo callback para forzar logout
     };
   }
 
@@ -64,12 +73,10 @@ class MQTTService {
   async connect(brokerUrl = null, userId = null, userName = null) {
     // Si ya está conectado, devolver la promesa existente
     if (this.isConnected) {
-      console.log('🔌 MQTT ya está conectado, reutilizando conexión');
       return true;
     }
     
     if (this.isConnecting && this.connectionPromise) {
-      console.log('🔌 MQTT ya está conectando, esperando...');
       return this.connectionPromise;
     }
 
@@ -82,9 +89,6 @@ class MQTTService {
 
     this.connectionPromise = new Promise((resolve, reject) => {
       try {
-        console.log('🔌 Frontend conectando a broker MQTT:', finalBrokerUrl);
-        console.log('   - User ID:', userId);
-        console.log('   - User Name:', userName);
         
         const clientId = MQTT_UTILS.generateClientId('frontend', userId);
         
@@ -93,7 +97,7 @@ class MQTTService {
           username: userName || userId || undefined,
           clean: this.config.broker.clean,
           connectTimeout: this.config.broker.connectTimeout,
-          reconnectPeriod: this.config.broker.reconnectPeriod,
+          reconnectPeriod: 0, // ❌ SIN RECONEXIONES AUTOMÁTICAS - Desloguear inmediatamente si se pierde conexión
           keepalive: this.config.broker.keepalive
         });
 
@@ -128,9 +132,12 @@ class MQTTService {
   // Configurar manejadores de eventos
   setupEventHandlers(resolve, reject) {
     this.client.on('connect', () => {
-      console.log('✅ Frontend conectado al broker MQTT');
       this.isConnected = true;
       this.isConnecting = false;
+      
+      // ✅ CONEXIÓN EXITOSA: Resetear contador de desconexiones
+      this.firstDisconnectionTime = null;
+      this.lastDisconnectionTime = null;
       
       // Re-suscribirse a todos los topics activos
       this.resubscribeAll();
@@ -144,50 +151,142 @@ class MQTTService {
     });
 
     this.client.on('error', (error) => {
-      console.error('❌ Error en MQTT frontend:', error);
+      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.warn(`⚠️ [MQTT] Error en frontend | ${timestamp} | error:${error.message || 'Unknown'}`);
       this.isConnected = false;
       this.isConnecting = false;
+      
+      // ✅ PERMITIR REINTENTOS AUTOMÁTICOS (sin logout)
+      // El cliente MQTT se reconectará automáticamente gracias a reconnectPeriod
+      console.log(`🔄 [MQTT] Error detectado, el cliente intentará reconectar automáticamente`);
       
       if (this.systemCallbacks.onError) {
         this.systemCallbacks.onError(error);
       }
       
-      reject(error);
-    });
-
-    this.client.on('reconnect', () => {
-      console.log('🔄 Frontend reconectando a MQTT...');
-      
-      if (this.systemCallbacks.onReconnect) {
-        this.systemCallbacks.onReconnect();
+      // No rechazar la promesa para permitir reconexión
+      if (!this.firstDisconnectionTime) {
+        reject(error);
       }
     });
 
+    this.client.on('reconnect', () => {
+      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.log(`🔄 [MQTT] Intento de reconexión automática | ${timestamp}`);
+      // ✅ PERMITIR REINTENTOS - No hacer logout
+    });
+
     this.client.on('close', () => {
-      console.log('❌ Frontend desconectado de MQTT');
+      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.warn(`⚠️ [MQTT] Conexión cerrada | ${timestamp}`);
+      
       this.isConnected = false;
       this.isConnecting = false;
+      
+      // ✅ PERMITIR REINTENTOS AUTOMÁTICOS (sin logout)
+      // El cliente MQTT se reconectará automáticamente gracias a reconnectPeriod
+      console.log(`🔄 [MQTT] Conexión cerrada, el cliente intentará reconectar automáticamente`);
       
       if (this.systemCallbacks.onDisconnect) {
         this.systemCallbacks.onDisconnect();
       }
     });
-
+    
+    // ✅ MANEJAR TIMEOUTS CON REINTENTOS AUTOMÁTICOS
+    this.client.on('offline', () => {
+      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      console.warn(`⚠️ [MQTT] Cliente offline | ${timestamp}`);
+      
+      // ✅ PERMITIR REINTENTOS AUTOMÁTICOS (sin logout)
+      // El cliente MQTT se reconectará automáticamente gracias a reconnectPeriod
+      console.log(`🔄 [MQTT] Cliente offline, el cliente intentará reconectar automáticamente`);
+    });
+    
+    // Interceptar errores específicos de timeout y permitir reintentos
+    const originalEmit = this.client.emit.bind(this.client);
+    this.client.emit = function(event, ...args) {
+      if (event === 'error') {
+        const error = args[0];
+        if (error && (error.message?.includes('keepalive timeout') || 
+                     error.message?.includes('connack timeout') ||
+                     error.message?.includes('Keepalive timeout') ||
+                     error.message?.includes('Connack timeout'))) {
+          // ✅ PERMITIR REINTENTOS AUTOMÁTICOS (sin logout)
+          console.warn(`⚠️ [MQTT] Timeout detectado, el cliente intentará reconectar automáticamente: ${error.message}`);
+        }
+      }
+      return originalEmit(event, ...args);
+    };
+    
     this.client.on('message', (topic, message) => {
       this.handleMessage(topic, message);
     });
+  }
+  
+  // 🚨 REGISTRAR DESCONEXIÓN FALLIDA (Ya no se usa - se desloguea inmediatamente)
+  recordFailedDisconnection() {
+    // Este método ya no es necesario porque deslogueamos inmediatamente
+    // Se mantiene por compatibilidad pero no hace nada
+  }
+  
+  // 🚨 FORZAR CIERRE DE SESIÓN INMEDIATAMENTE (Sin reintentos)
+  forceLogout() {
+    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    console.error(`🚨 [MQTT] FORZANDO CIERRE DE SESIÓN INMEDIATO | ${timestamp} | razón:pérdida_de_conexión_mqtt`);
+    
+    // Desconectar completamente el cliente MQTT para evitar reconexiones
+    if (this.client) {
+      try {
+        this.client.end(true); // true = desconectar forzadamente
+        this.client.removeAllListeners(); // Limpiar todos los listeners
+      } catch (error) {
+        console.error('❌ Error desconectando cliente MQTT:', error);
+      }
+    }
+    
+    this.isConnected = false;
+    this.isConnecting = false;
+    this.client = null;
+    
+    // Detener heartbeat
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+    
+    // Ejecutar callback de logout forzado
+    if (this.systemCallbacks.onForceLogout) {
+      this.systemCallbacks.onForceLogout();
+    } else {
+      // Si no hay callback configurado, intentar redirigir directamente
+      if (typeof window !== 'undefined' && window.location) {
+        console.error('🚨 [MQTT] Redirigiendo a logout por pérdida de conexión MQTT');
+        setTimeout(() => {
+          window.location.href = '/signin?reason=mqtt_connection_lost';
+        }, 1000); // Redirección más rápida (1 segundo en lugar de 2)
+      }
+    }
   }
 
   // Manejar mensajes recibidos
   handleMessage(topic, message) {
     try {
       const data = JSON.parse(message.toString());
-      console.log(`📥 MQTT mensaje recibido en ${topic}:`, data);
+      
+      // 🚨 LOG DE MENSAJE MQTT RECIBIDO (especialmente para tipificaciones)
+      if (topic && topic.includes('tipificacion/nueva')) {
+        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const logLine = `${timestamp} 📨 [MQTT] MENSAJE_RECIBIDO | topic:${topic} | idLlamada:${data?.idLlamada || 'N/A'} | cedula:${data?.cedula || 'N/A'}`;
+        console.log(logLine);
+      }
       
       // Buscar listeners por categoría
       this.findAndExecuteListeners(topic, data);
       
     } catch (error) {
+      const errorTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const errorLog = `${errorTimestamp} ❌ [MQTT] ERROR_PROCESANDO_MENSAJE | topic:${topic} | RAZON:${error.message || 'Error desconocido'}`;
+      console.error(errorLog);
       console.error('❌ Error procesando mensaje MQTT:', error);
     }
   }
@@ -199,28 +298,63 @@ class MQTTService {
       if (this.listeners[category][topic]) {
         this.listeners[category][topic].forEach(callback => {
           try {
+            // 🚨 LOG cuando se ejecuta callback de tipificación
+            if (topic && topic.includes('tipificacion/nueva')) {
+              const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+              const logLine = `${timestamp} 🔔 [MQTT] CALLBACK_EJECUTADO | topic:${topic} | idLlamada:${data?.idLlamada || 'N/A'} | callbacks:${this.listeners[category][topic].length}`;
+              console.log(logLine);
+            }
+            
             callback(data);
           } catch (error) {
+            const errorTimestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+            const errorLog = `${errorTimestamp} ❌ [MQTT] ERROR_EN_CALLBACK | topic:${topic} | RAZON:${error.message || 'Error desconocido'}`;
+            console.error(errorLog);
             console.error(`❌ Error en callback de ${topic}:`, error);
           }
         });
       }
     });
+    
+    // 🚨 LOG si no hay listeners registrados para tipificaciones
+    if (topic && topic.includes('tipificacion/nueva')) {
+      let hasListeners = false;
+      Object.keys(this.listeners).forEach(category => {
+        if (this.listeners[category][topic] && this.listeners[category][topic].length > 0) {
+          hasListeners = true;
+        }
+      });
+      
+      if (!hasListeners) {
+        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const warningLog = `${timestamp} ⚠️ [MQTT] SIN_LISTENERS | topic:${topic} | idLlamada:${data?.idLlamada || 'N/A'} | RAZON:no_hay_callbacks_registrados`;
+        console.warn(warningLog);
+      }
+    }
   }
 
   // Suscribirse a un topic
-  subscribe(topic, category = 'status') {
+  subscribe(topic) {
     if (!this.isConnected || !this.client) {
-      console.log('⚠️ MQTT no conectado, no se puede suscribir a:', topic);
       return false;
     }
 
     try {
+      // Verificar que el cliente no esté desconectándose
+      if (this.client.disconnecting || this.client.disconnected) {
+        console.warn(`⚠️ [MQTT] Cliente desconectándose, no se puede suscribir a ${topic}`);
+        return false;
+      }
+
       this.client.subscribe(topic, (error) => {
         if (error) {
           console.error(`❌ Error suscribiéndose a ${topic}:`, error);
+          // Si hay error de suscripción y el cliente está desconectándose, desloguear
+          if (error.message?.includes('disconnecting') || error.message?.includes('client disconnecting')) {
+            console.error(`🚨 [MQTT] Error de suscripción por desconexión, deslogueando`);
+            this.forceLogout();
+          }
         } else {
-          console.log(`📡 Suscrito a ${topic} (categoría: ${category})`);
           this.subscriptions.add(topic);
         }
       });
@@ -233,7 +367,11 @@ class MQTTService {
 
   // Re-suscribirse a todos los topics activos
   resubscribeAll() {
-    console.log('🔄 Re-suscribiendo a todos los topics activos...');
+    // Solo re-suscribir si está conectado y el cliente no está desconectándose
+    if (!this.isConnected || !this.client || this.client.disconnecting || this.client.disconnected) {
+      console.warn(`⚠️ [MQTT] No se puede re-suscribir: cliente no conectado o desconectándose`);
+      return;
+    }
     
     Object.keys(this.listeners).forEach(category => {
       Object.keys(this.listeners[category]).forEach(topic => {
@@ -269,7 +407,6 @@ class MQTTService {
       const index = this.listeners[category][topic].indexOf(callback);
       if (index > -1) {
         this.listeners[category][topic].splice(index, 1);
-        console.log(`🗑️ Listener removido de ${topic}`);
       }
     }
   }
@@ -277,17 +414,25 @@ class MQTTService {
   // Publicar mensaje
   publish(topic, data) {
     if (!this.isConnected || !this.client) {
-      console.log('⚠️ MQTT no conectado, no se puede publicar en:', topic);
       return false;
     }
 
     try {
+      // Verificar que el cliente no esté desconectándose
+      if (this.client.disconnecting || this.client.disconnected) {
+        console.warn(`⚠️ [MQTT] Cliente desconectándose, no se puede publicar en ${topic}`);
+        return false;
+      }
+
       const message = JSON.stringify(data);
       this.client.publish(topic, message, (error) => {
         if (error) {
           console.error(`❌ Error publicando en ${topic}:`, error);
-        } else {
-          console.log(`📤 Mensaje MQTT publicado en ${topic}:`, data);
+          // Si hay error de publicación y el cliente está desconectándose, desloguear
+          if (error.message?.includes('disconnecting') || error.message?.includes('client disconnecting')) {
+            console.error(`🚨 [MQTT] Error de publicación por desconexión, deslogueando`);
+            this.forceLogout();
+          }
         }
       });
       return true;
@@ -369,7 +514,6 @@ class MQTTService {
     if (category) {
       if (this.listeners[category]) {
         this.listeners[category] = {};
-        console.log(`🗑️ Listeners de categoría '${category}' limpiados`);
       }
     } else {
       this.listeners = {
@@ -378,14 +522,12 @@ class MQTTService {
         system: {},
         user: {}
       };
-      console.log('🗑️ Todos los listeners limpiados');
     }
   }
 
   // Desconectar completamente
   disconnect() {
     if (this.client) {
-      console.log('🔌 Desconectando MQTT...');
       this.client.end();
       this.isConnected = false;
       this.isConnecting = false;
@@ -394,7 +536,6 @@ class MQTTService {
       this.subscriptions.clear();
       if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
-      console.log('✅ MQTT desconectado');
     }
   }
 }
@@ -408,6 +549,5 @@ export default MQTTService;
 
 // Función de compatibilidad para código existente
 export function connectMQTT(userId, userName) {
-  console.log('🔌 Conectando MQTT (función de compatibilidad):', userId, userName);
   return mqttService.connect(null, userId, userName);
 } 

@@ -39,7 +39,6 @@ const routes = [
     path: "/signout",
     name: "Signout",
     beforeEnter: async (to, from, next) => {
-      console.log('🚪 Procesando signout...');
       
       // Limpiar store de Vuex
       store.dispatch("logout");
@@ -60,7 +59,6 @@ const routes = [
 
       deleteAllCookies();
       
-      console.log('✅ Signout completado - sesión limpiada completamente');
       next("/signin");
     },
   },
@@ -159,28 +157,23 @@ const routes = [
     name: "Signin",
     component: Signin,
     beforeEnter: async (to, from, next) => {
-      console.log('🔐 Verificando acceso a /signin...');
       const isLoggedIn = sessionStorage.getItem("isLoggedIn");
       
       if (store.getters.isLoggedIn || isLoggedIn) {
         // Si el usuario ya está logueado, verificar si el token es válido
-        console.log('✅ Usuario ya autenticado, verificando token...');
         const roles = await tokens.sendRole();
         
         if (roles.error) {
           // Token inválido, limpiar y mostrar login
-          console.log('❌ Token inválido, limpiando sesión');
           localStorage.clear();
           sessionStorage.clear();
           next();
         } else {
           // Token válido, redirigir al dashboard
-          console.log('✅ Token válido, redirigiendo al dashboard');
           next("/dashboard");
         }
       } else {
         // Usuario no logueado, mostrar página de login
-        console.log('🔐 Usuario no autenticado, mostrando login');
         next();
       }
     },
@@ -246,41 +239,31 @@ const router = createRouter({
 const rutasEspeciales = ["/signin", "/signout"];
 
 router.beforeEach(async (to, from, next) => {
-  console.log('🛡️ Router guard ejecutándose para:', to.path);
   
   // Rutas especiales que no requieren verificación
   if (rutasEspeciales.includes(to.path)) {
-    console.log('✅ Ruta especial, permitiendo acceso directo');
     next();
     return;
   }
   
-  const isLoggedIn = sessionStorage.getItem("isLoggedIn");
-  console.log('🔍 sessionStorage isLoggedIn:', isLoggedIn);
-  console.log('🔍 store.getters.isLoggedIn:', store.getters.isLoggedIn);
-  
   // Verificar si la ruta requiere autenticación
     if (to.matched.some((record) => record.meta.requiresAuth)) {
-      console.log('🔒 Ruta protegida detectada');
     
     // Verificar si el usuario está logueado
         const isLoggedInNow = sessionStorage.getItem("isLoggedIn");
         
     if (!store.getters.isLoggedIn && !isLoggedInNow) {
-      console.log('❌ Usuario no autenticado, redirigiendo a login');
       next("/signin");
       return;
     }
 
     // Usuario está logueado, verificar permisos específicos
-    console.log('✅ Usuario autenticado, verificando permisos...');
     
     // Obtener los permisos requeridos para esta ruta
     const routePermissions = to.meta.permissions;
     
     // Si no hay permisos específicos requeridos, permitir acceso
     if (!routePermissions || routePermissions.length === 0) {
-      console.log('✅ Ruta sin permisos específicos, permitiendo acceso');
       next();
       return;
     }
@@ -297,7 +280,6 @@ router.beforeEach(async (to, from, next) => {
       const isAdmin = userRole.toLowerCase() === 'admin' || userRole.toLowerCase() === 'administrador';
       
       if (isAdmin) {
-        console.log('👑 Usuario admin detectado, permitiendo acceso automático');
         next();
         return;
       }
@@ -306,22 +288,18 @@ router.beforeEach(async (to, from, next) => {
       const hasAccess = await permissions.hasAnyPermission(routePermissions);
       
       if (hasAccess) {
-        console.log('✅ Usuario tiene permisos, permitiendo acceso');
         next();
         } else {
-        console.log('❌ Usuario sin permisos suficientes, redirigiendo');
         // Redirigir al dashboard o a una página de acceso denegado
         next('/dashboard');
       }
     } catch (error) {
       console.error('❌ Error verificando permisos:', error);
       // En caso de error, permitir acceso temporal
-      console.log('⚠️ Error en verificación de permisos, permitiendo acceso temporal');
       next();
       }
     } else {
     // Ruta pública
-    console.log('✅ Ruta pública, permitiendo acceso');
     next();
   }
 });

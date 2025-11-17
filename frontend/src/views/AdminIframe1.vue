@@ -167,7 +167,6 @@ export default {
       // Construir URL dinámicamente si es necesario
       this.buildDynamicUrl();
       
-      console.log(`🔄 Cargando iframe Admin 1: ${this.iframeUrl}`);
       
       // Verificar conectividad básica (más permisivo para CORS)
       const isAccessible = await this.checkUrlAccessibility();
@@ -177,7 +176,6 @@ export default {
         return;
       }
       
-      console.log("✅ Servidor accesible, cargando iframe...");
       
       // Timeout más largo para iframes (20 segundos)
       this.iframeTimeout = setTimeout(() => {
@@ -193,7 +191,6 @@ export default {
       const user = this.$store.state.user;
       if (user && user.iframeConfig && user.iframeConfig.adminPanel1) {
         this.iframeUrl = user.iframeConfig.adminPanel1;
-        console.log('👤 URL personalizada del usuario:', this.iframeUrl);
       }
     },
     
@@ -208,7 +205,6 @@ export default {
         this.iframeTimeout = null;
       }
       
-      console.log("✅ Panel Admin 1 cargado correctamente");
       
       // Ocultar overlay después de 2 segundos
       setTimeout(() => {
@@ -229,7 +225,6 @@ export default {
       console.error(`❌ Error en iframe Admin 1 (intento ${this.retryCount}/${this.maxRetries})`);
       
       if (this.retryCount < this.maxRetries) {
-        console.log(`⚠️ Reintentando en 3 segundos...`);
         setTimeout(() => {
           this.loadIframe();
         }, 3000);
@@ -244,7 +239,6 @@ export default {
     
     async checkUrlAccessibility() {
       try {
-        console.log("🔍 Verificando accesibilidad...");
         
         // Para servidores con CORS, usar no-cors directamente
         const controller = new AbortController();
@@ -258,7 +252,6 @@ export default {
         });
         
         clearTimeout(timeoutId);
-        console.log("✅ Servidor accesible (no-cors)");
         return true;
         
       } catch (error) {
@@ -272,13 +265,10 @@ export default {
     
     async testConnection() {
       try {
-        console.log("🔍 Probando conexión...");
         const isAccessible = await this.checkUrlAccessibility();
         if (isAccessible) {
-          console.log("✅ Conexión exitosa");
           this.error = null;
         } else {
-          console.log("❌ Conexión fallida");
           this.error = "Servidor no responde. Verifica la conectividad.";
         }
       } catch (error) {

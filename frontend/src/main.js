@@ -25,11 +25,8 @@ appInstance.use(WebSocketPlugin);
 appInstance.mount("#app");
 
 // Inicializar MQTT después de que la app esté montada usando configuración dinámica
-console.log('🔌 Inicializando MQTT Service...');
 const mqttUrl = environmentConfig.getMQTTBrokerUrl();
-console.log('🔌 URL MQTT detectada:', mqttUrl);
 mqttService.connect(mqttUrl).then(() => {
-  console.log('✅ MQTT Service conectado exitosamente');
 }).catch((error) => {
   console.error('❌ Error conectando MQTT Service:', error);
 });
