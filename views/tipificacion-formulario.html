@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <%- include("partials/head.html") %>
+  <title>Formulario de Tipificación - <%= agent.name %></title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f8f9fa;
+      color: #333;
+    }
+
+    .work-container {
+      display: flex;
+      flex-direction: row;
+      gap: 24px;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal-overlay.show {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      min-width: 400px;
+      max-width: 500px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+
+    .modal-content h4 {
+      margin-bottom: 16px;
+      color: #1976d2;
+      text-align: center;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 20px;
+    }
+
+    .btn-accept, .btn-cancel {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .btn-accept {
+      background: #28a745;
+      color: white;
+    }
+
+    .btn-accept:hover {
+      background: #218838;
+    }
+
+    .btn-cancel {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-cancel:hover {
+      background: #5a6268;
+    }
+
+    /* Client Info */
+    .client-info {
+      width: 300px;
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      display: none;
+    }
+
+    .client-info.show {
+      display: block;
+    }
+
+    .client-info h5 {
+      margin-bottom: 16px;
+      color: #333;
+    }
+
+    .client-info-table {
+      width: 100%;
+      margin-bottom: 16px;
+      font-size: 0.95rem;
+    }
+
+    .client-info-table td {
+      padding: 4px 0;
+      vertical-align: top;
+    }
+
+    .btn-update {
+      background: #ffc107;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    /* Main Content */
+    .work-main {
+      flex: 1;
+      background: #fff;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .tipificacion-header {
+      margin-bottom: 16px;
+    }
+
+    .tab-active {
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      padding: 8px 24px;
+      border-radius: 4px 4px 0 0;
+      font-weight: bold;
+    }
+
+    .tipificacion-form {
+      margin-top: 8px;
+    }
+
+    .tipificacion-form h4 {
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    .form-row {
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Asegurar que todos los selects tengan el mismo estilo */
+    .form-select-lg {
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      line-height: 1.5;
+      min-height: calc(1.5em + 1.5rem + 2px);
+    }
+
+    /* Asegurar que los labels se vean iguales */
+    .form-label {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #333;
+      font-size: 0.95rem;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+      justify-content: flex-start;
+    }
+
+    .btn-save, .btn-clear {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .btn-save {
+      background: #28a745;
+      color: white;
+    }
+
+    .btn-save:hover:not(:disabled) {
+      background: #218838;
+      transform: translateY(-1px);
+    }
+
+    .btn-save:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+    }
+
+    .btn-clear {
+      background: #dc3545;
+      color: white;
+    }
+
+    .btn-clear:hover {
+      background: #c82333;
+      transform: translateY(-1px);
+    }
+
+    .no-active-form {
+      text-align: center;
+      padding: 40px;
+    }
+
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #f3f3f3;
+      border-top: 2px solid #007bff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* History */
+    .work-history {
+      width: 350px;
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      overflow-y: auto;
+      max-height: 80vh;
+    }
+
+    .work-history h5 {
+      margin-bottom: 16px;
+      color: #333;
+      font-size: 1.1rem;
+    }
+
+    .history-list {
+      margin-top: 10px;
+    }
+
+    .no-history {
+      text-align: center;
+      color: #6c757d;
+      font-style: italic;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 6px;
+    }
+
+    .history-item {
+      background: #f8f9fa;
+      border: 1px solid #e3e3e3;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      padding: 12px 16px;
+    }
+
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #dee2e6;
+    }
+
+    .history-number {
+      font-weight: bold;
+      color: #1976d2;
+      margin-right: 8px;
+    }
+
+    .history-id {
+      font-weight: 600;
+      color: #333;
+      flex: 1;
+    }
+
+    .history-status {
+      background: #28a745;
+      color: white;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .history-details {
+      margin-top: 8px;
+    }
+
+    .history-details p {
+      margin: 4px 0;
+      font-size: 0.9rem;
+      color: #555;
+    }
+
+    .history-details strong {
+      color: #333;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-left: 8px;
+    }
+
+    .status-success {
+      background: #28a745;
+      color: white;
+    }
+
+    .status-pending {
+      background: #ffc107;
+      color: #856404;
+    }
+
+    /* Queue List */
+    .queue-list {
+      margin-top: 20px;
+    }
+
+    .queue-item {
+      background: #f8f9fa;
+      border: 1px solid #e3e3e3;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .queue-item:hover {
+      background: #e9ecef;
+      transform: translateX(4px);
+    }
+
+    .queue-item.active {
+      border-left: 4px solid #1976d2;
+      background: #e3f2fd;
+    }
+
+    .queue-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .queue-id {
+      font-weight: bold;
+      color: #1976d2;
+    }
+
+    .queue-cedula {
+      color: #28a745;
+      font-weight: 600;
+    }
+
+    /* Modal de edición de cliente */
+    .modal-cliente-edit {
+      min-width: 800px;
+      max-width: 900px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-cliente-edit .row {
+      margin-left: -8px;
+      margin-right: -8px;
+    }
+
+    .modal-cliente-edit .col-md-6,
+    .modal-cliente-edit .col-md-4 {
+      padding-left: 8px;
+      padding-right: 8px;
+    }
+
+    .form-control-lg {
+      padding: 0.75rem 1rem;
+      font-size: 1rem;
+      line-height: 1.5;
+      min-height: calc(1.5em + 1.5rem + 2px);
+    }
+  </style>
+</head>
+<body>
+  <div class="work-container">
+    <!-- Modal para nueva tipificación -->
+    <div id="modalOverlay" class="modal-overlay">
+      <div class="modal-content">
+        <h4>📞 Nueva Tipificación Asignada</h4>
+        <div id="modalInfo"></div>
+        <div class="modal-buttons">
+          <button class="btn-accept" onclick="aceptarTipificacion()">Aceptar</button>
+          <button class="btn-cancel" onclick="cancelarTipificacion()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal para editar datos del cliente (Vue.js 2) -->
+    <div id="app-cliente-edit">
+      <div class="modal-overlay" :class="{ show: mostrarModal }" @click.self="cerrarModal">
+        <div class="modal-content modal-cliente-edit">
+          <h4>✏️ Editar Información del Cliente</h4>
+          <form @submit.prevent="guardarCliente">
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Tipo de Documento</label>
+                <select v-model="clienteEditado.tipoDocumento" class="form-select form-select-lg">
+                  <option value="">Seleccione...</option>
+                  <option value="Cédula de ciudadanía">Cédula de ciudadanía</option>
+                  <option value="Cédula de extranjería">Cédula de extranjería</option>
+                  <option value="Tarjeta de identidad">Tarjeta de identidad</option>
+                  <option value="Pasaporte">Pasaporte</option>
+                  <option value="Permiso temporal de permanencia">Permiso temporal de permanencia</option>
+                </select>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Número de Documento</label>
+                <input type="text" v-model="clienteEditado.cedula" class="form-control form-control-lg" />
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Nombres</label>
+                <input type="text" v-model="clienteEditado.nombres" class="form-control form-control-lg" />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Apellidos</label>
+                <input type="text" v-model="clienteEditado.apellidos" class="form-control form-control-lg" />
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Fecha de Nacimiento</label>
+                <input type="date" v-model="clienteEditado.fechaNacimiento" class="form-control form-control-lg" />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Sexo</label>
+                <select v-model="clienteEditado.sexo" class="form-select form-select-lg">
+                  <option value="">Seleccione...</option>
+                  <option value="Hombre">Hombre</option>
+                  <option value="Mujer">Mujer</option>
+                  <option value="Intersexual">Intersexual</option>
+                </select>
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">País</label>
+                <input type="text" v-model="clienteEditado.pais" class="form-control form-control-lg" placeholder="Colombia" />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Departamento</label>
+                <input type="text" v-model="clienteEditado.departamento" class="form-control form-control-lg" />
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Ciudad</label>
+                <input type="text" v-model="clienteEditado.ciudad" class="form-control form-control-lg" />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Dirección</label>
+                <input type="text" v-model="clienteEditado.direccion" class="form-control form-control-lg" />
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Teléfono</label>
+                <input type="text" v-model="clienteEditado.telefono" class="form-control form-control-lg" />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label fw-semibold">Correo Electrónico</label>
+                <input type="email" v-model="clienteEditado.correo" class="form-control form-control-lg" />
+              </div>
+            </div>
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">Nivel de Escolaridad</label>
+                <select v-model="clienteEditado.nivelEscolaridad" class="form-select form-select-lg">
+                  <option value="">Seleccione...</option>
+                  <option value="Prescolar">Prescolar</option>
+                  <option value="Básica primaria (1 a 5)">Básica primaria (1 a 5)</option>
+                  <option value="Básica Secundaria (6 a 9)">Básica Secundaria (6 a 9)</option>
+                  <option value="Media (10-11)">Media (10-11)</option>
+                  <option value="Técnico">Técnico</option>
+                  <option value="Tecnólogo">Tecnólogo</option>
+                  <option value="Universitario (pregrado)">Universitario (pregrado)</option>
+                  <option value="Postgrado (Especialización)">Postgrado (Especialización)</option>
+                  <option value="Postgrado (Maestría)">Postgrado (Maestría)</option>
+                  <option value="Postgrado (Doctorado)">Postgrado (Doctorado)</option>
+                  <option value="Postgrado (post Doctorado)">Postgrado (post Doctorado)</option>
+                </select>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">Grupo Étnico</label>
+                <select v-model="clienteEditado.grupoEtnico" class="form-select form-select-lg">
+                  <option value="">Seleccione...</option>
+                  <option value="Indígena">Indígena</option>
+                  <option value="Raizal">Raizal</option>
+                  <option value="Palenquero/a">Palenquero/a</option>
+                  <option value="Gitano/a ROM">Gitano/a ROM</option>
+                  <option value="Negro/a, Mulato/a, Afrodescendiente">Negro/a, Mulato/a, Afrodescendiente</option>
+                  <option value="Ningún grupo étnico">Ningún grupo étnico</option>
+                </select>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label fw-semibold">Discapacidad</label>
+                <select v-model="clienteEditado.discapacidad" class="form-select form-select-lg">
+                  <option value="">Seleccione...</option>
+                  <option value="Ninguna">Ninguna</option>
+                  <option value="Física">Física</option>
+                  <option value="Visual">Visual</option>
+                  <option value="Auditiva">Auditiva</option>
+                  <option value="Múltiple">Múltiple</option>
+                  <option value="Intelectual - Cognitiva">Intelectual - Cognitiva</option>
+                  <option value="Psicosocial">Psicosocial</option>
+                  <option value="Sordoceguera">Sordoceguera</option>
+                </select>
+              </div>
+            </div>
+            <div class="modal-buttons">
+              <button type="button" class="btn-cancel" @click="cerrarModal">Cancelar</button>
+              <button type="submit" class="btn-accept" :disabled="guardando">
+                <span v-if="guardando">Guardando...</span>
+                <span v-else>Guardar Cambios</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Información del Cliente -->
+    <div id="clientInfo" class="client-info">
+      <h5>INFORMACIÓN DEL CLIENTE</h5>
+      <table class="client-info-table">
+        <tr><td><b>ID Llamada:</b></td><td id="infoIdLlamada">-</td></tr>
+        <tr><td><b>T. Documento:</b></td><td id="infoTipoDocumento">-</td></tr>
+        <tr><td><b>Doc. No.:</b></td><td id="infoCedula">-</td></tr>
+        <tr><td><b>Nombres:</b></td><td id="infoNombres">-</td></tr>
+        <tr><td><b>Apellidos:</b></td><td id="infoApellidos">-</td></tr>
+        <tr><td><b>Teléfono:</b></td><td id="infoTelefono">-</td></tr>
+        <tr><td><b>Correo:</b></td><td id="infoCorreo">-</td></tr>
+      </table>
+      <button class="btn-update" onclick="editarCliente()">Actualizar</button>
+    </div>
+
+    <!-- Formulario Principal -->
+    <div class="work-main">
+      <div class="tipificacion-header">
+        <button class="tab-active">TIPIFICACIONES</button>
+      </div>
+
+      <!-- Cola de Tipificaciones Pendientes -->
+      <% if (hasTipificaciones && tipificaciones.length > 0) { %>
+        <div class="queue-list">
+          <h5>📋 Cola de Tipificaciones (<span id="queueCount"><%= tipificaciones.length %></span>)</h5>
+          <% tipificaciones.forEach((tip, index) => { %>
+            <div class="queue-item <%= index === 0 ? 'active' : '' %>" data-id="<%= tip.idLlamada || tip.id %>" onclick="cargarTipificacion('<%= tip.idLlamada || tip.id %>')">
+              <div class="queue-header">
+                <span class="queue-id">ID: <%= tip.idLlamada || tip.id %></span>
+                <span class="queue-cedula"><%= tip.cedula || 'N/A' %></span>
+              </div>
+              <div><%= tip.nombres || '' %> <%= tip.apellidos || '' %></div>
+            </div>
+          <% }); %>
+        </div>
+      <% } %>
+
+      <!-- Formulario de Tipificación -->
+      <div id="tipificacionForm" class="tipificacion-form" style="<%= hasTipificaciones && tipificaciones.length > 0 ? '' : 'display: none;' %>">
+        <h4>📞 Formulario de Tipificación</h4>
+        
+        <div class="form-row mb-3">
+          <label for="nivel1" class="form-label fw-semibold">Nivel 1</label>
+          <select id="nivel1" class="form-select form-select-lg" onchange="actualizarNivel2()">
+            <option value="">Selecciona una opción...</option>
+          </select>
+        </div>
+
+        <div class="form-row mb-3" id="nivel2Row" style="display: none;">
+          <label for="nivel2" class="form-label fw-semibold">Nivel 2</label>
+          <select id="nivel2" class="form-select form-select-lg" onchange="actualizarNivel3()">
+            <!-- Las opciones se cargarán dinámicamente cuando haya valores -->
+          </select>
+        </div>
+
+        <div class="form-row mb-3" id="nivel3Row" style="display: none;">
+          <label for="nivel3" class="form-label fw-semibold">Nivel 3</label>
+          <select id="nivel3" class="form-select form-select-lg" onchange="actualizarNivel4()">
+            <!-- Las opciones se cargarán dinámicamente cuando haya valores -->
+          </select>
+        </div>
+
+        <div class="form-row mb-3" id="nivel4Row" style="display: none;">
+          <label for="nivel4" class="form-label fw-semibold">Nivel 4</label>
+          <select id="nivel4" class="form-select form-select-lg" onchange="actualizarNivel5()">
+            <!-- Las opciones se cargarán dinámicamente cuando haya valores -->
+          </select>
+        </div>
+
+        <div class="form-row mb-3" id="nivel5Row" style="display: none;">
+          <label for="nivel5" class="form-label fw-semibold">Nivel 5</label>
+          <select id="nivel5" class="form-select form-select-lg">
+            <!-- Las opciones se cargarán dinámicamente cuando haya valores -->
+          </select>
+        </div>
+
+        <div class="form-row mb-3">
+          <label for="observaciones" class="form-label fw-semibold">Observaciones</label>
+          <textarea id="observaciones" class="form-control" rows="4" placeholder="Escribe tus observaciones aquí..."></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button id="btnGuardar" class="btn-save" onclick="guardarTipificacion()">Guardar Tipificación</button>
+          <button class="btn-clear" onclick="limpiarFormulario()">Limpiar</button>
+        </div>
+      </div>
+
+      <!-- Mensaje cuando no hay formulario activo -->
+      <div id="noActiveForm" class="no-active-form" style="<%= hasTipificaciones && tipificaciones.length > 0 ? 'display: none;' : '' %>">
+        <h4>📋 Esperando Nueva Tipificación</h4>
+        <p>El sistema asignará automáticamente la siguiente llamada...</p>
+        <div style="margin-top: 20px;">
+          <div class="loading-spinner"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Historial -->
+    <div class="work-history">
+      <h5>📋 Historial Completado</h5>
+      <div class="history-list" id="historyList">
+        <div class="no-history">No hay tipificaciones completadas</div>
+      </div>
+    </div>
+  </div>
+
+  <%- include("partials/scripts.html") %>
+  <script>
+    // Datos globales
+    const config = {
+      idAgent: '<%= config.idAgent %>',
+      agentId: '<%= config.agentId %>',
+      websocketUrl: '<%= websocketUrl %>'
+    };
+
+    const arbol = <%- JSON.stringify(arbol) %>;
+    const tipificaciones = <%- JSON.stringify(tipificaciones || []) %>;
+    
+    // 🚀 LOG INICIAL PARA DEBUG
+    console.log('🌳 Árbol recibido del servidor:', arbol);
+    console.log('📋 Tipificaciones recibidas:', tipificaciones.length);
+    
+    let tipificacionActual = null;
+    let eventSource = null;
+
+    // 🚀 VUE.JS 2 - Instancia para edición de cliente
+    // Esperar a que Vue.js esté cargado
+    let appClienteEdit = null;
+    
+    function inicializarVue() {
+      if (typeof Vue === 'undefined') {
+        console.error('❌ Vue.js no está cargado');
+        setTimeout(inicializarVue, 100);
+        return;
+      }
+      
+      appClienteEdit = new Vue({
+        el: '#app-cliente-edit',
+      data: {
+        mostrarModal: false,
+        guardando: false,
+        clienteEditado: {
+          tipoDocumento: '',
+          cedula: '',
+          nombres: '',
+          apellidos: '',
+          fechaNacimiento: '',
+          sexo: '',
+          pais: 'Colombia',
+          departamento: '',
+          ciudad: '',
+          direccion: '',
+          telefono: '',
+          correo: '',
+          nivelEscolaridad: '',
+          grupoEtnico: '',
+          discapacidad: ''
+        }
+      },
+      methods: {
+        abrirModal() {
+          if (!tipificacionActual) {
+            Swal.fire({
+              icon: 'warning',
+              title: 'Sin tipificación activa',
+              text: 'No hay una tipificación seleccionada para editar',
+              confirmButtonText: 'Entendido'
+            });
+            return;
+          }
+          
+          // Cargar datos actuales del cliente
+          this.clienteEditado = {
+            tipoDocumento: tipificacionActual.tipoDocumento || '',
+            cedula: tipificacionActual.cedula || '',
+            nombres: tipificacionActual.nombres || '',
+            apellidos: tipificacionActual.apellidos || '',
+            fechaNacimiento: tipificacionActual.fechaNacimiento ? 
+              (tipificacionActual.fechaNacimiento instanceof Date ? 
+                tipificacionActual.fechaNacimiento.toISOString().split('T')[0] : 
+                tipificacionActual.fechaNacimiento.split('T')[0]) : '',
+            sexo: tipificacionActual.sexo || '',
+            pais: tipificacionActual.pais || 'Colombia',
+            departamento: tipificacionActual.departamento || '',
+            ciudad: tipificacionActual.ciudad || '',
+            direccion: tipificacionActual.direccion || '',
+            telefono: tipificacionActual.telefono || '',
+            correo: tipificacionActual.correo || '',
+            nivelEscolaridad: tipificacionActual.nivelEscolaridad || '',
+            grupoEtnico: tipificacionActual.grupoEtnico || '',
+            discapacidad: tipificacionActual.discapacidad || ''
+          };
+          
+          this.mostrarModal = true;
+        },
+        cerrarModal() {
+          this.mostrarModal = false;
+        },
+        async guardarCliente() {
+          if (!tipificacionActual) return;
+          
+          this.guardando = true;
+          
+          try {
+            // 🚀 ACTUALIZAR CLIENTE EN EL CRM PRIMERO
+            const response = await fetch('/api/crm/cliente/actualizar', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                cedula: this.clienteEditado.cedula || tipificacionActual.cedula,
+                tipoDocumento: this.clienteEditado.tipoDocumento || '',
+                nombres: this.clienteEditado.nombres || '',
+                apellidos: this.clienteEditado.apellidos || '',
+                fechaNacimiento: this.clienteEditado.fechaNacimiento || '',
+                sexo: this.clienteEditado.sexo || '',
+                pais: this.clienteEditado.pais || 'Colombia',
+                departamento: this.clienteEditado.departamento || '',
+                ciudad: this.clienteEditado.ciudad || '',
+                direccion: this.clienteEditado.direccion || '',
+                telefono: this.clienteEditado.telefono || '',
+                correo: this.clienteEditado.correo || '',
+                nivelEscolaridad: this.clienteEditado.nivelEscolaridad || '',
+                grupoEtnico: this.clienteEditado.grupoEtnico || '',
+                discapacidad: this.clienteEditado.discapacidad || ''
+              })
+            });
+
+            const data = await response.json();
+            
+            if (!data.success) {
+              throw new Error(data.message || 'Error actualizando cliente en el CRM');
+            }
+
+            // 🚀 RECARGAR TIPIFICACIÓN ACTIVA DESDE EL SERVIDOR (con datos actualizados del CRM)
+            const currentIdLlamada = tipificacionActual.idLlamada || tipificacionActual.id;
+            if (currentIdLlamada) {
+              // Recargar todas las tipificaciones desde el servidor (ya enriquecidas con CRM)
+              await recargarTipificaciones();
+              
+              // Recargar la tipificación activa con los datos actualizados
+              const tipActualizada = tipificaciones.find(t => 
+                (t.idLlamada || t.id) === currentIdLlamada
+              );
+              
+              if (tipActualizada) {
+                // Actualizar tipificacionActual con los datos enriquecidos del CRM
+                tipificacionActual = tipActualizada;
+                
+                // Recargar la UI con los datos actualizados
+                cargarTipificacion(currentIdLlamada);
+              }
+            } else {
+              // Fallback: usar datos del response si no se puede recargar
+              Object.assign(tipificacionActual, data.cliente);
+              actualizarUI();
+            }
+            
+            await Swal.fire({
+              icon: 'success',
+              title: '¡Datos actualizados!',
+              text: 'Los datos del cliente se han actualizado correctamente en el CRM',
+              timer: 2000,
+              showConfirmButton: false
+            });
+            
+            this.cerrarModal();
+          } catch (error) {
+            console.error('Error guardando cliente:', error);
+            Swal.fire({
+              icon: 'error',
+              title: 'Error',
+              text: error.message || 'Ocurrió un error al guardar los datos del cliente',
+              confirmButtonText: 'Entendido'
+            });
+          } finally {
+            this.guardando = false;
+          }
+        }
+      }
+      });
+      
+      console.log('✅ Vue.js inicializado para edición de cliente');
+    }
+    
+    // Inicializar Vue.js cuando el DOM esté listo
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', inicializarVue);
+    } else {
+      inicializarVue();
+    }
+
+    // Función helper para actualizar UI después de editar cliente
+    function actualizarUI() {
+      if (!tipificacionActual) return;
+      
+      document.getElementById('infoTipoDocumento').textContent = tipificacionActual.tipoDocumento || '-';
+      document.getElementById('infoCedula').textContent = tipificacionActual.cedula || '-';
+      document.getElementById('infoNombres').textContent = tipificacionActual.nombres || '-';
+      document.getElementById('infoApellidos').textContent = tipificacionActual.apellidos || '-';
+      document.getElementById('infoTelefono').textContent = tipificacionActual.telefono || '-';
+      document.getElementById('infoCorreo').textContent = tipificacionActual.correo || '-';
+    }
+
+    // Función global para abrir modal de edición (llamada desde botón)
+    function editarCliente() {
+      if (!appClienteEdit) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Vue.js no está inicializado. Por favor, recarga la página.',
+          confirmButtonText: 'Entendido'
+        });
+        return;
+      }
+      appClienteEdit.abrirModal();
+    }
+
+    // Inicializar
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('🚀 Inicializando formulario de tipificación');
+      console.log('🌳 Estado del árbol:', {
+        existe: !!arbol,
+        esArray: Array.isArray(arbol),
+        longitud: arbol ? arbol.length : 0,
+        primerNodo: arbol && arbol.length > 0 ? arbol[0] : null
+      });
+      
+      // Cargar primera tipificación si existe
+      if (tipificaciones.length > 0) {
+        cargarTipificacion(tipificaciones[0].idLlamada || tipificaciones[0].id);
+      }
+
+      // Inicializar árbol
+      inicializarArbol();
+
+      // Conectar a SSE para actualizaciones en tiempo real
+      conectarSSE();
+      
+      // 🚀 Cargar historial del cliente si hay tipificación activa
+      if (tipificaciones.length > 0 && tipificaciones[0].cedula) {
+        cargarHistorialCliente(tipificaciones[0].cedula);
+      }
+    });
+
+    // Función genérica para actualizar cualquier nivel dinámicamente
+    function actualizarNivel(nivelNumero) {
+      const nivelActualSelect = document.getElementById(`nivel${nivelNumero}`);
+      const nivelActualRow = document.getElementById(`nivel${nivelNumero}Row`);
+      
+      if (!nivelActualSelect || !nivelActualRow) return;
+      
+      // OCULTAR POR DEFECTO
+      nivelActualRow.style.display = 'none';
+      nivelActualSelect.innerHTML = '';
+      
+      // Limpiar niveles siguientes
+      for (let i = nivelNumero; i <= 5; i++) {
+        const select = document.getElementById(`nivel${i}`);
+        if (select) select.value = '';
+        const row = document.getElementById(`nivel${i}Row`);
+        if (row) row.style.display = 'none';
+      }
+      
+      // Obtener valores de niveles anteriores
+      const valoresAnteriores = [];
+      for (let i = 1; i < nivelNumero; i++) {
+        const select = document.getElementById(`nivel${i}`);
+        if (select && select.value) {
+          valoresAnteriores.push(select.value);
+        } else {
+          return; // Si falta algún nivel anterior, no hacer nada
+        }
+      }
+      
+      // Buscar el nodo en el árbol siguiendo la ruta de valores anteriores
+      let nodoActual = null;
+      let nodosActuales = arbol;
+      
+      for (const valor of valoresAnteriores) {
+        if (!nodosActuales || !Array.isArray(nodosActuales)) return;
+        nodoActual = nodosActuales.find(n => n && n.value === valor);
+        if (!nodoActual) return;
+        nodosActuales = nodoActual.children;
+      }
+      
+      // Si no hay nodo o no tiene hijos, ocultar y salir
+      if (!nodoActual || !nodosActuales || !Array.isArray(nodosActuales) || nodosActuales.length === 0) {
+        return;
+      }
+      
+      // AGREGAR OPCIONES PRIMERO
+      nivelActualSelect.innerHTML = '<option value="">Selecciona una opción...</option>';
+      nodosActuales.forEach(child => {
+        if (child && child.value && child.label) {
+          const option = document.createElement('option');
+          option.value = child.value;
+          option.textContent = child.label;
+          nivelActualSelect.appendChild(option);
+        }
+      });
+      
+      // SOLO MOSTRAR CUANDO YA TENEMOS LAS OPCIONES
+      if (nivelActualSelect.options.length > 1) {
+        nivelActualRow.style.display = 'block';
+      }
+      
+      // Actualizar siguiente nivel
+      actualizarNivel(nivelNumero + 1);
+    }
+
+    // Inicializar árbol de tipificaciones
+    function inicializarArbol() {
+      const nivel1Select = document.getElementById('nivel1');
+      if (!nivel1Select) {
+        console.error('❌ Select de nivel1 no encontrado');
+        return;
+      }
+      
+      nivel1Select.innerHTML = '<option value="">Selecciona una opción...</option>';
+      
+      if (!arbol || !Array.isArray(arbol) || arbol.length === 0) {
+        console.warn('⚠️ Árbol vacío o inválido:', arbol);
+        return;
+      }
+      
+      console.log('🌳 Inicializando árbol con', arbol.length, 'nodos raíz');
+      
+      arbol.forEach(node => {
+        if (node && node.value && node.label) {
+          const option = document.createElement('option');
+          option.value = node.value;
+          option.textContent = node.label;
+          nivel1Select.appendChild(option);
+        }
+      });
+      
+      // 🚀 AGREGAR LISTENER DE EVENTO ROBUSTO
+      nivel1Select.addEventListener('change', function() {
+        actualizarNivel(2);
+      });
+      
+      // Si hay un valor pre-seleccionado, actualizar niveles
+      if (nivel1Select.value && nivel1Select.value !== '') {
+        setTimeout(() => {
+          actualizarNivel(2);
+        }, 100);
+      }
+    }
+
+    // Funciones wrapper para mantener compatibilidad con onchange en HTML
+    // Todas usan la función genérica actualizarNivel()
+    function actualizarNivel2() { actualizarNivel(2); }
+    function actualizarNivel3() { actualizarNivel(3); }
+    function actualizarNivel4() { actualizarNivel(4); }
+    function actualizarNivel5() { actualizarNivel(5); }
+
+    // Función helper para convertir label a value en el árbol
+    function encontrarValuePorLabel(label, nodes) {
+      if (!label || !nodes || !Array.isArray(nodes)) return null;
+      
+      for (const node of nodes) {
+        if (node && node.label === label) {
+          return node.value;
+        }
+        if (node && node.children && Array.isArray(node.children)) {
+          const found = encontrarValuePorLabel(label, node.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+
+    // Cargar tipificación
+    function cargarTipificacion(idLlamada) {
+      const tip = tipificaciones.find(t => (t.idLlamada || t.id) === idLlamada);
+      if (!tip) return;
+
+      tipificacionActual = tip;
+
+      // Actualizar UI
+      document.getElementById('infoIdLlamada').textContent = tip.idLlamada || '-';
+      document.getElementById('infoTipoDocumento').textContent = tip.tipoDocumento || '-';
+      document.getElementById('infoCedula').textContent = tip.cedula || '-';
+      document.getElementById('infoNombres').textContent = tip.nombres || '-';
+      document.getElementById('infoApellidos').textContent = tip.apellidos || '-';
+      document.getElementById('infoTelefono').textContent = tip.telefono || '-';
+      document.getElementById('infoCorreo').textContent = tip.correo || '-';
+
+      // Mostrar formulario
+      document.getElementById('clientInfo').classList.add('show');
+      document.getElementById('tipificacionForm').style.display = 'block';
+      document.getElementById('noActiveForm').style.display = 'none';
+
+      // Marcar como activa en la cola
+      document.querySelectorAll('.queue-item').forEach(item => {
+        item.classList.remove('active');
+        if (item.dataset.id === idLlamada) {
+          item.classList.add('active');
+        }
+      });
+
+      // Cargar observación si existe
+      if (tip.observacion) {
+        document.getElementById('observaciones').value = tip.observacion;
+      }
+
+      // 🚀 CARGAR VALORES DE NIVELES SI EXISTEN
+      // Los niveles pueden venir como labels (texto) o como values
+      // Intentar establecer los selects con los valores guardados
+      if (tip.nivel1) {
+        // Buscar el value correspondiente al label
+        const nivel1Value = encontrarValuePorLabel(tip.nivel1, arbol) || tip.nivel1;
+        const nivel1Select = document.getElementById('nivel1');
+        if (nivel1Select && nivel1Select.querySelector(`option[value="${nivel1Value}"]`)) {
+          nivel1Select.value = nivel1Value;
+          // Actualizar nivel 2 después de establecer nivel 1
+          setTimeout(() => {
+            actualizarNivel(2);
+            
+            // Cargar niveles siguientes si existen (hasta nivel 5)
+            const niveles = [tip.nivel2, tip.nivel3, tip.nivel4, tip.nivel5];
+            let delay = 150;
+            
+            niveles.forEach((nivelLabel, index) => {
+              if (nivelLabel) {
+                const nivelNumero = index + 2; // nivel2 = índice 0, nivel3 = índice 1, etc.
+                setTimeout(() => {
+                  // Obtener valores anteriores para buscar el nodo correcto
+                  const valoresAnteriores = [];
+                  for (let i = 1; i < nivelNumero; i++) {
+                    const select = document.getElementById(`nivel${i}`);
+                    if (select && select.value) valoresAnteriores.push(select.value);
+                  }
+                  
+                  // Buscar nodo actual
+                  let nodosActuales = arbol;
+                  for (const valor of valoresAnteriores) {
+                    const nodo = nodosActuales.find(n => n && n.value === valor);
+                    if (nodo && nodo.children) {
+                      nodosActuales = nodo.children;
+                    } else {
+                      return;
+                    }
+                  }
+                  
+                  // Buscar value por label
+                  const nivelValue = encontrarValuePorLabel(nivelLabel, nodosActuales) || nivelLabel;
+                  const nivelSelect = document.getElementById(`nivel${nivelNumero}`);
+                  
+                  if (nivelSelect && nivelSelect.querySelector(`option[value="${nivelValue}"]`)) {
+                    nivelSelect.value = nivelValue;
+                    actualizarNivel(nivelNumero + 1);
+                  }
+                }, delay);
+                delay += 100;
+              }
+            });
+          }, 100);
+        }
+      }
+
+      // 🚀 Cargar historial del cliente (por cédula)
+      if (tip.cedula) {
+        cargarHistorialCliente(tip.cedula);
+      } else {
+        // Si no hay cédula, limpiar historial
+        mostrarHistorial([]);
+      }
+
+      // 🚀 Sincronizar datos del cliente con Vue.js para edición
+      if (appClienteEdit && appClienteEdit.clienteEditado) {
+        appClienteEdit.clienteEditado = {
+          tipoDocumento: tip.tipoDocumento || '',
+          cedula: tip.cedula || '',
+          nombres: tip.nombres || '',
+          apellidos: tip.apellidos || '',
+          fechaNacimiento: tip.fechaNacimiento ? 
+            (tip.fechaNacimiento instanceof Date ? 
+              tip.fechaNacimiento.toISOString().split('T')[0] : 
+              (typeof tip.fechaNacimiento === 'string' ? tip.fechaNacimiento.split('T')[0] : '')) : '',
+          sexo: tip.sexo || '',
+          pais: tip.pais || 'Colombia',
+          departamento: tip.departamento || '',
+          ciudad: tip.ciudad || '',
+          direccion: tip.direccion || '',
+          telefono: tip.telefono || '',
+          correo: tip.correo || '',
+          nivelEscolaridad: tip.nivelEscolaridad || '',
+          grupoEtnico: tip.grupoEtnico || '',
+          discapacidad: tip.discapacidad || ''
+        };
+      }
+    }
+
+    // Guardar tipificación
+    async function guardarTipificacion() {
+      if (!tipificacionActual) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Sin tipificación activa',
+          text: 'No hay una tipificación seleccionada para guardar',
+          confirmButtonText: 'Entendido'
+        });
+        return;
+      }
+
+      const btnGuardar = document.getElementById('btnGuardar');
+      btnGuardar.disabled = true;
+      btnGuardar.textContent = 'Guardando...';
+
+      try {
+        // Obtener valores del formulario
+        const nivel1 = obtenerLabel(document.getElementById('nivel1').value, arbol);
+        const nivel2 = obtenerLabel(document.getElementById('nivel2').value, 
+          arbol.find(n => n.value === document.getElementById('nivel1').value)?.children || []);
+        const nivel3 = obtenerLabel(document.getElementById('nivel3').value, 
+          arbol.find(n => n.value === document.getElementById('nivel1').value)?.children
+            ?.find(n => n.value === document.getElementById('nivel2').value)?.children || []);
+        const nivel4 = obtenerLabel(document.getElementById('nivel4').value, []);
+        const nivel5 = obtenerLabel(document.getElementById('nivel5').value, []);
+
+        // 🚀 Obtener datos del cliente (tipificacionActual ya contiene los datos editados si se guardaron en el modal)
+        const clienteData = {
+          tipoDocumento: tipificacionActual.tipoDocumento || '',
+          cedula: tipificacionActual.cedula || '',
+          nombres: tipificacionActual.nombres || '',
+          apellidos: tipificacionActual.apellidos || '',
+          fechaNacimiento: tipificacionActual.fechaNacimiento || '',
+          sexo: tipificacionActual.sexo || '',
+          pais: tipificacionActual.pais || '',
+          departamento: tipificacionActual.departamento || '',
+          ciudad: tipificacionActual.ciudad || '',
+          direccion: tipificacionActual.direccion || '',
+          telefono: tipificacionActual.telefono || '',
+          correo: tipificacionActual.correo || '',
+          nivelEscolaridad: tipificacionActual.nivelEscolaridad || '',
+          grupoEtnico: tipificacionActual.grupoEtnico || '',
+          discapacidad: tipificacionActual.discapacidad || ''
+        };
+
+        const response = await fetch('/api/tipificacion/actualizar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            idLlamada: tipificacionActual.idLlamada || tipificacionActual.id,
+            cedula: clienteData.cedula || '',
+            tipoDocumento: clienteData.tipoDocumento || '',
+            observacion: document.getElementById('observaciones').value,
+            nivel1: nivel1,
+            nivel2: nivel2,
+            nivel3: nivel3,
+            nivel4: nivel4,
+            nivel5: nivel5,
+            assignedTo: config.agentId,
+            nombres: clienteData.nombres || '',
+            apellidos: clienteData.apellidos || '',
+            fechaNacimiento: clienteData.fechaNacimiento || '',
+            sexo: clienteData.sexo || '',
+            pais: clienteData.pais || '',
+            departamento: clienteData.departamento || '',
+            ciudad: clienteData.ciudad || '',
+            direccion: clienteData.direccion || '',
+            telefono: clienteData.telefono || '',
+            correo: clienteData.correo || '',
+            nivelEscolaridad: clienteData.nivelEscolaridad || '',
+            grupoEtnico: clienteData.grupoEtnico || '',
+            discapacidad: clienteData.discapacidad || '',
+            historial: tipificacionActual.historial || [],
+            arbol: arbol
+          })
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+          await Swal.fire({
+            icon: 'success',
+            title: '¡Guardado exitoso!',
+            text: 'La tipificación se ha guardado correctamente',
+            timer: 2000,
+            showConfirmButton: false
+          });
+          
+          // Limpiar formulario
+          limpiarFormulario();
+          tipificacionActual = null;
+          
+          // 🚀 RECARGAR TIPIFICACIONES INMEDIATAMENTE desde el servidor
+          await recargarTipificaciones();
+          
+          // Cargar siguiente si existe
+          if (tipificaciones.length > 0) {
+            cargarTipificacion(tipificaciones[0].idLlamada || tipificaciones[0].id);
+          } else {
+            document.getElementById('tipificacionForm').style.display = 'none';
+            document.getElementById('noActiveForm').style.display = 'block';
+            document.getElementById('clientInfo').classList.remove('show');
+            // Limpiar historial si no hay más tipificaciones
+            mostrarHistorial([]);
+          }
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error al guardar',
+            text: data.message || 'Error desconocido al guardar la tipificación',
+            confirmButtonText: 'Entendido'
+          });
+        }
+      } catch (error) {
+        console.error('Error guardando tipificación:', error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Ocurrió un error al guardar la tipificación. Por favor, intenta nuevamente.',
+          confirmButtonText: 'Entendido'
+        });
+      } finally {
+        btnGuardar.disabled = false;
+        btnGuardar.textContent = 'Guardar Tipificación';
+      }
+    }
+
+    function obtenerLabel(value, options) {
+      if (!value) return '';
+      const option = options.find(opt => opt.value === value);
+      return option ? option.label : value;
+    }
+
+    function limpiarFormulario() {
+      document.getElementById('nivel1').value = '';
+      document.getElementById('nivel2').value = '';
+      document.getElementById('nivel3').value = '';
+      document.getElementById('nivel4').value = '';
+      document.getElementById('nivel5').value = '';
+      document.getElementById('observaciones').value = '';
+      document.getElementById('nivel2Row').style.display = 'none';
+      document.getElementById('nivel3Row').style.display = 'none';
+      document.getElementById('nivel4Row').style.display = 'none';
+      document.getElementById('nivel5Row').style.display = 'none';
+    }
+
+    function aceptarTipificacion() {
+      document.getElementById('modalOverlay').classList.remove('show');
+    }
+
+    function cancelarTipificacion() {
+      document.getElementById('modalOverlay').classList.remove('show');
+    }
+
+    // Función editarCliente() ahora está definida arriba junto con Vue.js
+
+    // 🚀 Recargar tipificaciones desde el servidor (actualización inmediata)
+    async function recargarTipificaciones() {
+      try {
+        // Hacer petición directa al endpoint que obtiene las tipificaciones
+        const response = await fetch(`/api/tipificacion/pendientes/${config.idAgent}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.tipificaciones) {
+            tipificaciones.length = 0;
+            tipificaciones.push(...data.tipificaciones);
+            actualizarCola();
+            console.log('✅ Tipificaciones recargadas:', tipificaciones.length);
+          }
+        } else {
+          console.error('Error en respuesta:', response.status);
+        }
+      } catch (error) {
+        console.error('Error recargando tipificaciones:', error);
+        // Si falla, el SSE se encargará de actualizar
+      }
+    }
+
+    // Conectar a SSE para actualizaciones en tiempo real
+    function conectarSSE() {
+      const sseUrl = `/api/tipificacion/stream/${config.idAgent}`;
+      eventSource = new EventSource(sseUrl);
+
+      eventSource.onmessage = function(event) {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'update') {
+            console.log('📡 Nueva actualización recibida:', data);
+            
+            // Actualizar cola
+            if (data.tipificaciones) {
+              const currentActiveId = tipificacionActual ? 
+                (tipificacionActual.idLlamada || tipificacionActual.id) : null;
+              
+              tipificaciones.length = 0;
+              tipificaciones.push(...data.tipificaciones);
+              actualizarCola();
+              
+              // Si había una tipificación activa, mantenerla activa si aún existe
+              if (currentActiveId) {
+                const stillExists = tipificaciones.find(t => 
+                  (t.idLlamada || t.id) === currentActiveId
+                );
+                if (stillExists) {
+                  // Mantener la misma tipificación activa
+                  cargarTipificacion(currentActiveId);
+                } else {
+                  // La tipificación activa fue completada, cargar la siguiente
+                  tipificacionActual = null;
+                  if (tipificaciones.length > 0) {
+                    cargarTipificacion(tipificaciones[0].idLlamada || tipificaciones[0].id);
+                  } else {
+                    document.getElementById('tipificacionForm').style.display = 'none';
+                    document.getElementById('noActiveForm').style.display = 'block';
+                    document.getElementById('clientInfo').classList.remove('show');
+                  }
+                }
+              } else if (tipificaciones.length > 0) {
+                // Si no hay tipificación activa, cargar la primera
+                cargarTipificacion(tipificaciones[0].idLlamada || tipificaciones[0].id);
+              }
+            }
+          } else if (data.type === 'heartbeat') {
+            // Heartbeat silencioso (no hacer nada)
+          }
+        } catch (error) {
+          console.error('Error procesando SSE:', error);
+        }
+      };
+
+      eventSource.onerror = function(error) {
+        console.error('Error en SSE:', error);
+        // Reconectar después de 3 segundos
+        setTimeout(() => {
+          if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+            console.log('🔄 Reconectando SSE...');
+            conectarSSE();
+          }
+        }, 3000);
+      };
+    }
+
+    function actualizarCola() {
+      const queueList = document.querySelector('.queue-list');
+      if (!queueList) return;
+
+      const count = tipificaciones.length;
+      document.getElementById('queueCount').textContent = count;
+
+      if (count === 0) {
+        queueList.innerHTML = '<p>No hay tipificaciones pendientes</p>';
+        return;
+      }
+
+      let html = `<h5>📋 Cola de Tipificaciones (${count})</h5>`;
+      tipificaciones.forEach((tip, index) => {
+        const isActive = tipificacionActual && 
+          (tipificacionActual.idLlamada || tipificacionActual.id) === (tip.idLlamada || tip.id);
+        html += `
+          <div class="queue-item ${isActive ? 'active' : ''}" 
+               data-id="${tip.idLlamada || tip.id}" 
+               onclick="cargarTipificacion('${tip.idLlamada || tip.id}')">
+            <div class="queue-header">
+              <span class="queue-id">ID: ${tip.idLlamada || tip.id}</span>
+              <span class="queue-cedula">${tip.cedula || 'N/A'}</span>
+            </div>
+            <div>${tip.nombres || ''} ${tip.apellidos || ''}</div>
+          </div>
+        `;
+      });
+      queueList.innerHTML = html;
+    }
+
+    // 🚀 Cargar historial del cliente (por cédula) desde MongoDB
+    async function cargarHistorialCliente(cedula) {
+      try {
+        if (!cedula || cedula === '-') {
+          mostrarHistorial([]);
+          return;
+        }
+        
+        const response = await fetch(`/api/tipificacion/historial/cliente/${cedula}?limite=20`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.historial) {
+            mostrarHistorial(data.historial);
+            console.log('✅ Historial del cliente cargado:', data.historial.length, 'tipificaciones para cédula', cedula);
+          }
+        } else {
+          console.error('Error cargando historial del cliente:', response.status);
+          mostrarHistorial([]);
+        }
+      } catch (error) {
+        console.error('Error cargando historial del cliente:', error);
+        mostrarHistorial([]);
+      }
+    }
+
+    // Mostrar historial en la UI (solo datos del cliente, sin información del agente)
+    function mostrarHistorial(historial) {
+      const historyList = document.getElementById('historyList');
+      if (!historyList) return;
+
+      if (!historial || historial.length === 0) {
+        historyList.innerHTML = '<div class="no-history">No hay llamadas anteriores registradas para este cliente</div>';
+        return;
+      }
+
+      let html = '';
+      historial.forEach((item, index) => {
+        const fecha = item.timestamp ? new Date(item.timestamp).toLocaleString('es-CO', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        }) : '-';
+        
+        // Construir cadena de niveles de tipificación
+        let nivelesTexto = '';
+        if (item.nivel1) {
+          nivelesTexto = item.nivel1;
+          if (item.nivel2) nivelesTexto += ' > ' + item.nivel2;
+          if (item.nivel3) nivelesTexto += ' > ' + item.nivel3;
+          if (item.nivel4) nivelesTexto += ' > ' + item.nivel4;
+          if (item.nivel5) nivelesTexto += ' > ' + item.nivel5;
+        }
+        
+        html += `
+          <div class="history-item">
+            <div class="history-header">
+              <span class="history-number">${index + 1}.</span>
+              <span class="history-id">Llamada: ${item.idLlamada || '-'}</span>
+            </div>
+            <div class="history-details">
+              ${nivelesTexto ? `<p><strong>Motivo:</strong> ${nivelesTexto}</p>` : ''}
+              ${item.observacion ? `<p><strong>Detalle:</strong> ${item.observacion}</p>` : ''}
+              <p><strong>Fecha:</strong> ${fecha}</p>
+            </div>
+          </div>
+        `;
+      });
+      
+      historyList.innerHTML = html;
+    }
+
+    // Limpiar al cerrar
+    window.addEventListener('beforeunload', function() {
+      if (eventSource) {
+        eventSource.close();
+      }
+    });
+  </script>
+</body>
+</html>
+

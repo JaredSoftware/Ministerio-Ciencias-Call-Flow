@@ -340,782 +340,454 @@ router.post("/api/websocket/init", (req, res) => {
   }
 });
 
-// 🚀 Endpoint para tipificación - ASIGNACIÓN DIRECTA POR IDAGENT DEL SISTEMA TELEFÓNICO
+// 🚀 Endpoint para GENERAR tipificación en Redis - Solo guarda datos
 router.get('/api/tipificacion/formulario', async (req, res) => {
   try {
     const params = req.query;
     
-    // 🚨 VALIDACIÓN OBLIGATORIA: idAgent es requerido
+    // 🚨 VALIDACIÓN: idAgent es requerido
     if (!params.idAgent) {
-      tipificacionLogger.logValidation(req, 'idAgent_check', 'fail', {
-        message: 'idAgent es requerido',
-        url: req.url,
-        query: req.query
-      });
-      console.error('[TIPIFICACION] ❌ Error: idAgent es requerido', {
-        url: req.url,
-        query: req.query,
-        ip: req.ip,
-        userAgent: req.get('user-agent')
-      });
       return res.status(400).json({ 
         success: false, 
         message: 'El parámetro idAgent es obligatorio' 
       });
     }
-    
-    tipificacionLogger.logValidation(req, 'idAgent_check', 'pass', { idAgent: params.idAgent });
 
     // 🔧 DECODIFICAR IDAGENT DEL SISTEMA TELEFÓNICO
-    // El sistema telefónico envía: 7621%287621%29 -> necesitamos extraer: 7621
     let idAgentReal = params.idAgent;
     try {
-      // Primero decodificar URL
       const decodedIdAgent = decodeURIComponent(params.idAgent);
-      
-      // Extraer el primer número del formato: 7621(7621) o similar
       const match = decodedIdAgent.match(/^(\d+)/);
       if (match && match[1]) {
         idAgentReal = match[1];
-      } else {
       }
     } catch (error) {
       console.error('❌ Error decodificando idAgent:', error);
-      // Continuar con el valor original si hay error
     }
     
-    // Actualizar params con el ID real
-    params.idAgent = idAgentReal;
-
-    // 🔧 DECODIFICAR CARACTERES ESPECIALES (tildes, acentos, etc.)
-    const decodeText = (text, fieldName = '') => {
-      if (!text) return text;
-      
-      
-      try {
-        // 1. Intentar diferentes decodificaciones
-        let decoded = text;
-        
-        // Si contiene caracteres de reemplazo UTF-8, intentar recuperar
-        if (text.includes('')) {
-          // Intentar decodificar desde diferentes codificaciones
-          try {
-            decoded = Buffer.from(text, 'latin1').toString('utf8');
-          } catch (e) {
-          }
-        }
-        
-        // 2. Decodificar URL encoding
-        try {
-          const urlDecoded = decodeURIComponent(decoded);
-          if (urlDecoded !== decoded) {
-            decoded = urlDecoded;
-          }
-        } catch (e) {
-        }
-        
-        // 3. Decodificar HTML entities
-        const entities = {
-          '&aacute;': 'á', '&eacute;': 'é', '&iacute;': 'í', '&oacute;': 'ó', '&uacute;': 'ú',
-          '&Aacute;': 'Á', '&Eacute;': 'É', '&Iacute;': 'Í', '&Oacute;': 'Ó', '&Uacute;': 'Ú',
-          '&ntilde;': 'ñ', '&Ntilde;': 'Ñ', '&uuml;': 'ü', '&Uuml;': 'Ü',
-          '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'",
-          // Entidades numéricas comunes
-          '&#225;': 'á', '&#233;': 'é', '&#237;': 'í', '&#243;': 'ó', '&#250;': 'ú',
-          '&#193;': 'Á', '&#201;': 'É', '&#205;': 'Í', '&#211;': 'Ó', '&#218;': 'Ú',
-          '&#241;': 'ñ', '&#209;': 'Ñ'
-        };
-        
-        const beforeEntities = decoded;
-        decoded = decoded.replace(/&[a-zA-Z0-9#]+;/g, (entity) => {
-          return entities[entity] || entity;
-        });
-        if (beforeEntities !== decoded) {
-        }
-        
-        // 4. Limpiar caracteres de control y espacios extra
-        decoded = decoded.replace(/\s+/g, ' ').trim();
-        
-        
-        return decoded;
-        
-      } catch (error) {
-        console.error(`❌ Error decodificando texto "${text}":`, error);
-        return text; // Retornar original si hay error
-      }
-    };
-    
-    // Decodificar todos los campos de texto que pueden contener tildes
-    const fieldsToDecode = [
-      'nombres', 'apellidos', 'observacion', 'nivel1', 'nivel2', 'nivel3', 'nivel4', 'nivel5',
-      'pais', 'departamento', 'ciudad', 'direccion', 'sexo', 'nivelEscolaridad', 
-      'grupoEtnico', 'discapacidad'
-    ];
-    
-    fieldsToDecode.forEach(field => {
-      if (params[field]) {
-        params[field] = decodeText(params[field], field);
-      }
-    });
-
-    // 🎯 CRM: BUSCAR CLIENTE EXISTENTE POR CÉDULA
-    let clienteExistente = null;
-    let historialCliente = [];
-    
-    if (params.cedula) {
-      const Cliente = require('../models/cliente');
-      try {
-        clienteExistente = await Cliente.buscarPorCedula(params.cedula);
-        if (clienteExistente) {
-          historialCliente = clienteExistente.obtenerHistorial(5); // Últimas 5 interacciones
-        } else {
-        }
-      } catch (error) {
-        console.error('❌ Error buscando cliente:', error);
-        // Continuar sin cliente existente
-      }
-    }
-    
-    // 🎯 DETERMINAR PRIORIDAD AUTOMÁTICAMENTE
-    let priority = 1; // Por defecto: prioridad baja
-    let customerSegment = 'standard';
-    let estimatedTime = 5; // 5 minutos por defecto
-    
-    // Lógica de priorización inteligente
-    if (params.priority && !isNaN(params.priority)) {
-      priority = Math.min(Math.max(parseInt(params.priority), 1), 5);
-    } else {
-      // Auto-determinar prioridad basada en criterios
-      if (params.customerSegment === 'premium') {
-        priority = 4;
-        customerSegment = 'premium';
-        estimatedTime = 3;
-      } else if (params.urgente === 'true' || params.callback === 'true') {
-        priority = 3;
-        estimatedTime = 4;
-      } else if (params.tipoDocumento === 'CC' && params.cedula && params.cedula.length > 8) {
-        priority = 2; // Cédulas largas pueden ser empresariales
-      }
-    }
-    
-    
-    // 🚨 BUSCAR AGENTE POR IDAGENT EN LA BASE DE DATOS
+    // 🚨 VALIDAR QUE EL AGENTE EXISTA
     const User = require('../models/users');
-    const UserStatus = require('../models/userStatus');
-    
-    // 🎯 BUSCAR AGENTE ESPECÍFICO POR IDAGENT
-    let assignedAgent = await User.findOne({ 
-      idAgent: params.idAgent,
+    const assignedAgent = await User.findOne({ 
+      idAgent: idAgentReal,
       active: true 
     }).lean();
     
-    // Si no encuentra agente específico, retornar error
     if (!assignedAgent) {
-      tipificacionLogger.logValidation(req, 'agent_lookup', 'fail', {
-        message: 'Agente no encontrado en BD',
-        idAgentRecibido: params.idAgent,
-        idAgentDecodificado: idAgentReal,
-        idLlamada: params.idLlamada
-      });
-      
-      console.error('[TIPIFICACION] ❌ Error: Agente no encontrado', {
-        idAgentRecibido: params.idAgent,
-        idAgentDecodificado: idAgentReal,
-        idLlamada: params.idLlamada,
-        url: req.url,
-        ip: req.ip
-      });
-      
-      // Listar todos los agentes disponibles para debug
-      const allAgents = await User.find({ active: true }).select('name idAgent correo').lean();
-      
-      // TODO: Implementar lógica de fallback cuando se defina el comportamiento deseado
-      // Por ahora, retornar error 404 cuando no se encuentra el agente específico
-      
       return res.status(404).json({
         success: false,
-        message: `No se pudo asignar agente con idAgent: ${params.idAgent}`,
-        error: 'AGENT_NOT_FOUND',
-        requestedAgentId: params.idAgent,
-        availableAgents: allAgents.map(agent => ({
-          name: agent.name,
-          idAgent: agent.idAgent,
-          email: agent.correo
-        }))
+        message: `Agente con idAgent ${idAgentReal} no encontrado`,
+        error: 'AGENT_NOT_FOUND'
       });
     }
     
-    tipificacionLogger.logValidation(req, 'agent_lookup', 'pass', {
-      agentName: assignedAgent.name,
-      agentId: assignedAgent._id.toString(),
-      idAgent: params.idAgent
-    });
+    // 🚀 GUARDAR EN REDIS (todos los datos tal cual vienen del sistema telefónico)
+    const redisService = require('../services/redisService');
+    const Tipificacion = require('../models/tipificacion');
     
-    
-    // Obtener estado actual del agente
-    const userStatus = await UserStatus.findOne({ 
-      userId: assignedAgent._id 
-    }).lean();
-    
-    if (!userStatus) {
-      tipificacionLogger.logDeployment(req, 
-        { name: assignedAgent.name, idAgent: params.idAgent, userId: assignedAgent._id.toString() },
-        { idLlamada: params.idLlamada },
-        'failed',
-        'no_status_registered'
-      );
-      
-      return res.status(400).json({ 
-        success: false, 
-        message: `El agente ${assignedAgent.name} no tiene estado registrado en el sistema`,
-        agentInfo: {
-          idAgent: params.idAgent,
-          agentName: assignedAgent.name,
-          agentEmail: assignedAgent.correo,
-          reason: 'no_status_registered'
-        }
-      });
-    }
-    
-    // Verificar que el agente esté activo
-    if (!userStatus.isActive) {
-      tipificacionLogger.logDeployment(req, 
-        { name: assignedAgent.name, idAgent: params.idAgent, userId: assignedAgent._id.toString() },
-        { idLlamada: params.idLlamada },
-        'failed',
-        'agent_inactive'
-      );
-      
-      return res.status(400).json({ 
-        success: false, 
-        message: `El agente ${assignedAgent.name} no está activo en la plataforma`,
-        agentInfo: {
-          idAgent: params.idAgent,
-          agentName: assignedAgent.name,
-          agentEmail: assignedAgent.correo,
-          currentStatus: userStatus.status,
-          reason: 'agent_inactive'
-        }
-      });
-    }
-    
-    // Verificar que el agente esté en un estado de trabajo
-    const StatusType = require('../models/statusType');
-    const statusType = await StatusType.findOne({ 
-      value: userStatus.status, 
-      isActive: true 
-    }).lean();
-    
-    if (!statusType) {
-      return res.status(400).json({ 
-        success: false, 
-        message: `El estado '${userStatus.status}' del agente ${assignedAgent.name} no es válido`,
-        agentInfo: {
-          idAgent: params.idAgent,
-          agentName: assignedAgent.name,
-          agentEmail: assignedAgent.correo,
-          currentStatus: userStatus.status,
-          reason: 'invalid_status'
-        }
-      });
-    }
-    
-    let statusAutoChanged = false;
-    let previousStatus = null;
-    
-    if (statusType.category !== 'work') {
-      
-      // Guardar estado anterior
-      previousStatus = userStatus.status;
-      statusAutoChanged = true;
-      
-      // Buscar el mejor estado de trabajo disponible
-      const workStatusTypes = await StatusType.find({ 
-        category: 'work', 
-        isActive: true 
-      }).sort({ order: 1 }).lean();
-      
-      if (workStatusTypes.length === 0) {
-        return res.status(500).json({ 
-          success: false, 
-          message: `No hay estados de trabajo disponibles para cambiar al agente ${assignedAgent.name}`,
-          agentInfo: {
-            idAgent: params.idAgent,
-            agentName: assignedAgent.name,
-            agentEmail: assignedAgent.correo,
-            currentStatus: userStatus.status,
-            reason: 'no_work_states_available'
-          }
-        });
-      }
-      
-      // Seleccionar estado de trabajo (preferir 'busy' cuando recibe llamada)
-      let targetWorkStatus = workStatusTypes.find(st => st.value === 'busy') || 
-                            workStatusTypes.find(st => st.value === 'on_call') ||
-                            workStatusTypes.find(st => st.value === 'available') ||
-                            workStatusTypes[0];
-      
-      
-      try {
-        // Actualizar el estado del usuario
-        const updatedUserStatus = await UserStatus.findOneAndUpdate(
-          { userId: assignedAgent._id },
-          { 
-            status: targetWorkStatus.value,
-            isActive: true,
-            lastSeen: new Date(),
-            color: targetWorkStatus.color,
-            label: targetWorkStatus.label
-          },
-          { new: true }
-        );
-        
-        if (!updatedUserStatus) {
-          return res.status(500).json({ 
-            success: false, 
-            message: `Error actualizando estado del agente ${assignedAgent.name}`,
-            agentInfo: {
-              idAgent: params.idAgent,
-              agentName: assignedAgent.name,
-              reason: 'status_update_failed'
-            }
-          });
-        }
-        
-        
-        // Publicar cambio de estado por MQTT
-        const mqttService = req.app.get('mqttService');
-        if (mqttService) {
-          // Publicar cambio de estado general
-          mqttService.publishUserStatusChange(assignedAgent._id, assignedAgent.name, targetWorkStatus.value, targetWorkStatus.label, targetWorkStatus.color);
-          
-          // Publicar evento específico para cambio automático al usuario
-          const statusChangeData = {
-            userId: assignedAgent._id,
-            userName: assignedAgent.name,
-            oldStatus: userStatus.status,
-            newStatus: targetWorkStatus.value,
-            newLabel: targetWorkStatus.label,
-            newColor: targetWorkStatus.color,
-            changedBy: 'system_auto_assignment',
-            reason: 'incoming_call',
-            timestamp: new Date().toISOString()
-          };
-          
-          const userSpecificTopic = `telefonia/users/status-change/${assignedAgent._id}`;
-          mqttService.publish(userSpecificTopic, statusChangeData);
-          
-        }
-        
-        // Actualizar la variable local para continuar con el flujo
-        userStatus.status = targetWorkStatus.value;
-        userStatus.isActive = true;
-        
-      } catch (error) {
-        console.error(`❌ Error cambiando estado del agente ${assignedAgent.name}:`, error);
-        return res.status(500).json({ 
-          success: false, 
-          message: `Error interno cambiando estado del agente ${assignedAgent.name}`,
-          agentInfo: {
-            idAgent: params.idAgent,
-            agentName: assignedAgent.name,
-            reason: 'status_change_error',
-            error: error.message
-          }
-        });
-      }
-    }
-    
-    
-    // 🚨 VERIFICACIÓN ESTRICTA DE CONEXIÓN ACTIVA
-    const io = req.app.get('io');
-    let isSocketActive = false;
-    let socketConnectionDetails = null;
-    
-    // Verificar si el socket realmente existe y está conectado
-    if (userStatus.socketId && io) {
-      try {
-        const socket = io.sockets.sockets.get(userStatus.socketId);
-        if (socket && socket.connected) {
-          isSocketActive = true;
-          socketConnectionDetails = {
-            socketId: userStatus.socketId,
-            connected: socket.connected,
-            rooms: Array.from(socket.rooms || [])
-          };
-        }
-      } catch (socketError) {
-        console.error(`❌ Error verificando socket ${userStatus.socketId}:`, socketError);
-      }
-    }
-    
-    // Verificar lastSeen: debe ser de los últimos 2 minutos (120 segundos)
-    const lastSeenTime = userStatus.lastSeen ? new Date(userStatus.lastSeen) : null;
-    const now = new Date();
-    const timeSinceLastSeen = lastSeenTime ? (now - lastSeenTime) / 1000 : Infinity; // en segundos
-    const MAX_IDLE_SECONDS = 120; // 2 minutos máximo de inactividad
-    
-    const isLastSeenRecent = lastSeenTime && timeSinceLastSeen <= MAX_IDLE_SECONDS;
-    
-    // Verificar que tenga al menos una conexión activa (socketId o sessionId)
-    const hasConnectionRecord = !!(userStatus.socketId || userStatus.sessionId);
-    
-    // 🚨 VALIDACIÓN ESTRICTA: El agente DEBE estar completamente activo
-    if (!isSocketActive || !isLastSeenRecent || !hasConnectionRecord) {
-      const reasons = [];
-      if (!isSocketActive) reasons.push('socket_no_activo');
-      if (!isLastSeenRecent) {
-        const minutesAgo = Math.floor(timeSinceLastSeen / 60);
-        reasons.push(`sin_actividad_${minutesAgo}_minutos`);
-      }
-      if (!hasConnectionRecord) reasons.push('sin_registro_conexion');
-      
-      const reasonText = `agent_not_actively_connected: ${reasons.join(', ')}`;
-      
-      tipificacionLogger.logDeployment(req, 
-        { 
-          name: assignedAgent.name, 
-          idAgent: params.idAgent, 
-          userId: assignedAgent._id.toString(),
-          detailedReasons: reasons,
-          timeSinceLastSeen: `${Math.floor(timeSinceLastSeen)} segundos`
-        },
-        { idLlamada: params.idLlamada },
-        'failed',
-        reasonText
-      );
-      
-      console.error('[TIPIFICACION] ❌ Error: Agente no está activo y conectado', {
-        idAgent: params.idAgent,
-        agentName: assignedAgent.name,
-        isSocketActive,
-        isLastSeenRecent,
-        hasConnectionRecord,
-        timeSinceLastSeen: `${Math.floor(timeSinceLastSeen)} segundos`,
-        socketId: userStatus.socketId,
-        sessionId: userStatus.sessionId,
-        lastSeen: lastSeenTime?.toISOString(),
-        reasons
-      });
-      
-      return res.status(400).json({ 
-        success: false, 
-        message: `El agente ${assignedAgent.name} no está activo y conectado en la plataforma`,
-        agentInfo: {
-          idAgent: params.idAgent,
-          agentName: assignedAgent.name,
-          agentEmail: assignedAgent.correo,
-          currentStatus: userStatus.status,
-          isSocketActive,
-          isLastSeenRecent,
-          hasConnectionRecord,
-          timeSinceLastSeen: `${Math.floor(timeSinceLastSeen)} segundos`,
-          lastSeen: lastSeenTime?.toISOString(),
-          socketId: userStatus.socketId,
-          sessionId: userStatus.sessionId,
-          reason: 'agent_not_actively_connected',
-          detailedReasons: reasons
-        }
-      });
-    }
-    
-    tipificacionLogger.logValidation(req, 'connection_check', 'pass', {
-      agentName: assignedAgent.name,
-      socketActive: isSocketActive,
-      lastSeenRecent: isLastSeenRecent,
-      hasConnectionRecord: hasConnectionRecord
-    });
-    
-    // Calcular carga de trabajo del agente
-    const pendingCount = await Tipificacion.countDocuments({ 
-      assignedTo: assignedAgent._id, 
-      status: 'pending' 
-    });
-    
-    
-    // 🌳 Buscar árbol de tipificaciones desde BD
-    const Tree = require('../models/tree');
-    const arbolDocument = await Tree.getTipificacionesTree();
-    const arbolTipificaciones = arbolDocument ? arbolDocument.root : [];
-    
-    // 📋 Crear historial básico para la nueva tipificación (solo el item actual)
-    const historialNuevo = [
-      {
-        _id: Date.now(),
-        idLlamada: params.idLlamada,
-        cedula: params.cedula,
-        tipoDocumento: params.tipoDocumento,
-        observacion: params.observacion,
-        createdAt: new Date(),
-      }
-    ];
-    
-    // 📡 ENVIAR POR MQTT AL AGENTE ASIGNADO
-    const mqttService = req.app.get('mqttService');
-    // Usar el userId del agente encontrado por idAgent
-    const userIdPlano = assignedAgent._id;
-    const topic = `telefonia/tipificacion/nueva/${userIdPlano}`;
-    
-    // 🎯 FUNCIÓN DE MAPEO PARA VALORES DEL MODELO
-    const mapearValores = (valor, tipo) => {
-      const mapeos = {
-        tipoDocumento: {
-          'CC': 'Cédula de ciudadanía',
-          'CE': 'Cédula de extranjería',
-          'TI': 'Tarjeta de identidad',
-          'PA': 'Pasaporte',
-          'PTP': 'Permiso temporal de permanencia'
-        },
-        nivelEscolaridad: {
-          'Universitario': 'Universitario (pregrado)',
-          'Tecnico': 'Técnico',
-          'Tecnologo': 'Tecnólogo',
-          'Postgrado': 'Postgrado (Especialización)'
-        }
-      };
-      
-      return mapeos[tipo]?.[valor] || valor;
-    };
-
-    // 🎯 CONSTRUIR DATOS DEL CLIENTE (priorizar datos existentes)
-    const datosCliente = {
-      // Información básica
-      cedula: params.cedula || '',
-      tipoDocumento: mapearValores(params.tipoDocumento, 'tipoDocumento') || '',
-      
-      // Información personal (usar datos existentes si están disponibles)
-      nombres: clienteExistente?.nombres || params.nombres || '',
-      apellidos: clienteExistente?.apellidos || params.apellidos || '',
-      fechaNacimiento: clienteExistente?.fechaNacimiento || params.fechaNacimiento || '',
-      sexo: clienteExistente?.sexo || params.sexo || '',
-      
-      // Ubicación
-      pais: clienteExistente?.pais || params.pais || '',
-      departamento: clienteExistente?.departamento || params.departamento || '',
-      ciudad: clienteExistente?.ciudad || params.ciudad || '',
-      direccion: clienteExistente?.direccion || params.direccion || '',
-      
-      // Contacto
-      telefono: clienteExistente?.telefono || params.telefono || '',
-      correo: clienteExistente?.correo || params.correo || '',
-      
-      // Demográficos
-      nivelEscolaridad: mapearValores(clienteExistente?.nivelEscolaridad || params.nivelEscolaridad, 'nivelEscolaridad') || '',
-      grupoEtnico: clienteExistente?.grupoEtnico || params.grupoEtnico || '',
-      discapacidad: clienteExistente?.discapacidad || params.discapacidad || ''
-    };
-
     const tipificacionData = {
-      idLlamada: params.idLlamada,
-      cedula: params.cedula,
-      tipoDocumento: params.tipoDocumento,
-      observacion: params.observacion,
-      historial: historialCliente, // ✅ Historial del cliente existente
-      arbol: arbolTipificaciones, // ✅ Árbol real de la BD
-      assignedTo: userIdPlano,
-      assignedToName: assignedAgent.name || 'Usuario',
-      assignedAgentId: assignedAgent.idAgent || '', // 🎯 ID del agente del sistema telefónico
-      timestamp: new Date().toISOString(),
-      type: 'nueva_tipificacion',
-      
-      // 🎯 DATOS DEL CLIENTE (con prioridad a datos existentes)
-      ...datosCliente,
-      
-      // 🎯 METADATOS CRM (se actualizará después de crear/actualizar el cliente)
-      clienteExistente: !!clienteExistente,
-      totalInteracciones: clienteExistente?.totalInteracciones || 0,
-      fechaUltimaInteraccion: clienteExistente?.fechaUltimaInteraccion || null
+      ...params, // Guardar todos los parámetros recibidos
+      idAgent: idAgentReal,
+      assignedTo: assignedAgent._id,
+      assignedToName: assignedAgent.name,
+      timestamp: new Date().toISOString()
     };
     
-    
-    // 1. Crear la nueva tipificación (pending)
-    let tipificacionDoc = null;
     try {
-      // Calcular posición en cola del agente
-      const currentQueuePosition = await Tipificacion.countDocuments({ 
-        assignedTo: userIdPlano, 
-        status: 'pending' 
-      }) + 1;
+      // 1. Guardar en Redis
+      await redisService.addTipificacionPendiente(idAgentReal, tipificacionData);
+      console.log(`✅ Tipificación ${params.idLlamada || 'N/A'} guardada en Redis para agente ${idAgentReal}`);
       
-      tipificacionDoc = await Tipificacion.create({
-        idLlamada: params.idLlamada,
-        cedula: params.cedula,
-        tipoDocumento: params.tipoDocumento,
-        observacion: params.observacion,
-        nivel1: params.nivel1,
-        nivel2: params.nivel2,
-        nivel3: params.nivel3,
-        nivel4: params.nivel4,
-        nivel5: params.nivel5,
-        historial: historialNuevo, // Solo el item actual
-        arbol: arbolTipificaciones,
-        assignedTo: userIdPlano,
-        assignedToName: assignedAgent.name || 'Usuario',
-        status: 'pending',
-        timestamp: new Date(),
-        type: 'nueva_tipificacion',
-        
-        // CAMPOS DEL CLIENTE - INFORMACIÓN PERSONAL
-        nombres: params.nombres || '',
-        apellidos: params.apellidos || '',
-        fechaNacimiento: params.fechaNacimiento ? new Date(params.fechaNacimiento) : null,
-        
-        // UBICACIÓN
-        pais: params.pais || '',
-        departamento: params.departamento || '',
-        ciudad: params.ciudad || '',
-        direccion: params.direccion || '',
-        
-        // CONTACTO
-        telefono: params.telefono || '',
-        correo: params.correo || '',
-        
-        // DEMOGRÁFICOS
-        sexo: params.sexo || '',
-        nivelEscolaridad: params.nivelEscolaridad || '',
-        grupoEtnico: params.grupoEtnico || '',
-        discapacidad: params.discapacidad || '',
-        
-        // NUEVOS CAMPOS DE GESTIÓN DE COLAS
-        priority: priority,
-        customerSegment: customerSegment,
-        estimatedTime: estimatedTime,
-        queuePosition: currentQueuePosition,
-        callbackRequested: params.callback === 'true',
-        skillRequired: params.skill || 'general',
-        timeInQueue: 0 // Se calculará dinámicamente
+      // 2. 🚀 CREAR REGISTRO EN MONGODB CON STATUS 'pending' (para poder actualizarlo después)
+      try {
+        // Verificar si ya existe
+        const existingTip = await Tipificacion.findOne({ 
+          idLlamada: params.idLlamada, 
+          assignedTo: assignedAgent._id 
+        });
+    
+        if (!existingTip) {
+          // Crear nuevo registro en MongoDB con status 'pending'
+          await Tipificacion.create({
+            idLlamada: params.idLlamada || `temp_${Date.now()}`,
+            cedula: params.cedula || '',
+            tipoDocumento: params.tipoDocumento || '',
+            observacion: params.observacion || '',
+            nivel1: params.nivel1 || '',
+            nivel2: params.nivel2 || '',
+            nivel3: params.nivel3 || '',
+            nivel4: params.nivel4 || '',
+            nivel5: params.nivel5 || '',
+            historial: params.historial || [],
+            arbol: params.arbol || [],
+            assignedTo: assignedAgent._id,
+            assignedToName: assignedAgent.name,
+            nombres: params.nombres || '',
+            apellidos: params.apellidos || '',
+            fechaNacimiento: params.fechaNacimiento ? new Date(params.fechaNacimiento) : null,
+            pais: params.pais || '',
+            departamento: params.departamento || '',
+            ciudad: params.ciudad || '',
+            direccion: params.direccion || '',
+            telefono: params.telefono || '',
+            correo: params.correo || '',
+            sexo: params.sexo || '',
+            nivelEscolaridad: params.nivelEscolaridad || '',
+            grupoEtnico: params.grupoEtnico || '',
+            discapacidad: params.discapacidad || '',
+            status: 'pending', // ⚠️ IMPORTANTE: status 'pending' para poder actualizarlo
+            timestamp: new Date(),
+            priority: params.priority || 1
+          });
+          console.log(`✅ Registro creado en MongoDB con status 'pending' para idLlamada ${params.idLlamada}`);
+        } else {
+          console.log(`ℹ️ Registro ya existe en MongoDB para idLlamada ${params.idLlamada}`);
+        }
+      } catch (mongoError) {
+        console.error('⚠️ Error creando registro en MongoDB (continuando...):', mongoError.message);
+        // Continuar aunque falle MongoDB, Redis es lo principal
+      }
+      
+      // 3. 🚀 EMITIR EVENTO POR SOCKET.IO PARA ACTUALIZACIÓN EN TIEMPO REAL
+      const io = req.app.get('io');
+      if (io) {
+        // Emitir a la sala del agente específico por idAgent
+        io.to(`agent_${idAgentReal}`).emit('nueva_tipificacion', {
+          idAgent: idAgentReal,
+          tipificacion: tipificacionData,
+          timestamp: new Date().toISOString()
+        });
+        console.log(`📡 Evento Socket.IO emitido para agente ${idAgentReal}`);
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `Tipificación guardada en Redis y MongoDB para ${assignedAgent.name}`,
+        idAgent: idAgentReal,
+        agentName: assignedAgent.name
       });
-      // Tipificación creada exitosamente
-    } catch (err) {
-      console.error('❌ Error creando registro de tipificación:', err);
+    } catch (redisError) {
+      console.error('❌ Error guardando en Redis:', redisError);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Error guardando tipificación en Redis',
+        error: redisError.message 
+      });
     }
+    
+  } catch (error) {
+    console.error('[TIPIFICACION] ❌ Error crítico:', error);
+    res.status(500).json({ 
+          success: false, 
+      message: 'Error interno del servidor',
+      error: error.message 
+        });
+      }
+});
 
-    // 2. Buscar historial (ahora sí existe la nueva y las anteriores)
-    let historialPrevio = [];
-    try {
-      // Buscando historial
-      historialPrevio = await Tipificacion.find({
-        idLlamada: params.idLlamada,
-        status: 'success',
-        _id: { $ne: tipificacionDoc?._id }
+// 🚀 NUEVO ENDPOINT: GET /api/tipificacion/formulario/:idAgente
+// Renderiza el formulario de tipificación directamente desde el backend con actualizaciones en tiempo real
+router.get('/api/tipificacion/formulario/:idAgente', async (req, res) => {
+  try {
+    const { idAgente } = req.params;
+    
+    // Buscar agente por idAgent
+    const User = require('../models/users');
+    const redisService = require('../services/redisService');
+    
+    // Buscar agente
+    const agent = await User.findOne({ 
+      idAgent: idAgente,
+      active: true 
+    }).lean();
+    
+    if (!agent) {
+      return res.status(404).render('error', {
+        message: `Agente con idAgent ${idAgente} no encontrado`,
+        error: 'AGENT_NOT_FOUND'
+      });
+    }
+    
+    // Obtener todas las tipificaciones pendientes desde Redis (sin remover)
+    const tipificacionesPendientes = await redisService.getAllTipificacionesPendientes(idAgente);
+    
+    // 🚀 ENRIQUECER TIPIFICACIONES CON DATOS ACTUALIZADOS DEL CRM
+    const Cliente = require('../models/cliente');
+    const tipificacionesEnriquecidas = await Promise.all(
+      tipificacionesPendientes.map(async (tip) => {
+        // Si tiene cédula, buscar datos actualizados del cliente en el CRM
+        if (tip.cedula) {
+          try {
+            const cliente = await Cliente.buscarPorCedula(tip.cedula);
+            if (cliente) {
+              // Enriquecer tipificación con datos actualizados del CRM
+              return {
+                ...tip,
+                tipoDocumento: cliente.tipoDocumento || tip.tipoDocumento || '',
+                nombres: cliente.nombres || tip.nombres || '',
+                apellidos: cliente.apellidos || tip.apellidos || '',
+                fechaNacimiento: cliente.fechaNacimiento || tip.fechaNacimiento || '',
+                sexo: cliente.sexo || tip.sexo || '',
+                pais: cliente.pais || tip.pais || 'Colombia',
+                departamento: cliente.departamento || tip.departamento || '',
+                ciudad: cliente.ciudad || tip.ciudad || '',
+                direccion: cliente.direccion || tip.direccion || '',
+                telefono: cliente.telefono || tip.telefono || '',
+                correo: cliente.correo || tip.correo || '',
+                nivelEscolaridad: cliente.nivelEscolaridad || tip.nivelEscolaridad || '',
+                grupoEtnico: cliente.grupoEtnico || tip.grupoEtnico || '',
+                discapacidad: cliente.discapacidad || tip.discapacidad || ''
+    };
+            }
+          } catch (error) {
+            console.error(`❌ Error enriqueciendo tipificación ${tip.idLlamada}:`, error);
+          }
+        }
+        // Si no hay cliente en CRM, retornar tipificación original
+        return tip;
       })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .lean();
-      if (historialPrevio.length === 0) {
-        historialPrevio = await Tipificacion.find({
-          cedula: params.cedula,
-          status: 'success',
-          _id: { $ne: tipificacionDoc?._id }
-        })
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .lean();
-      }
-      
-      // 🌳 ACTUALIZAR EL ÁRBOL EN CADA TIPIFICACIÓN DEL HISTORIAL
-      // Reemplazar el árbol viejo con el árbol actual de la BD
-      historialPrevio = historialPrevio.map(tip => {
-        return {
-          ...tip,
-          arbol: arbolTipificaciones // ✅ Usar el árbol actual en lugar del viejo
-        };
-      });
-      
-    } catch (err) {
-      console.error('❌ Error buscando historial de tipificaciones:', err);
-    }
-
-    // 🎯 CRM: SOLO CREAR/ACTUALIZAR CLIENTE SIN AGREGAR INTERACCIÓN (se hará al completar)
-    if (params.cedula) {
-      
-      try {
-        const Cliente = require('../models/cliente');
-        
-        // Solo crear o actualizar cliente, SIN agregar interacción
-        const clienteActualizado = await Cliente.crearOActualizar(datosCliente);
-        
-        // NO agregar interacción aquí - se hará al completar la tipificación
-        
-        // Actualizar datos del cliente en tipificacionData
-        // Si el cliente se creó o ya existía, marcarlo como existente
-        tipificacionData.clienteExistente = true;
-        tipificacionData.totalInteracciones = clienteActualizado.totalInteracciones;
-        tipificacionData.fechaUltimaInteraccion = clienteActualizado.fechaUltimaInteraccion;
-        
-        
-      } catch (error) {
-        console.error('❌ Error creando/actualizando cliente:', error);
-        console.error('❌ Stack trace:', error.stack);
-        // Continuar sin fallar la tipificación
-      }
-    } else {
-    }
-
-    // 3. Asigna el historial y publica MQTT
-    tipificacionData.historial = historialPrevio;
-    
-    let mqttPublished = false;
-    if (mqttService && mqttService.publish) {
-      try {
-        mqttService.publish(topic, tipificacionData);
-        mqttPublished = true;
-      } catch (mqttError) {
-        console.error('❌ Error publicando por MQTT:', mqttError);
-      }
-    } else {
-      console.error('❌ mqttService no disponible');
-    }
-    
-    // 🚨 LOG DE DESPLIEGUE EXITOSO
-    tipificacionLogger.logDeployment(req, 
-      { 
-        name: assignedAgent.name, 
-        idAgent: params.idAgent, 
-        userId: userIdPlano.toString()
-      },
-      { 
-        idLlamada: params.idLlamada,
-        cedula: params.cedula || 'N/A',
-        mqttPublished: mqttPublished,
-        topic: topic
-      },
-      'success'
     );
     
-    res.json({ 
-      success: true, 
-      assignedTo: userIdPlano,
-      assignedToName: assignedAgent.name,
-      historial: historialPrevio,
-      message: `Tipificación enviada por MQTT a ${assignedAgent.name}${statusAutoChanged ? ' (estado cambiado automáticamente)' : ''}`,
-      method: 'Asignación directa por idAgent del sistema telefónico',
-      agentInfo: {
-        idAgent: params.idAgent,
-        idAgentOriginal: req.query.idAgent, // ID original recibido del sistema telefónico
-        idAgentDecoded: idAgentReal, // ID decodificado y procesado
-        agentName: assignedAgent.name,
-        agentEmail: assignedAgent.correo,
-        agentStatus: userStatus ? userStatus.status : 'sin_estado',
-        pendingCount: pendingCount,
-        statusAutoChanged: statusAutoChanged,
-        previousStatus: previousStatus
+    // Obtener árbol de tipificaciones
+    const Tree = require('../models/tree');
+    const arbolDocument = await Tree.getTipificacionesTree();
+    const arbol = arbolDocument ? arbolDocument.root : [];
+    
+    // Obtener WebSocket URL para el frontend
+    const wsUrl = process.env.WEBSOCKET_URL || `http://${req.get('host')}`;
+    
+    // Renderizar formulario con soporte para tiempo real (usar .html explícitamente)
+    res.render('tipificacion-formulario.html', {
+      agent: {
+        idAgent: idAgente,
+        name: agent.name,
+        email: agent.correo,
+        userId: agent._id
+      },
+      tipificaciones: tipificacionesEnriquecidas,
+      arbol: arbol,
+      hasTipificaciones: tipificacionesEnriquecidas.length > 0,
+      websocketUrl: wsUrl,
+      // Datos para JavaScript del frontend
+      config: {
+        idAgent: idAgente,
+        agentId: agent._id.toString()
       }
     });
     
   } catch (error) {
-    console.error('[TIPIFICACION] ❌ Error crítico en /api/tipificacion/formulario:', {
-      error: error.message,
-      stack: error.stack,
-      url: req.url,
-      query: req.query,
-      ip: req.ip,
-      userAgent: req.get('user-agent'),
-      timestamp: new Date().toISOString()
+    console.error('❌ Error renderizando formulario de tipificación:', error);
+    res.status(500).render('error', {
+      message: 'Error cargando formulario de tipificación',
+      error: error.message
     });
+  }
+});
+
+// 🚀 ENDPOINT SSE: Server-Sent Events para actualizaciones en tiempo real
+router.get('/api/tipificacion/stream/:idAgente', async (req, res) => {
+  try {
+    const { idAgente } = req.params;
+    
+    // Configurar headers para SSE
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    const redisService = require('../services/redisService');
+    let lastCount = 0;
+    
+    // Función para enviar actualización
+    const sendUpdate = async () => {
+      try {
+        const count = await redisService.countTipificacionesPendientes(idAgente);
+        
+        if (count !== lastCount) {
+          const tipificacionesPendientes = await redisService.getAllTipificacionesPendientes(idAgente);
+          
+          // 🚀 ENRIQUECER TIPIFICACIONES CON DATOS ACTUALIZADOS DEL CRM (por cédula)
+          const Cliente = require('../models/cliente');
+          const tipificacionesEnriquecidas = await Promise.all(
+            tipificacionesPendientes.map(async (tip) => {
+              // Si tiene cédula, buscar datos actualizados del cliente en el CRM
+              if (tip.cedula) {
+                try {
+                  const cliente = await Cliente.buscarPorCedula(tip.cedula);
+                  if (cliente) {
+                    // Enriquecer tipificación con datos actualizados del CRM
+                    return {
+                      ...tip,
+                      tipoDocumento: cliente.tipoDocumento || tip.tipoDocumento || '',
+                      nombres: cliente.nombres || tip.nombres || '',
+                      apellidos: cliente.apellidos || tip.apellidos || '',
+                      fechaNacimiento: cliente.fechaNacimiento || tip.fechaNacimiento || '',
+                      sexo: cliente.sexo || tip.sexo || '',
+                      pais: cliente.pais || tip.pais || 'Colombia',
+                      departamento: cliente.departamento || tip.departamento || '',
+                      ciudad: cliente.ciudad || tip.ciudad || '',
+                      direccion: cliente.direccion || tip.direccion || '',
+                      telefono: cliente.telefono || tip.telefono || '',
+                      correo: cliente.correo || tip.correo || '',
+                      nivelEscolaridad: cliente.nivelEscolaridad || tip.nivelEscolaridad || '',
+                      grupoEtnico: cliente.grupoEtnico || tip.grupoEtnico || '',
+                      discapacidad: cliente.discapacidad || tip.discapacidad || ''
+                    };
+                  }
+                } catch (error) {
+                  console.error(`❌ Error enriqueciendo tipificación ${tip.idLlamada} en SSE:`, error);
+                }
+              }
+              // Si no hay cliente en CRM, retornar tipificación original
+              return tip;
+            })
+          );
+          
+          res.write(`data: ${JSON.stringify({
+            type: 'update',
+            count: count,
+            tipificaciones: tipificacionesEnriquecidas,
+            timestamp: new Date().toISOString()
+          })}\n\n`);
+          lastCount = count;
+        } else {
+          // Heartbeat para mantener conexión viva
+          res.write(`data: ${JSON.stringify({
+            type: 'heartbeat',
+            timestamp: new Date().toISOString()
+          })}\n\n`);
+        }
+      } catch (error) {
+        console.error('❌ Error en SSE:', error);
+        res.write(`data: ${JSON.stringify({
+          type: 'error',
+          message: error.message
+        })}\n\n`);
+      }
+    };
+    
+    // Enviar actualización inicial
+    await sendUpdate();
+    
+    // Enviar actualizaciones cada 2 segundos
+    const interval = setInterval(async () => {
+      if (!res.writableEnded) {
+        await sendUpdate();
+      } else {
+        clearInterval(interval);
+      }
+    }, 2000);
+    
+    // Limpiar al cerrar conexión
+    req.on('close', () => {
+      clearInterval(interval);
+      res.end();
+      });
+      
+  } catch (error) {
+    console.error('❌ Error en SSE stream:', error);
+    res.status(500).end();
+    }
+});
+
+// 🚀 Endpoint GET para obtener tipificaciones pendientes (para recarga inmediata)
+router.get('/api/tipificacion/pendientes/:idAgente', async (req, res) => {
+  try {
+    const { idAgente } = req.params;
+    const redisService = require('../services/redisService');
+    
+    // Obtener tipificaciones desde Redis
+    const tipificacionesPendientes = await redisService.getAllTipificacionesPendientes(idAgente);
+    
+    // 🚀 ENRIQUECER TIPIFICACIONES CON DATOS ACTUALIZADOS DEL CRM (por cédula)
+    const Cliente = require('../models/cliente');
+    const tipificacionesEnriquecidas = await Promise.all(
+      tipificacionesPendientes.map(async (tip) => {
+        // Si tiene cédula, buscar datos actualizados del cliente en el CRM
+        if (tip.cedula) {
+          try {
+            const cliente = await Cliente.buscarPorCedula(tip.cedula);
+            if (cliente) {
+              // Enriquecer tipificación con datos actualizados del CRM
+              return {
+                ...tip,
+                tipoDocumento: cliente.tipoDocumento || tip.tipoDocumento || '',
+                nombres: cliente.nombres || tip.nombres || '',
+                apellidos: cliente.apellidos || tip.apellidos || '',
+                fechaNacimiento: cliente.fechaNacimiento || tip.fechaNacimiento || '',
+                sexo: cliente.sexo || tip.sexo || '',
+                pais: cliente.pais || tip.pais || 'Colombia',
+                departamento: cliente.departamento || tip.departamento || '',
+                ciudad: cliente.ciudad || tip.ciudad || '',
+                direccion: cliente.direccion || tip.direccion || '',
+                telefono: cliente.telefono || tip.telefono || '',
+                correo: cliente.correo || tip.correo || '',
+                nivelEscolaridad: cliente.nivelEscolaridad || tip.nivelEscolaridad || '',
+                grupoEtnico: cliente.grupoEtnico || tip.grupoEtnico || '',
+                discapacidad: cliente.discapacidad || tip.discapacidad || ''
+              };
+            }
+          } catch (error) {
+            console.error(`❌ Error enriqueciendo tipificación ${tip.idLlamada}:`, error);
+          }
+        }
+        // Si no hay cliente en CRM, retornar tipificación original
+        return tip;
+      })
+    );
+    
+    res.json({
+      success: true,
+      tipificaciones: tipificacionesEnriquecidas,
+      count: tipificacionesEnriquecidas.length
+    });
+      } catch (error) {
+    console.error('❌ Error obteniendo tipificaciones pendientes:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error obteniendo tipificaciones pendientes',
+      error: error.message
+    });
+  }
+});
+
+// 🚀 Endpoint GET para obtener historial de tipificaciones del cliente (por cédula)
+// IMPORTANTE: Solo devuelve datos del cliente, NO información del agente
+router.get('/api/tipificacion/historial/cliente/:cedula', async (req, res) => {
+      try {
+    const { cedula } = req.params;
+    const { limite = 20 } = req.query;
+    
+    if (!cedula || cedula === '-') {
+      return res.json({
+        success: true,
+        historial: [],
+        count: 0
+      });
+      }
+    
+    const Tipificacion = require('../models/tipificacion');
+    
+    // Buscar TODAS las tipificaciones completadas del cliente (por cédula)
+    // NO filtrar por agente, solo por cédula del cliente
+    const historial = await Tipificacion.find({ 
+      cedula: cedula,
+      status: 'success'
+    })
+    .select('idLlamada cedula tipoDocumento nombres apellidos telefono correo observacion nivel1 nivel2 nivel3 nivel4 nivel5 timestamp') // Solo datos del cliente
+    .sort({ timestamp: -1 }) // Más recientes primero
+    .limit(parseInt(limite))
+    .lean();
+    
+    res.json({ 
+      success: true, 
+      historial: historial,
+      count: historial.length
+    });
+  } catch (error) {
+    console.error('❌ Error obteniendo historial del cliente:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Error interno del servidor',
+      message: 'Error obteniendo historial del cliente',
       error: error.message 
     });
   }
@@ -1124,12 +796,17 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
 // Endpoint para actualizar tipificación (desde el frontend)
 router.post('/api/tipificacion/actualizar', async (req, res) => {
   try {
+    // 🚨 VALIDACIÓN: Parámetros requeridos
     if (!req.body.idLlamada || !req.body.assignedTo) {
       console.error('[TIPIFICACION] ❌ Error actualizando: Faltan parámetros requeridos', {
         hasIdLlamada: !!req.body.idLlamada,
         hasAssignedTo: !!req.body.assignedTo,
         ip: req.ip,
         userAgent: req.get('user-agent')
+      });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Faltan parámetros requeridos: idLlamada y assignedTo son obligatorios' 
       });
     }
     // 🔧 DECODIFICAR CARACTERES ESPECIALES (tildes, acentos, etc.)
@@ -1205,17 +882,45 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
       }
     });
     
-    // Buscar la tipificación pendiente por idLlamada y assignedTo
+    // 🚀 BUSCAR TIPIFICACIÓN EN REDIS PRIMERO (nueva arquitectura)
+    const redisService = require('../services/redisService');
+    const User = require('../models/users');
     const Tipificacion = require('../models/tipificacion');
-    const tip = await Tipificacion.findOne({ idLlamada, assignedTo, status: 'pending' });
+    
+    // Obtener idAgent del usuario para buscar en Redis
+    const user = await User.findById(assignedTo).lean();
+    if (!user || !user.idAgent) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Usuario no encontrado o sin idAgent' 
+      });
+    }
+    
+    // Buscar en Redis primero
+    const tipificacionesRedis = await redisService.getAllTipificacionesPendientes(user.idAgent);
+    let tipificacionData = tipificacionesRedis.find(t => 
+      (t.idLlamada || t.id) === idLlamada
+    );
+    
+    // Si no está en Redis, buscar en MongoDB (fallback)
+    let tip = null;
+    if (!tipificacionData) {
+      tip = await Tipificacion.findOne({ idLlamada, assignedTo, status: 'pending' });
     if (!tip) {
       console.error('[TIPIFICACION] ❌ Error actualizando: Tipificación no encontrada', {
         idLlamada,
         assignedTo,
+          idAgent: user.idAgent,
         ip: req.ip,
         userAgent: req.get('user-agent')
       });
-      return res.status(404).json({ success: false, message: 'Tipificación no encontrada' });
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Tipificación no encontrada en Redis ni MongoDB' 
+        });
+      }
+      // Convertir MongoDB doc a objeto plano
+      tipificacionData = tip.toObject ? tip.toObject() : tip;
     }
     
     // 🎯 CRM: CREAR O ACTUALIZAR CLIENTE
@@ -1270,41 +975,92 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
       }
     }
     
-    // Actualizar campos básicos de la tipificación
-    tip.cedula = cedula;
-    tip.tipoDocumento = tipoDocumento;
-    tip.observacion = observacion;
-    tip.nivel1 = nivel1;
-    tip.nivel2 = nivel2;
-    tip.nivel3 = nivel3;
-    tip.nivel4 = nivel4;
-    tip.nivel5 = nivel5;
-    tip.historial = historial || tip.historial;
-    tip.arbol = arbol || tip.arbol;
+    // 🚀 GUARDAR EN MONGODB (crear o actualizar)
+    let tipificacionDoc = null;
+    try {
+      // Buscar si ya existe en MongoDB
+      tipificacionDoc = await Tipificacion.findOne({ idLlamada, assignedTo });
+      
+      if (tipificacionDoc) {
+        // Actualizar existente
+        tipificacionDoc.cedula = cedula;
+        tipificacionDoc.tipoDocumento = tipoDocumento;
+        tipificacionDoc.observacion = observacion;
+        tipificacionDoc.nivel1 = nivel1;
+        tipificacionDoc.nivel2 = nivel2;
+        tipificacionDoc.nivel3 = nivel3;
+        tipificacionDoc.nivel4 = nivel4;
+        tipificacionDoc.nivel5 = nivel5;
+        tipificacionDoc.historial = historial || tipificacionDoc.historial;
+        tipificacionDoc.arbol = arbol || tipificacionDoc.arbol;
+        tipificacionDoc.nombres = nombres || tipificacionDoc.nombres;
+        tipificacionDoc.apellidos = apellidos || tipificacionDoc.apellidos;
+        tipificacionDoc.fechaNacimiento = fechaNacimiento ? new Date(fechaNacimiento) : tipificacionDoc.fechaNacimiento;
+        tipificacionDoc.pais = pais || tipificacionDoc.pais;
+        tipificacionDoc.departamento = departamento || tipificacionDoc.departamento;
+        tipificacionDoc.ciudad = ciudad || tipificacionDoc.ciudad;
+        tipificacionDoc.direccion = direccion || tipificacionDoc.direccion;
+        tipificacionDoc.telefono = telefono || tipificacionDoc.telefono;
+        tipificacionDoc.correo = correo || tipificacionDoc.correo;
+        tipificacionDoc.sexo = sexo || tipificacionDoc.sexo;
+        tipificacionDoc.nivelEscolaridad = nivelEscolaridad || tipificacionDoc.nivelEscolaridad;
+        tipificacionDoc.grupoEtnico = grupoEtnico || tipificacionDoc.grupoEtnico;
+        tipificacionDoc.discapacidad = discapacidad || tipificacionDoc.discapacidad;
+        tipificacionDoc.status = 'success';
+        await tipificacionDoc.save();
+      } else {
+        // Crear nuevo registro
+        tipificacionDoc = await Tipificacion.create({
+          idLlamada,
+          cedula,
+          tipoDocumento,
+          observacion,
+          nivel1,
+          nivel2,
+          nivel3,
+          nivel4,
+          nivel5,
+          historial: historial || [],
+          arbol: arbol || [],
+          assignedTo,
+          assignedToName: user.name || '',
+          nombres: nombres || '',
+          apellidos: apellidos || '',
+          fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : null,
+          pais: pais || '',
+          departamento: departamento || '',
+          ciudad: ciudad || '',
+          direccion: direccion || '',
+          telefono: telefono || '',
+          correo: correo || '',
+          sexo: sexo || '',
+          nivelEscolaridad: nivelEscolaridad || '',
+          grupoEtnico: grupoEtnico || '',
+          discapacidad: discapacidad || '',
+          status: 'success',
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error guardando en MongoDB:', error);
+      // Continuar aunque falle MongoDB
+    }
     
-    // Actualizar campos del cliente en la tipificación
-    tip.nombres = nombres || tip.nombres;
-    tip.apellidos = apellidos || tip.apellidos;
-    tip.fechaNacimiento = fechaNacimiento ? new Date(fechaNacimiento) : tip.fechaNacimiento;
-    tip.pais = pais || tip.pais;
-    tip.departamento = departamento || tip.departamento;
-    tip.ciudad = ciudad || tip.ciudad;
-    tip.direccion = direccion || tip.direccion;
-    tip.telefono = telefono || tip.telefono;
-    tip.correo = correo || tip.correo;
-    tip.sexo = sexo || tip.sexo;
-    tip.nivelEscolaridad = nivelEscolaridad || tip.nivelEscolaridad;
-    tip.grupoEtnico = grupoEtnico || tip.grupoEtnico;
-    tip.discapacidad = discapacidad || tip.discapacidad;
-    
-    tip.status = 'success';
-    await tip.save();
+    // 🚀 REMOVER DE REDIS (ya fue atendida)
+    try {
+      const tipificacionId = tipificacionData.id || tipificacionData.idLlamada || idLlamada;
+      await redisService.marcarTipificacionAtendida(user.idAgent, tipificacionId);
+      console.log(`✅ Tipificación ${idLlamada} removida de Redis y guardada en MongoDB`);
+    } catch (redisError) {
+      console.error('❌ Error removiendo de Redis:', redisError);
+      // Continuar aunque falle Redis
+    }
     
     // Respuesta con información del CRM
     res.json({ 
       success: true, 
-      message: 'Tipificación actualizada', 
-      tipificacion: tip,
+      message: 'Tipificación actualizada y guardada', 
+      tipificacion: tipificacionDoc || tipificacionData,
       crm: {
         clienteActualizado: !!clienteActualizado,
         totalInteracciones: clienteActualizado?.totalInteracciones || 0
@@ -1713,6 +1469,92 @@ router.post('/api/tipificacion/assign-pending', async (req, res) => {
 });
 
 // 🎯 ENDPOINTS CRM - GESTIÓN DE CLIENTES
+
+// Endpoint para actualizar datos del cliente (desde modal de edición)
+router.post('/api/crm/cliente/actualizar', async (req, res) => {
+  try {
+    const {
+      cedula,
+      tipoDocumento,
+      nombres,
+      apellidos,
+      fechaNacimiento,
+      sexo,
+      pais,
+      departamento,
+      ciudad,
+      direccion,
+      telefono,
+      correo,
+      nivelEscolaridad,
+      grupoEtnico,
+      discapacidad
+    } = req.body;
+
+    if (!cedula) {
+      return res.status(400).json({
+        success: false,
+        message: 'La cédula es obligatoria'
+      });
+    }
+
+    const Cliente = require('../models/cliente');
+    
+    // Datos del cliente para crear/actualizar
+    const datosCliente = {
+      cedula: cedula,
+      tipoDocumento: tipoDocumento || '',
+      nombres: nombres || '',
+      apellidos: apellidos || '',
+      fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : null,
+      sexo: sexo || '',
+      pais: pais || 'Colombia',
+      departamento: departamento || '',
+      ciudad: ciudad || '',
+      direccion: direccion || '',
+      telefono: telefono || '',
+      correo: correo || '',
+      nivelEscolaridad: nivelEscolaridad || '',
+      grupoEtnico: grupoEtnico || '',
+      discapacidad: discapacidad || ''
+    };
+
+    // Crear o actualizar cliente en el CRM
+    const clienteActualizado = await Cliente.crearOActualizar(datosCliente);
+
+    res.json({
+      success: true,
+      message: 'Cliente actualizado correctamente en el CRM',
+      cliente: {
+        _id: clienteActualizado._id,
+        cedula: clienteActualizado.cedula,
+        tipoDocumento: clienteActualizado.tipoDocumento,
+        nombres: clienteActualizado.nombres,
+        apellidos: clienteActualizado.apellidos,
+        fechaNacimiento: clienteActualizado.fechaNacimiento,
+        sexo: clienteActualizado.sexo,
+        pais: clienteActualizado.pais,
+        departamento: clienteActualizado.departamento,
+        ciudad: clienteActualizado.ciudad,
+        direccion: clienteActualizado.direccion,
+        telefono: clienteActualizado.telefono,
+        correo: clienteActualizado.correo,
+        nivelEscolaridad: clienteActualizado.nivelEscolaridad,
+        grupoEtnico: clienteActualizado.grupoEtnico,
+        discapacidad: clienteActualizado.discapacidad,
+        fechaUltimaInteraccion: clienteActualizado.fechaUltimaInteraccion,
+        totalInteracciones: clienteActualizado.totalInteracciones
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error actualizando cliente en CRM:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error actualizando cliente en el CRM',
+      error: error.message
+    });
+  }
+});
 
 // Endpoint para buscar cliente por cédula
 router.get('/api/crm/cliente/:cedula', async (req, res) => {

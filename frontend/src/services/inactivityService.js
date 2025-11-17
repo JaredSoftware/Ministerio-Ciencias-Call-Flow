@@ -137,7 +137,7 @@ class InactivityService {
     this.warningTimeout = setTimeout(() => {
       // Solo mostrar advertencia si NO está en ruta de actividad virtual
       if (!this.isInVirtualActivityRoute()) {
-        this.showInactivityWarning();
+      this.showInactivityWarning();
       }
     }, this.warningTime);
 
@@ -145,7 +145,7 @@ class InactivityService {
     this.timeout = setTimeout(() => {
       // Solo hacer logout si NO está en ruta de actividad virtual
       if (!this.isInVirtualActivityRoute()) {
-        this.handleInactivity();
+      this.handleInactivity();
       } else {
         // Si está en /work, reiniciar el timer (mantener sesión activa)
         console.log('✅ [INACTIVITY] Usuario en /work, manteniendo sesión activa');

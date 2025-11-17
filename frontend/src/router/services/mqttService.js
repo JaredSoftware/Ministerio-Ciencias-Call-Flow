@@ -166,7 +166,7 @@ class MQTTService {
       
       // No rechazar la promesa para permitir reconexión
       if (!this.firstDisconnectionTime) {
-        reject(error);
+      reject(error);
       }
     });
 
@@ -217,7 +217,7 @@ class MQTTService {
       }
       return originalEmit(event, ...args);
     };
-    
+
     this.client.on('message', (topic, message) => {
       this.handleMessage(topic, message);
     });

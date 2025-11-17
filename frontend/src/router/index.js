@@ -12,7 +12,8 @@ import Signup from "../views/Signup.vue";
 import Signin from "../views/Signin.vue";
 import users from "../views/users.vue";
 import ActiveUsers from "../views/ActiveUsers.vue";
-import Work from "../views/Work.vue";
+// Work.vue ahora muestra un popup con iframe del formulario EJS
+// import Work from "../views/Work.vue"; // Cargado dinámicamente
 import TreeAdmin from "../views/TreeAdmin.vue";
 
 import store from "../store/index"; // Importa tu store de Vuex
@@ -186,7 +187,7 @@ const routes = [
   {
     path: "/work",
     name: "Work",
-    component: Work,
+    component: () => import("../views/Work.vue"),
     meta: {
       requiresAuth: true,
       permissions: [] // Acceso libre para usuarios autenticados

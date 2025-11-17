@@ -63,16 +63,59 @@ const io = socketIo(server, {
   }
 });
 // Configurar sesiones mejoradas
+// Intentar usar Redis si está disponible, sino usar MemoryStore
+let sessionStore = null;
+try {
+  const RedisStore = require("connect-redis").default;
+  const redis = require("redis");
+  
+  const redisClient = redis.createClient({
+    socket: {
+      host: process.env.REDIS_HOST || 'localhost',
+      port: process.env.REDIS_PORT || 6379
+    }
+  });
+
+  redisClient.on('error', (err) => {
+    console.error('❌ Error en Redis para sesiones:', err);
+  });
+
+  redisClient.on('connect', () => {
+    console.log('🔄 Conectando Redis para sesiones...');
+  });
+
+  redisClient.on('ready', () => {
+    console.log('✅ Redis para sesiones conectado');
+  });
+
+  // Conectar Redis (no bloqueante)
+  redisClient.connect().catch((err) => {
+    console.error('❌ Error conectando Redis para sesiones:', err);
+    console.log('⚠️ Usando MemoryStore para sesiones (no recomendado para producción)');
+  });
+
+  sessionStore = new RedisStore({ 
+    client: redisClient,
+    prefix: 'session:'
+  });
+  
+  console.log('✅ Redis Store configurado para sesiones');
+} catch (error) {
+  console.warn('⚠️ connect-redis no disponible, usando MemoryStore:', error.message);
+  console.warn('⚠️ Para producción, instala: npm install connect-redis');
+  sessionStore = null; // Usará MemoryStore por defecto
+}
+
 const sessionMiddleware = session({
+  store: sessionStore || undefined, // Si es null, usa MemoryStore por defecto
   secret: process.env.SESSION_SECRET || "ministerio_educacion_secret_key",
   resave: false,
-  saveUninitialized: true, // Cambiar a true para crear sesiones
+  saveUninitialized: true,
   cookie: { 
     secure: false,
     maxAge: 24 * 60 * 60 * 1000,
     httpOnly: false,
     sameSite: 'lax'
-    // Sin domain para que funcione en cualquier dominio/IP
   },
   name: 'ministerio_educacion_session'
 });
@@ -128,7 +171,8 @@ app.use(cors({
   credentials: true, // Permitir cookies y credentials
   allowedHeaders: ["Origin", "X-Requested-With", "Content-Type", "Accept", "Authorization"]
 }));
-app.use(serveStatic(path.join(__dirname, "./dist")));
+// 🚀 DIST se maneja con ruta catch-all más abajo (después de las rutas)
+// app.use(serveStatic(path.join(__dirname, "./dist"))); // Movido a catch-all
 // Configurar express-session
 
 //const srvRenderFunctions = require(path.resolve(__dirname, 'services', 'renderfn.js'));
@@ -231,11 +275,46 @@ app.use(
   "/qs",
   express.static(path.join(__dirname, "node_modules", "@types", "timers"))
 );
+app.use(
+  "/vue",
+  express.static(path.join(__dirname, "node_modules", "vue", "dist"))
+);
 //app.use("/fontAwesome",express.static(path.join(__dirname, "node_modules","font-awesome")));
 //app.use((req, res, next)=>{res.locals.db = {MongoClient, url, client,dbName},next();});
 
 //routes
 app.use(require("./routes/index.routes"));
+
+// 🚀 SERVIR ARCHIVOS ESTÁTICOS DEL DIST (si existen)
+// Solo archivos estáticos (JS, CSS, imágenes), no index.html
+app.use(express.static(path.join(__dirname, "./dist"), {
+  index: false, // No servir index.html automáticamente
+  fallthrough: true // Continuar al siguiente middleware si el archivo no existe
+}));
+
+// 🚀 RUTA CATCH-ALL: Manejar ambas visuales
+// - Si dist/index.html existe: servir el frontend Vue.js
+// - Si no existe: devolver 404 o manejar según necesidad
+app.get('*', (req, res, next) => {
+  // Solo manejar rutas que no sean APIs ni archivos estáticos
+  if (req.path.startsWith('/api/') || req.path.startsWith('/socket.io/') || req.path.startsWith('/mqtt') || req.path.startsWith('/public/')) {
+    return next();
+  }
+  
+  const distIndexPath = path.join(__dirname, 'dist', 'index.html');
+  const fs = require('fs');
+  
+  // Verificar si dist/index.html existe
+  if (fs.existsSync(distIndexPath)) {
+    // Servir el frontend Vue.js (SPA routing)
+    res.sendFile(distIndexPath);
+  } else {
+    // Si dist está vacío, las rutas API y EJS ya manejaron las solicitudes
+    // Si llegamos aquí, es una ruta no encontrada
+    next();
+  }
+});
+
 //static
 app.use(express.static(path.join(__dirname, "public")));
 
