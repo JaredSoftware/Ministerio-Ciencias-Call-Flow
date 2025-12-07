@@ -1680,6 +1680,7 @@ router.get('/api/crm/cliente/:cedula', async (req, res) => {
   try {
     const { cedula } = req.params;
     const Cliente = require('../models/cliente');
+    const Tipificacion = require('../models/tipificacion');
     
     const cliente = await Cliente.buscarPorCedula(cedula);
     if (!cliente) {
@@ -1689,35 +1690,61 @@ router.get('/api/crm/cliente/:cedula', async (req, res) => {
       });
     }
     
-    // Obtener historial completo
-    const historial = cliente.obtenerHistorial(20); // Últimas 20 interacciones
+    // Obtener interacciones del array del cliente
+    let interaccionesDelCliente = cliente.interacciones || [];
+    
+    // Si el array está vacío pero hay un contador, buscar en Tipificaciones
+    if ((!interaccionesDelCliente || interaccionesDelCliente.length === 0) && cliente.totalInteracciones > 0) {
+      console.log(`⚠️ Cliente ${cedula} tiene ${cliente.totalInteracciones} interacciones pero el array está vacío. Buscando en Tipificaciones...`);
+      
+      // Buscar todas las tipificaciones completadas de este cliente
+      const tipificaciones = await Tipificacion.find({
+        cedula: cedula,
+        status: 'success'
+      })
+      .sort({ timestamp: -1 })
+      .lean();
+      
+      // Convertir tipificaciones a formato de interacciones
+      interaccionesDelCliente = tipificaciones.map(tip => ({
+        idLlamada: tip.idLlamada || tip._id?.toString() || '',
+        fecha: tip.timestamp || tip.createdAt || new Date(),
+        tipo: 'tipificacion',
+        observacion: tip.observacion || '',
+        agente: tip.assignedTo || null,
+        estado: 'completada',
+        nivel1: tip.nivel1 || '',
+        nivel2: tip.nivel2 || '',
+        nivel3: tip.nivel3 || '',
+        nivel4: tip.nivel4 || '',
+        nivel5: tip.nivel5 || '',
+        arbol: tip.arbol || []
+      }));
+      
+      console.log(`✅ Encontradas ${interaccionesDelCliente.length} interacciones en Tipificaciones para cliente ${cedula}`);
+      
+      // Si encontramos interacciones, actualizar el cliente con ellas
+      if (interaccionesDelCliente.length > 0) {
+        try {
+          cliente.interacciones = interaccionesDelCliente;
+          cliente.totalInteracciones = interaccionesDelCliente.length;
+          await cliente.save();
+          console.log(`✅ Cliente ${cedula} actualizado con ${interaccionesDelCliente.length} interacciones`);
+        } catch (updateError) {
+          console.error(`❌ Error actualizando cliente con interacciones:`, updateError);
+        }
+      }
+    }
+    
+    // Devolver cliente completo con todas sus interacciones
+    const clienteCompleto = cliente.toObject ? cliente.toObject() : cliente;
     
     res.json({
       success: true,
       cliente: {
-        _id: cliente._id,
-        cedula: cliente.cedula,
-        tipoDocumento: cliente.tipoDocumento,
-        nombres: cliente.nombres,
-        apellidos: cliente.apellidos,
-        fechaNacimiento: cliente.fechaNacimiento,
-        sexo: cliente.sexo,
-        pais: cliente.pais,
-        departamento: cliente.departamento,
-        ciudad: cliente.ciudad,
-        direccion: cliente.direccion,
-        telefono: cliente.telefono,
-        correo: cliente.correo,
-        nivelEscolaridad: cliente.nivelEscolaridad,
-        grupoEtnico: cliente.grupoEtnico,
-        discapacidad: cliente.discapacidad,
-        fechaCreacion: cliente.fechaCreacion,
-        fechaUltimaInteraccion: cliente.fechaUltimaInteraccion,
-        totalInteracciones: cliente.totalInteracciones,
-        activo: cliente.activo,
-        notas: cliente.notas
-      },
-      historial: historial
+        ...clienteCompleto,
+        interacciones: interaccionesDelCliente // Incluir todas las interacciones (del array o de Tipificaciones)
+      }
     });
   } catch (error) {
     console.error('❌ Error buscando cliente:', error);
@@ -1847,7 +1874,7 @@ router.get('/api/crm/clientes', async (req, res) => {
       .sort(sort)
       .limit(parseInt(limite))
       .skip(parseInt(offset))
-      .select('cedula tipoDocumento nombres apellidos telefono correo fechaUltimaInteraccion totalInteracciones');
+      .select('cedula tipoDocumento nombres apellidos telefono correo ciudad departamento pais direccion fechaUltimaInteraccion totalInteracciones fechaCreacion interacciones');
     
     const total = await Cliente.countDocuments(filtro);
     

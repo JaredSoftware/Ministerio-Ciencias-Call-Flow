@@ -749,6 +749,7 @@ mqttService.connect('mqtt://localhost:1884')
       // Topics de búsqueda de clientes CRM
       mqttService.client.subscribe('crm/clientes/buscar/cedula/+');
       mqttService.client.subscribe('crm/clientes/buscar/fechas/+');
+      mqttService.client.subscribe('crm/clientes/listar/todos/+');
       mqttService.client.subscribe('crm/clientes/actualizar/+');
       
       // Topics de búsqueda de tipificaciones
@@ -863,6 +864,56 @@ mqttService.connect('mqtt://localhost:1884')
             });
           } catch (err) {
             console.error('❌ Error en búsqueda por fechas MQTT:', err);
+          }
+        }
+        
+        // 📋 Listar todos los clientes (paginado)
+        if (topic.startsWith('crm/clientes/listar/todos/')) {
+          try {
+            const data = JSON.parse(message.toString());
+            const userId = topic.split('/').pop();
+            const { page = 1, limit = 50, search = '' } = data;
+            
+            const Cliente = require('./models/cliente');
+            
+            // Filtro base: activos
+            let query = { activo: true };
+            
+            // Si hay búsqueda textual (opcional)
+            if (search) {
+                const searchRegex = new RegExp(search, 'i');
+                query.$or = [
+                    { cedula: searchRegex },
+                    { nombres: searchRegex },
+                    { apellidos: searchRegex },
+                    { correo: searchRegex }
+                ];
+            }
+            
+            const skip = (page - 1) * limit;
+            
+            const clientes = await Cliente.find(query)
+            .sort({ fechaUltimaInteraccion: -1 })
+            .skip(skip)
+            .limit(limit);
+            
+            const total = await Cliente.countDocuments(query);
+            
+            const resultTopic = `crm/clientes/resultado/${userId}`;
+            mqttService.publish(resultTopic, {
+              success: true,
+              tipoBusqueda: 'todos',
+              clientes: clientes,
+              count: clientes.length,
+              total: total,
+              page: page,
+              limit: limit,
+              hasMore: total > (page * limit),
+              timestamp: new Date().toISOString()
+            });
+            
+          } catch (err) {
+            console.error('❌ Error listando todos los clientes MQTT:', err);
           }
         }
         

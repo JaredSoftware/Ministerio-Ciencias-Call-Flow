@@ -1,258 +1,315 @@
 <template>
-  <div class="reportes-container bg-white">
-    <h2 class="reportes-title text-dark">📊 Consulta de Clientes CRM</h2>
-    
-    <!-- SELECTOR DE TIPO DE BÚSQUEDA -->
-    <div class="tipo-busqueda">
-      <button 
-        @click="tipoBusqueda = 'cedula'" 
-        :class="['btn-tipo', { active: tipoBusqueda === 'cedula' }]"
-      >
-        🔍 Buscar por Cédula
-      </button>
-      <button 
-        @click="tipoBusqueda = 'fechas'" 
-        :class="['btn-tipo', { active: tipoBusqueda === 'fechas' }]"
-      >
-        📅 Clientes por Fechas
-      </button>
-      <button 
-        @click="tipoBusqueda = 'tipificaciones'" 
-        :class="['btn-tipo', { active: tipoBusqueda === 'tipificaciones' }]"
-      >
-        📊 Tipificaciones por Fechas
-      </button>
+  <div class="container-fluid py-4 bg-light min-vh-100">
+    <!-- Header Principal con Gradiente -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm overflow-hidden">
+          <div class="card-body p-4 bg-gradient-primary text-white position-relative">
+            <div class="position-relative z-index-1">
+              <div class="d-flex justify-content-between align-items-center">
+                <div>
+                  <h2 class="text-white mb-1 font-weight-bold">
+                    <i class="fas fa-chart-pie me-2"></i>Gestión de Clientes
+                  </h2>
+                  <p class="text-white text-sm opacity-8 mb-0">
+                    Administración centralizada de clientes y tipificaciones
+                  </p>
+                </div>
+                <div v-if="!loading && vistaActiva === 'clientes'" class="d-none d-md-block text-end">
+                  <h3 class="text-white mb-0 font-weight-bolder">{{ totalClientes }}</h3>
+                  <small class="text-uppercase font-weight-bold opacity-8">Clientes Totales</small>
+                </div>
+              </div>
+            </div>
+            <!-- Decoración de fondo -->
+            <div class="position-absolute top-0 end-0 h-100 w-50 d-none d-md-block opacity-1" 
+                 style="background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1)); pointer-events: none;">
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-    
-    <!-- FILTRO POR CÉDULA -->
-    <div v-if="tipoBusqueda === 'cedula'" class="filtros-cedula">
-      <div class="filtro-grupo">
-        <label class="filtro-label text-dark">
-          <i class="ni ni-badge icono-filtro"></i>
-          Cédula del Cliente
-        </label>
-        <input 
-          type="text" 
-          v-model="cedulaBusqueda" 
-          class="input-filtro bg-white text-dark"
-          placeholder="Ingrese la cédula..."
-          @keyup.enter="buscarClientes"
-        />
+
+    <!-- Navegación (Tabs Modernos) -->
+    <div class="row mb-4">
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-body p-2">
+            <div class="nav-wrapper position-relative end-0">
+              <ul class="nav nav-pills nav-fill p-1" role="tablist">
+                <li class="nav-item">
+                  <a 
+                    class="nav-link mb-0 px-0 py-2 font-weight-bold transition-all"
+                    :class="{ 'active bg-white text-primary shadow-sm': vistaActiva === 'clientes', 'text-secondary': vistaActiva !== 'clientes' }"
+                    @click="cambiarVista('clientes')"
+                    href="javascript:;"
+                  >
+                    <i class="fas fa-users me-2"></i>Todos los Clientes
+                  </a>
+                </li>
+                <li class="nav-item">
+                  <a 
+                    class="nav-link mb-0 px-0 py-2 font-weight-bold transition-all"
+                    :class="{ 'active bg-white text-primary shadow-sm': vistaActiva === 'tipificaciones', 'text-secondary': vistaActiva !== 'tipificaciones' }"
+                    @click="cambiarVista('tipificaciones')"
+                    href="javascript:;"
+                  >
+                    <i class="fas fa-poll me-2"></i>Tipificaciones
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
-      <button class="btn-buscar" @click="buscarClientes" :disabled="!cedulaBusqueda">
-        <i class="ni ni-zoom-split-in"></i>
-        Buscar
-      </button>
     </div>
-    
-    <!-- FILTRO POR FECHAS (Clientes) -->
-    <div v-if="tipoBusqueda === 'fechas'" class="filtros-fechas">
-      <div class="filtro-grupo">
-        <label class="filtro-label text-dark">
-          <i class="ni ni-calendar-grid-58 icono-filtro"></i>
-          Fecha Inicio
-        </label>
-        <input 
-          type="date" 
-          v-model="fechaInicio" 
-          class="input-filtro bg-white text-dark"
-        />
-      </div>
-      <div class="filtro-grupo">
-        <label class="filtro-label text-dark">
-          <i class="ni ni-calendar-grid-58 icono-filtro"></i>
-          Fecha Fin
-        </label>
-        <input 
-          type="date" 
-          v-model="fechaFin" 
-          class="input-filtro bg-white text-dark"
-        />
-      </div>
-      <button class="btn-buscar" @click="buscarClientes" :disabled="!fechaInicio || !fechaFin">
-        <i class="ni ni-zoom-split-in"></i>
-        Buscar
-      </button>
-    </div>
-    
-    <!-- FILTRO POR TIPIFICACIONES -->
-    <div v-if="tipoBusqueda === 'tipificaciones'" class="filtros-fechas">
-      <div class="filtro-grupo">
-        <label class="filtro-label text-dark">
-          <i class="ni ni-calendar-grid-58 icono-filtro"></i>
-          Fecha Inicio
-        </label>
-        <input 
-          type="date" 
-          v-model="fechaInicioTipif" 
-          class="input-filtro bg-white text-dark"
-        />
-      </div>
-      <div class="filtro-grupo">
-        <label class="filtro-label text-dark">
-          <i class="ni ni-calendar-grid-58 icono-filtro"></i>
-          Fecha Fin
-        </label>
-        <input 
-          type="date" 
-          v-model="fechaFinTipif" 
-          class="input-filtro bg-white text-dark"
-        />
-      </div>
-      <button class="btn-buscar" @click="buscarTipificaciones" :disabled="!fechaInicioTipif || !fechaFinTipif">
-        <i class="ni ni-zoom-split-in"></i>
-        Buscar Tipificaciones
-      </button>
-    </div>
-    
-    <!-- LOADING -->
-    <div v-if="loading" class="loading-estado text-dark">
-      <div class="spinner"></div>
-      Buscando clientes...
-    </div>
-    
-    <!-- RESULTADOS DE CLIENTES -->
-    <div v-if="!loading && tipoBusqueda !== 'tipificaciones' && clientes.length > 0" class="resultados-container">
-      <div class="resultados-header">
-        <h4 class="text-dark">
-          📋 Resultados: {{ clientes.length }} cliente{{ clientes.length > 1 ? 's' : '' }} encontrado{{ clientes.length > 1 ? 's' : '' }}
-        </h4>
-        <button class="btn-exportar" @click="exportarCSV">
-          <i class="ni ni-archive-2"></i>
-          Exportar CSV
-        </button>
-      </div>
-      
-      <!-- TABLA DE CLIENTES -->
-      <div class="tabla-scroll">
-        <table class="tabla-clientes bg-white">
-          <thead>
-            <tr>
-              <th class="text-dark">Cédula</th>
-              <th class="text-dark">Tipo Documento</th>
-              <th class="text-dark">Nombres</th>
-              <th class="text-dark">Apellidos</th>
-              <th class="text-dark">Teléfono</th>
-              <th class="text-dark">Correo</th>
-              <th class="text-dark">Ciudad</th>
-              <th class="text-dark">Total Interacciones</th>
-              <th class="text-dark">Fecha Última Interacción</th>
-              <th class="text-dark">Hora Última Interacción</th>
-              <th class="text-dark">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="cliente in clientes" :key="cliente._id" class="fila-cliente">
-              <td class="text-dark"><b>{{ cliente.cedula }}</b></td>
-              <td class="text-dark">{{ cliente.tipoDocumento || 'No especificado' }}</td>
-              <td class="text-dark">{{ cliente.nombres || '-' }}</td>
-              <td class="text-dark">{{ cliente.apellidos || '-' }}</td>
-              <td class="text-dark">{{ cliente.telefono || '-' }}</td>
-              <td class="text-dark">{{ cliente.correo || '-' }}</td>
-              <td class="text-dark">{{ cliente.ciudad || '-' }}</td>
-              <td class="text-dark">
-                <span class="badge-interacciones">{{ cliente.totalInteracciones || 0 }}</span>
-              </td>
-              <td class="text-dark"><b>{{ formatFecha(cliente.fechaUltimaInteraccion) }}</b></td>
-              <td class="text-dark">{{ formatHora(cliente.fechaUltimaInteraccion) }}</td>
-              <td>
-                <button class="btn-detalle" @click="verDetalles(cliente)">
-                  <i class="ni ni-bold-right"></i>
-                  Ver Detalles
+
+    <!-- VISTA: TODOS LOS CLIENTES -->
+    <transition name="fade" mode="out-in">
+      <div v-if="vistaActiva === 'clientes'" key="clientes">
+        <!-- Buscador y Filtros -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-body p-4">
+            <div class="row g-3 align-items-end">
+              <div class="col-md-6 col-lg-7">
+                <label class="form-label font-weight-bold text-xs text-uppercase text-muted">Buscar Cliente</label>
+                <div class="input-group input-group-alternative border rounded-3 overflow-hidden">
+                  <span class="input-group-text bg-white border-0"><i class="fas fa-search text-secondary"></i></span>
+                  <input 
+                    type="text" 
+                    class="form-control border-0 ps-2" 
+                    placeholder="Escribe cédula, nombre, correo o teléfono..." 
+                    v-model="textoBusqueda"
+                    @keyup.enter="buscarClientes"
+                    @input="debounceBusqueda"
+                  >
+                  <button v-if="textoBusqueda" class="btn bg-white border-0 mb-0 text-secondary" @click="limpiarBusqueda">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </div>
+              </div>
+              <div class="col-6 col-md-3 col-lg-2">
+                <label class="form-label font-weight-bold text-xs text-uppercase text-muted">Mostrar</label>
+                <select class="form-select border rounded-3" v-model.number="limitePorPagina" @change="buscarClientes">
+                  <option :value="20">20 registros</option>
+                  <option :value="50">50 registros</option>
+                  <option :value="100">100 registros</option>
+                  <option :value="200">200 registros</option>
+                </select>
+              </div>
+              <div class="col-6 col-md-3 col-lg-3 text-end">
+                <button class="btn btn-success w-100 mb-0 shadow-sm" @click="exportarCSV" :disabled="clientes.length === 0">
+                  <i class="fas fa-file-csv me-2"></i>Exportar
                 </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tabla de Resultados -->
+        <div class="card border-0 shadow-lg">
+          <div class="card-header border-bottom bg-white p-4">
+            <h5 class="mb-0 font-weight-bold">Resultados</h5>
+            <p class="text-sm text-muted mb-0">
+              <span v-if="loading"><i class="fas fa-spinner fa-spin me-1"></i> Cargando datos...</span>
+              <span v-else>Se encontraron {{ totalClientes }} clientes registrados</span>
+            </p>
+          </div>
+          
+          <div class="table-responsive">
+            <table class="table align-items-center mb-0 table-hover">
+              <thead class="bg-light">
+                <tr>
+                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-4">Cliente / ID</th>
+                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Contacto</th>
+                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-2">Ubicación</th>
+                  <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Interacciones</th>
+                  <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Última Actividad</th>
+                  <th class="text-secondary opacity-7"></th>
+                </tr>
+              </thead>
+              <tbody v-if="!loading && clientes.length > 0">
+                <tr v-for="cliente in clientes" :key="cliente._id" class="transition-base">
+                  <td class="ps-4">
+                    <div class="d-flex px-2 py-1">
+                      <div class="d-flex flex-column justify-content-center">
+                        <h6 class="mb-0 text-sm font-weight-bold text-dark">{{ getNombreCompleto(cliente) }}</h6>
+                        <p class="text-xs text-secondary mb-0">
+                          <span class="badge bg-light text-dark border">{{ cliente.cedula }}</span>
+                          <span class="ms-2 text-xs">{{ cliente.tipoDocumento }}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="d-flex flex-column">
+                      <span class="text-xs font-weight-bold mb-1" v-if="cliente.correo">
+                        <i class="fas fa-envelope me-1 text-secondary"></i> {{ cliente.correo }}
+                      </span>
+                      <span class="text-xs text-secondary" v-if="cliente.telefono">
+                        <i class="fas fa-phone me-1 text-secondary"></i> {{ cliente.telefono }}
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <p class="text-xs font-weight-bold mb-0">{{ cliente.ciudad || 'N/A' }}</p>
+                    <p class="text-xs text-secondary mb-0">{{ cliente.departamento }}</p>
+                  </td>
+                  <td class="align-middle text-center">
+                    <span class="badge bg-gradient-info">{{ cliente.totalInteracciones || 0 }}</span>
+                  </td>
+                  <td class="align-middle text-center">
+                    <span class="text-secondary text-xs font-weight-bold">{{ formatFecha(cliente.fechaUltimaInteraccion) }}</span>
+                    <div class="text-secondary text-xxs">{{ formatHora(cliente.fechaUltimaInteraccion) }}</div>
+                  </td>
+                  <td class="align-middle text-end pe-4">
+                    <button class="btn btn-link text-secondary mb-0 px-2" @click="verDetalles(cliente)" title="Ver perfil completo">
+                      <i class="fas fa-chevron-right text-lg"></i>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+              <tbody v-else-if="loading">
+                <tr>
+                  <td colspan="6" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                      <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 text-sm text-secondary">Buscando información...</p>
+                  </td>
+                </tr>
+              </tbody>
+              <tbody v-else>
+                <tr>
+                  <td colspan="6" class="text-center py-5">
+                    <div class="text-center">
+                      <i class="fas fa-inbox fa-3x text-secondary opacity-5 mb-3"></i>
+                      <p class="text-secondary font-weight-bold">No se encontraron resultados</p>
+                      <button class="btn btn-sm btn-outline-primary" @click="limpiarBusqueda">Limpiar filtros</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Paginación -->
+          <div class="card-footer bg-white border-top py-3" v-if="totalPaginas > 1">
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="text-sm text-secondary">
+                Página <span class="font-weight-bold text-dark">{{ paginaActual }}</span> de {{ totalPaginas }}
+              </span>
+              <nav aria-label="Page navigation">
+                <ul class="pagination pagination-sm mb-0">
+                  <li class="page-item" :class="{ disabled: paginaActual === 1 }">
+                    <a class="page-link" href="javascript:;" @click="irAPagina(paginaActual - 1)">
+                      <i class="fas fa-angle-left"></i>
+                    </a>
+                  </li>
+                  <li class="page-item disabled">
+                    <span class="page-link">{{ paginaActual }}</span>
+                  </li>
+                  <li class="page-item" :class="{ disabled: paginaActual === totalPaginas }">
+                    <a class="page-link" href="javascript:;" @click="irAPagina(paginaActual + 1)">
+                      <i class="fas fa-angle-right"></i>
+                    </a>
+                  </li>
+                </ul>
+              </nav>
+            </div>
+          </div>
+        </div>
       </div>
-      
-      <!-- PAGINACIÓN -->
-      <div v-if="hasMore && !loading" class="paginacion">
-        <button class="btn-cargar-mas" @click="cargarMas">
-          <i class="ni ni-bold-down"></i>
-          Cargar Más ({{ clientes.length }} de {{ totalClientes }})
-        </button>
+    </transition>
+
+    <!-- VISTA: TIPIFICACIONES -->
+    <transition name="fade" mode="out-in">
+      <div v-if="vistaActiva === 'tipificaciones'" key="tipificaciones">
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-body p-4">
+            <div class="row g-3 align-items-end">
+              <div class="col-md-4">
+                <label class="form-label font-weight-bold text-xs text-uppercase text-muted">Fecha Inicio</label>
+                <input type="date" class="form-control rounded-3" v-model="fechaInicioTipif">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label font-weight-bold text-xs text-uppercase text-muted">Fecha Fin</label>
+                <input type="date" class="form-control rounded-3" v-model="fechaFinTipif">
+              </div>
+              <div class="col-md-4">
+                <button class="btn btn-primary w-100 mb-0 shadow-sm" @click="buscarTipificaciones" :disabled="loading || !fechaInicioTipif || !fechaFinTipif">
+                  <i class="fas fa-search me-2"></i> Buscar Reportes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card border-0 shadow-lg">
+          <div class="card-header border-bottom bg-white p-4 d-flex justify-content-between align-items-center">
+            <div>
+              <h5 class="mb-0 font-weight-bold">Historial de Tipificaciones</h5>
+              <p class="text-sm text-muted mb-0">Registros del {{ formatFecha(fechaInicioTipif) }} al {{ formatFecha(fechaFinTipif) }}</p>
+            </div>
+            <button class="btn btn-outline-success btn-sm mb-0" @click="exportarTipificacionesCSV" :disabled="tipificaciones.length === 0">
+              <i class="fas fa-download me-1"></i> CSV
+            </button>
+          </div>
+          
+          <div class="table-responsive">
+            <table class="table align-items-center mb-0">
+              <thead class="bg-light">
+                <tr>
+                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7 ps-4">Fecha</th>
+                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Agente</th>
+                  <th class="text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Cliente</th>
+                  <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Categorización</th>
+                  <th class="text-center text-uppercase text-secondary text-xxs font-weight-bolder opacity-7">Duración</th>
+                </tr>
+              </thead>
+              <tbody v-if="!loading && tipificaciones.length > 0">
+                <tr v-for="tipif in tipificaciones" :key="tipif._id">
+                  <td class="ps-4">
+                    <div class="d-flex flex-column">
+                      <span class="text-sm font-weight-bold text-dark">{{ formatFecha(tipif.fecha) }}</span>
+                      <span class="text-xs text-secondary">{{ formatHora(tipif.fecha) }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="text-sm font-weight-bold">{{ tipif.agente?.nombre || 'Sistema' }}</span>
+                  </td>
+                  <td>
+                    <div class="d-flex flex-column">
+                      <span class="text-sm font-weight-bold">{{ getNombreCompleto(tipif.cliente) }}</span>
+                      <span class="text-xs text-secondary">{{ tipif.cliente?.cedula }}</span>
+                    </div>
+                  </td>
+                  <td class="align-middle text-center">
+                    <span class="badge bg-light text-dark border mb-1 d-block mx-auto w-auto" style="max-width: 150px;">{{ tipif.nivel1 }}</span>
+                    <span class="text-xs text-secondary d-block">{{ tipif.nivel2 }}</span>
+                  </td>
+                  <td class="align-middle text-center">
+                    <span class="text-xs font-weight-bold">{{ tipif.duracionMinutos || 0 }} min</span>
+                  </td>
+                </tr>
+              </tbody>
+              <tbody v-else-if="loading">
+                <tr>
+                  <td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div></td>
+                </tr>
+              </tbody>
+              <tbody v-else>
+                <tr>
+                  <td colspan="5" class="text-center py-5 text-secondary">No hay tipificaciones para mostrar en este rango.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
-      
-      <div v-if="totalClientes > 0" class="total-info text-dark">
-        Mostrando {{ clientes.length }} de {{ totalClientes }} clientes
-      </div>
-    </div>
-    
-    <!-- RESULTADOS DE TIPIFICACIONES -->
-    <div v-if="!loading && tipoBusqueda === 'tipificaciones' && tipificaciones.length > 0" class="resultados-container">
-      <div class="resultados-header">
-        <h4 class="text-dark">
-          📊 Resultados: {{ tipificaciones.length }} tipificación{{ tipificaciones.length > 1 ? 'es' : '' }} encontrada{{ tipificaciones.length > 1 ? 's' : '' }}
-        </h4>
-        <button class="btn-exportar" @click="exportarTipificacionesCSV">
-          <i class="ni ni-archive-2"></i>
-          Exportar CSV
-        </button>
-      </div>
-      
-      <!-- TABLA DE TIPIFICACIONES -->
-      <div class="tabla-scroll">
-        <table class="tabla-clientes bg-white">
-          <thead>
-            <tr>
-              <th class="text-dark">Fecha</th>
-              <th class="text-dark">Hora</th>
-              <th class="text-dark">Agente</th>
-              <th class="text-dark">Cédula Cliente</th>
-              <th class="text-dark">Nombre Cliente</th>
-              <th class="text-dark">Teléfono</th>
-              <th class="text-dark">Nivel 1</th>
-              <th class="text-dark">Nivel 2</th>
-              <th class="text-dark">Nivel 3</th>
-              <th class="text-dark">Observaciones</th>
-              <th class="text-dark">Duración (min)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="tipif in tipificaciones" :key="tipif._id" class="fila-cliente">
-              <td class="text-dark"><b>{{ formatFecha(tipif.fecha) }}</b></td>
-              <td class="text-dark">{{ formatHora(tipif.fecha) }}</td>
-              <td class="text-dark">{{ tipif.agente?.nombre || '-' }}</td>
-              <td class="text-dark"><b>{{ tipif.cliente?.cedula || '-' }}</b></td>
-              <td class="text-dark">{{ getNombreCompleto(tipif.cliente) }}</td>
-              <td class="text-dark">{{ tipif.cliente?.telefono || '-' }}</td>
-              <td class="text-dark">
-                <span class="badge-nivel1">{{ tipif.nivel1 || '-' }}</span>
-              </td>
-              <td class="text-dark">{{ tipif.nivel2 || '-' }}</td>
-              <td class="text-dark">{{ tipif.nivel3 || '-' }}</td>
-              <td class="text-dark">
-                <div class="observaciones-cell">{{ tipif.observaciones || '-' }}</div>
-              </td>
-              <td class="text-dark">
-                <span class="badge-duracion">{{ tipif.duracionMinutos || 0 }}</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      
-      <!-- PAGINACIÓN TIPIFICACIONES -->
-      <div v-if="hasMoreTipif && !loading" class="paginacion">
-        <button class="btn-cargar-mas" @click="cargarMasTipificaciones">
-          <i class="ni ni-bold-down"></i>
-          Cargar Más ({{ tipificaciones.length }} de {{ totalTipificaciones }})
-        </button>
-      </div>
-      
-      <div v-if="totalTipificaciones > 0" class="total-info text-dark">
-        Mostrando {{ tipificaciones.length }} de {{ totalTipificaciones }} tipificaciones
-      </div>
-    </div>
-    
-    <!-- SIN RESULTADOS -->
-    <div v-if="!loading && busquedaRealizada && clientes.length === 0 && tipificaciones.length === 0" class="sin-resultados">
-      <i class="ni ni-fat-remove icono-sin-resultados"></i>
-      <p class="text-dark">No se encontraron clientes con los criterios especificados</p>
-    </div>
-    
-    <!-- 🎯 COMPONENTE CRM DEL CLIENTE -->
+    </transition>
+
+    <!-- Modal CRM -->
     <ClienteCRM
       v-if="clienteSeleccionado"
       :cliente="clienteSeleccionado"
@@ -263,8 +320,9 @@
 </template>
 
 <script>
-import { mqttService } from '@/router/services/mqttService';
+import axios from 'axios';
 import ClienteCRM from '@/components/ClienteCRM.vue';
+import { mqttService } from '@/router/services/mqttService';
 
 export default {
   name: 'Reportes',
@@ -273,267 +331,153 @@ export default {
   },
   data() {
     return {
-      tipoBusqueda: 'cedula', // 'cedula', 'fechas' o 'tipificaciones'
-      cedulaBusqueda: '',
-      fechaInicio: '',
-      fechaFin: '',
+      vistaActiva: 'clientes',
+      textoBusqueda: '',
+      limitePorPagina: 50,
+      paginaActual: 1,
+      clientes: [],
+      totalClientes: 0,
+      loading: false,
+      clienteSeleccionado: null,
+      debounceTimer: null,
+      
+      // Tipificaciones
       fechaInicioTipif: '',
       fechaFinTipif: '',
-      clientes: [],
       tipificaciones: [],
-      loading: false,
-      busquedaRealizada: false,
-      clienteSeleccionado: null,
-      mqttTopic: '',
-      mqttCallback: null,
+      totalTipificaciones: 0,
       mqttTopicTipif: '',
       mqttCallbackTipif: null,
-      currentPage: 1,
-      totalClientes: 0,
-      hasMore: false,
-      currentPageTipif: 1,
-      totalTipificaciones: 0,
-      hasMoreTipif: false
     };
   },
+  computed: {
+    totalPaginas() {
+      return Math.ceil(this.totalClientes / this.limitePorPagina);
+    }
+  },
   async mounted() {
-    await this.setupMQTT();
+    await this.buscarClientes();
+    await this.setupMQTTTipificaciones();
   },
   beforeUnmount() {
-    // Limpiar listeners MQTT
-    if (this.mqttTopic && this.mqttCallback) {
-      mqttService.off(this.mqttTopic, this.mqttCallback);
-    }
     if (this.mqttTopicTipif && this.mqttCallbackTipif) {
       mqttService.off(this.mqttTopicTipif, this.mqttCallbackTipif);
     }
+    clearTimeout(this.debounceTimer);
   },
   methods: {
-    async setupMQTT() {
+    cambiarVista(vista) {
+      this.vistaActiva = vista;
+      if (vista === 'clientes' && this.clientes.length === 0) this.buscarClientes();
+    },
+    debounceBusqueda() {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = setTimeout(() => {
+        this.paginaActual = 1;
+        this.buscarClientes();
+      }, 500);
+    },
+    limpiarBusqueda() {
+      this.textoBusqueda = '';
+      this.paginaActual = 1;
+      this.buscarClientes();
+    },
+    async buscarClientes() {
+      this.loading = true;
+      try {
+        const params = {
+          limite: this.limitePorPagina,
+          offset: (this.paginaActual - 1) * this.limitePorPagina,
+          ordenar: 'fechaUltimaInteraccion',
+          direccion: 'desc',
+          q: this.textoBusqueda
+        };
+        const response = await axios.get('/api/crm/clientes', { params });
+        if (response.data.success) {
+          this.clientes = response.data.clientes || [];
+          this.totalClientes = response.data.total || 0;
+        } else {
+          this.clientes = [];
+          this.totalClientes = 0;
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        this.clientes = [];
+      } finally {
+        this.loading = false;
+      }
+    },
+    irAPagina(pagina) {
+      if (pagina >= 1 && pagina <= this.totalPaginas) {
+        this.paginaActual = pagina;
+        this.buscarClientes();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    },
+    async setupMQTTTipificaciones() {
       try {
         const userId = this.$store.state.user?.id || this.$store.state.user?._id;
-        if (!userId) {
-          console.warn('⚠️ No hay usuario para configurar MQTT');
-          return;
-        }
-        
-        this.mqttTopic = `crm/clientes/resultado/${userId}`;
+        if (!userId) return;
         this.mqttTopicTipif = `crm/tipificaciones/resultado/${userId}`;
-        
-        // Asegurar conexión MQTT
         if (!mqttService.isConnected) {
           await mqttService.connect('ws://localhost:9001', userId, this.$store.state.user?.name);
         }
-        
-        // Callback para resultados de clientes
-        this.mqttCallback = (data) => {
-          this.handleResultados(data);
-        };
-        
-        // Callback para resultados de tipificaciones
-        this.mqttCallbackTipif = (data) => {
-          this.handleResultadosTipificaciones(data);
-        };
-        
-        mqttService.on(this.mqttTopic, this.mqttCallback);
+        this.mqttCallbackTipif = (data) => this.handleResultadosTipificaciones(data);
         mqttService.on(this.mqttTopicTipif, this.mqttCallbackTipif);
-        
-      } catch (error) {
-        console.error('❌ Error configurando MQTT:', error);
-      }
+      } catch (e) { console.error(e); }
     },
-    
-    async buscarClientes() {
-      this.loading = true;
-      this.busquedaRealizada = false;
-      this.clientes = [];
-      this.currentPage = 1;
-      
-      try {
-        const userId = this.$store.state.user?.id || this.$store.state.user?._id;
-        
-        
-        if (!userId) {
-          alert('❌ Debes iniciar sesión para buscar clientes');
-          this.loading = false;
-          return;
-        }
-        
-        if (this.tipoBusqueda === 'cedula') {
-          // 📡 Publicar solicitud por MQTT - Búsqueda por cédula
-          const topicBusqueda = `crm/clientes/buscar/cedula/${userId}`;
-          mqttService.publish(topicBusqueda, {
-            cedula: this.cedulaBusqueda,
-            timestamp: new Date().toISOString()
-          });
-        } else {
-          // 📡 Publicar solicitud por MQTT - Búsqueda por fechas
-          const topicBusqueda = `crm/clientes/buscar/fechas/${userId}`;
-          mqttService.publish(topicBusqueda, {
-            fechaInicio: this.fechaInicio,
-            fechaFin: this.fechaFin,
-            page: this.currentPage,
-            limit: 50,
-            timestamp: new Date().toISOString()
-          });
-        }
-        
-      } catch (error) {
-        console.error('❌ Error solicitando búsqueda:', error);
-        this.loading = false;
-        this.busquedaRealizada = true;
-      }
-    },
-    
     async buscarTipificaciones() {
       this.loading = true;
-      this.busquedaRealizada = false;
       this.tipificaciones = [];
-      this.currentPageTipif = 1;
-      
       try {
         const userId = this.$store.state.user?.id || this.$store.state.user?._id;
-        
-        
-        if (!userId) {
-          alert('❌ Debes iniciar sesión para buscar tipificaciones');
-          this.loading = false;
-          return;
-        }
-        
-        // 📡 Publicar solicitud por MQTT - Búsqueda de tipificaciones por fechas
-        const topicBusqueda = `crm/tipificaciones/buscar/fechas/${userId}`;
-        mqttService.publish(topicBusqueda, {
+        mqttService.publish(`crm/tipificaciones/buscar/fechas/${userId}`, {
           fechaInicio: this.fechaInicioTipif,
           fechaFin: this.fechaFinTipif,
-          page: this.currentPageTipif,
-          limit: 100,
-          timestamp: new Date().toISOString()
+          page: 1, limit: 100, timestamp: new Date().toISOString()
         });
-        
-        
-      } catch (error) {
-        console.error('❌ Error solicitando búsqueda de tipificaciones:', error);
-        this.loading = false;
-        this.busquedaRealizada = true;
-      }
+      } catch (e) { this.loading = false; }
     },
-    
-    handleResultados(data) {
-      this.loading = false;
-      this.busquedaRealizada = true;
-      
-      if (data.success && data.clientes) {
-        if (data.page === 1) {
-          this.clientes = data.clientes;
-        } else {
-          this.clientes.push(...data.clientes);
-        }
-        
-        this.totalClientes = data.total || data.count;
-        this.hasMore = data.hasMore || false;
-        
-      } else {
-        this.clientes = [];
-        this.totalClientes = 0;
-      }
-    },
-    
     handleResultadosTipificaciones(data) {
       this.loading = false;
-      this.busquedaRealizada = true;
-      
-      if (data.success && data.tipificaciones) {
-        if (data.page === 1) {
-          this.tipificaciones = data.tipificaciones;
+      if (data.success) {
+        this.tipificaciones = data.tipificaciones || [];
+        this.totalTipificaciones = data.total || 0;
+      }
+    },
+    async verDetalles(cliente) {
+      try {
+        // Cargar cliente completo con sus interacciones desde el endpoint
+        const response = await axios.get(`/api/crm/cliente/${cliente.cedula}`);
+        if (response.data.success && response.data.cliente) {
+          this.clienteSeleccionado = response.data.cliente;
         } else {
-          this.tipificaciones.push(...data.tipificaciones);
+          // Fallback: usar el cliente que ya tenemos
+          this.clienteSeleccionado = cliente;
         }
-        
-        this.totalTipificaciones = data.total || data.count;
-        this.hasMoreTipif = data.hasMore || false;
-        
-      } else {
-        this.tipificaciones = [];
-        this.totalTipificaciones = 0;
+      } catch (error) {
+        console.error('Error cargando cliente completo:', error);
+        // Fallback: usar el cliente que ya tenemos
+        this.clienteSeleccionado = cliente;
       }
     },
-    
-    async cargarMas() {
-      if (!this.hasMore || this.loading) return;
-      
-      this.currentPage++;
-      this.loading = true;
-      
-      const userId = this.$store.state.user?.id || this.$store.state.user?._id;
-      
-      // 📡 Publicar solicitud de siguiente página por MQTT
-      const topicBusqueda = `crm/clientes/buscar/fechas/${userId}`;
-      mqttService.publish(topicBusqueda, {
-        fechaInicio: this.fechaInicio,
-        fechaFin: this.fechaFin,
-        page: this.currentPage,
-        limit: 50,
-        timestamp: new Date().toISOString()
-      });
-      
-    },
-    
-    async cargarMasTipificaciones() {
-      if (!this.hasMoreTipif || this.loading) return;
-      
-      this.currentPageTipif++;
-      this.loading = true;
-      
-      const userId = this.$store.state.user?.id || this.$store.state.user?._id;
-      
-      // 📡 Publicar solicitud de siguiente página por MQTT
-      const topicBusqueda = `crm/tipificaciones/buscar/fechas/${userId}`;
-      mqttService.publish(topicBusqueda, {
-        fechaInicio: this.fechaInicioTipif,
-        fechaFin: this.fechaFinTipif,
-        page: this.currentPageTipif,
-        limit: 100,
-        timestamp: new Date().toISOString()
-      });
-      
-    },
-    
-    verDetalles(cliente) {
-      this.clienteSeleccionado = cliente;
-    },
-    
-    handleClienteActualizado(datosActualizados) {
-      // Actualizar el cliente en la lista
-      const index = this.clientes.findIndex(c => c.cedula === datosActualizados.cedula);
-      if (index !== -1) {
-        this.clientes[index] = { ...this.clientes[index], ...datosActualizados };
-        this.clienteSeleccionado = this.clientes[index];
+    handleClienteActualizado(datos) {
+      const idx = this.clientes.findIndex(c => c.cedula === datos.cedula);
+      if (idx !== -1) {
+        this.clientes[idx] = { ...this.clientes[idx], ...datos };
+        this.clienteSeleccionado = this.clientes[idx];
       }
     },
-    
+    getNombreCompleto(c) { return c ? `${c.nombres || ''} ${c.apellidos || ''}`.trim() || 'Sin nombre' : '-'; },
+    formatFecha(f) { if(!f) return '-'; const d = new Date(f); return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`; },
+    formatHora(f) { if(!f) return '-'; const d = new Date(f); return d.toLocaleTimeString('es-CO', {hour: '2-digit', minute:'2-digit'}); },
     exportarCSV() {
       if (this.clientes.length === 0) return;
       
-      // Crear CSV
       const headers = [
-        'Cédula',
-        'Tipo Documento',
-        'Nombres',
-        'Apellidos',
-        'Teléfono',
-        'Correo',
-        'País',
-        'Departamento',
-        'Ciudad',
-        'Dirección',
-        'Sexo',
-        'Nivel Escolaridad',
-        'Grupo Étnico',
-        'Discapacidad',
-        'Total Interacciones',
-        'Última Interacción',
-        'Fecha Creación'
+        'Cédula', 'Tipo Documento', 'Nombres', 'Apellidos', 'Teléfono',
+        'Correo', 'Ciudad', 'Departamento', 'Total Interacciones',
+        'Última Interacción'
       ];
       
       const rows = this.clientes.map(c => [
@@ -543,56 +487,36 @@ export default {
         c.apellidos || '',
         c.telefono || '',
         c.correo || '',
-        c.pais || '',
-        c.departamento || '',
         c.ciudad || '',
-        c.direccion || '',
-        c.sexo || '',
-        c.nivelEscolaridad || '',
-        c.grupoEtnico || '',
-        c.discapacidad || '',
+        c.departamento || '',
         c.totalInteracciones || 0,
-        this.formatFechaHora(c.fechaUltimaInteraccion),
-        this.formatFechaHora(c.fechaCreacion)
+        this.formatFecha(c.fechaUltimaInteraccion) + ' ' + this.formatHora(c.fechaUltimaInteraccion)
       ]);
       
       const csvContent = [
         headers.join(','),
-        ...rows.map(row => row.map(field => `"${field}"`).join(','))
+        ...rows.map(row => row.map(field => `"${String(field)}"`).join(','))
       ].join('\n');
       
-      // Descargar archivo
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       const fecha = new Date().toISOString().slice(0, 10);
       
       link.setAttribute('href', url);
-      link.setAttribute('download', `clientes_${this.tipoBusqueda}_${fecha}.csv`);
+      link.setAttribute('download', `clientes_crm_${fecha}.csv`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     },
-    
+
     exportarTipificacionesCSV() {
       if (this.tipificaciones.length === 0) return;
       
-      // Crear CSV
       const headers = [
-        'Fecha',
-        'Hora',
-        'Agente',
-        'Cédula Cliente',
-        'Nombre Cliente',
-        'Teléfono Cliente',
-        'Correo Cliente',
-        'Nivel 1',
-        'Nivel 2',
-        'Nivel 3',
-        'Observaciones',
-        'Duración (minutos)',
-        'ID Tipificación'
+        'Fecha', 'Hora', 'Agente', 'Cédula Cliente', 'Nombre Cliente',
+        'Teléfono', 'Nivel 1', 'Nivel 2', 'Nivel 3', 'Duración (min)'
       ];
       
       const rows = this.tipificaciones.map(t => [
@@ -602,21 +526,17 @@ export default {
         t.cliente?.cedula || '',
         this.getNombreCompleto(t.cliente),
         t.cliente?.telefono || '',
-        t.cliente?.correo || '',
         t.nivel1 || '',
         t.nivel2 || '',
         t.nivel3 || '',
-        t.observaciones || '',
-        t.duracionMinutos || 0,
-        t._id || ''
+        t.duracionMinutos || 0
       ]);
       
       const csvContent = [
         headers.join(','),
-        ...rows.map(row => row.map(field => `"${field}"`).join(','))
+        ...rows.map(row => row.map(field => `"${String(field)}"`).join(','))
       ].join('\n');
       
-      // Descargar archivo
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
@@ -628,541 +548,49 @@ export default {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    },
-    
-    getNombreCompleto(cliente) {
-      if (!cliente) return '-';
-      const nombres = cliente.nombres || '';
-      const apellidos = cliente.apellidos || '';
-      return `${nombres} ${apellidos}`.trim() || '-';
-    },
-    
-    formatHora(f) {
-      if (!f) return '-';
-      
-      // Las fechas están guardadas usando getFechaColombia() que crea fechas UTC
-      // que representan directamente la hora de Colombia
-      // Por lo tanto, debemos usar getUTCHours() directamente sin conversión
-      const d = new Date(f);
-      
-      // Obtener hora UTC directamente (ya representa hora de Colombia)
-      const horasUTC = d.getUTCHours();
-      const minutosUTC = d.getUTCMinutes();
-      const segundosUTC = d.getUTCSeconds();
-      
-      // Formatear con AM/PM en formato colombiano
-      const ampm = horasUTC >= 12 ? 'p. m.' : 'a. m.';
-      const hora12 = horasUTC === 0 ? 12 : horasUTC > 12 ? horasUTC - 12 : horasUTC;
-      
-      return `${String(hora12).padStart(2, '0')}:${String(minutosUTC).padStart(2, '0')}:${String(segundosUTC).padStart(2, '0')} ${ampm}`;
-    },
-    
-    formatFecha(f) {
-      if (!f) return '-';
-      const d = new Date(f);
-      // Usar getUTCDate() porque la fecha UTC ya representa fecha de Colombia
-      const año = d.getUTCFullYear();
-      const mes = String(d.getUTCMonth() + 1).padStart(2, '0');
-      const dia = String(d.getUTCDate()).padStart(2, '0');
-      return `${dia}/${mes}/${año}`;
-    },
-    
-    formatFechaHora(f) {
-      if (!f) return '-';
-      const d = new Date(f);
-      // Usar métodos UTC porque la fecha UTC ya representa fecha/hora de Colombia
-      const año = d.getUTCFullYear();
-      const mes = String(d.getUTCMonth() + 1).padStart(2, '0');
-      const dia = String(d.getUTCDate()).padStart(2, '0');
-      const horas = String(d.getUTCHours()).padStart(2, '0');
-      const minutos = String(d.getUTCMinutes()).padStart(2, '0');
-      const segundos = String(d.getUTCSeconds()).padStart(2, '0');
-      return `${dia}/${mes}/${año} ${horas}:${minutos}:${segundos}`;
     }
   }
 };
 </script>
 
 <style scoped>
-.reportes-container {
-  background: #fff;
-  border-radius: 12px;
-  padding: 32px;
-  margin: 24px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+.bg-gradient-primary {
+  background: linear-gradient(87deg, #5e72e4 0, #825ee4 100%) !important;
 }
-
-.reportes-title {
-  font-size: 2rem;
-  margin-bottom: 24px;
-  font-weight: 700;
-  text-align: center;
+.bg-gradient-info {
+  background: linear-gradient(87deg, #11cdef 0, #1171ef 100%) !important;
 }
-
-/* TIPO DE BÚSQUEDA */
-.tipo-busqueda {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  margin-bottom: 32px;
+.nav-pills .nav-link.active {
+  background-color: #fff;
+  color: #5e72e4;
+  box-shadow: 0 4px 6px rgba(50,50,93,.11), 0 1px 3px rgba(0,0,0,.08);
 }
-
-.btn-tipo {
-  background: #e0e0e0;
-  color: #666;
-  border: 2px solid transparent;
-  padding: 12px 32px;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 1rem;
-  cursor: pointer;
-  transition: all 0.3s;
+.transition-base {
+  transition: all .2s ease;
 }
-
-.btn-tipo.active {
-  background: #1976d2;
-  color: white;
-  border-color: #1976d2;
+.transition-base:hover {
+  transform: translateY(-2px);
+  background-color: #f8f9fe;
 }
-
-.btn-tipo:hover:not(.active) {
-  background: #d0d0d0;
+.input-group-text {
+  border-right: 0;
 }
-/* FILTROS */
-.filtros-cedula, .filtros-fechas {
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  align-items: flex-end;
-  margin-bottom: 32px;
-  background: #f8f9fa;
-  padding: 24px;
-  border-radius: 12px;
+.input-group .form-control {
+  border-left: 0;
+  box-shadow: none;
 }
-
-.filtro-grupo {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.input-group .form-control:focus {
+  border-color: #dee2e6;
 }
-
-.filtro-label {
-  font-weight: 600;
-  font-size: 0.95rem;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+.table thead th {
+  border-bottom: 1px solid #e9ecef;
+  background-color: #f6f9fc;
 }
-
-.icono-filtro {
-  font-size: 1.1em;
-  color: #1976d2;
+.table td, .table th {
+  vertical-align: middle;
+  border-top: 1px solid #e9ecef;
 }
-
-.input-filtro {
-  padding: 10px 16px;
-  border-radius: 6px;
-  border: 1.5px solid #ddd;
-  font-size: 1rem;
-  min-width: 250px;
-  transition: all 0.2s;
+.card {
+  box-shadow: 0 0 2rem 0 rgba(136, 152, 170, .15);
 }
-
-.input-filtro:focus {
-  border-color: #1976d2;
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
-}
-
-.btn-buscar {
-  background: #1976d2;
-  color: white;
-  border: none;
-  padding: 10px 24px;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s;
-}
-
-.btn-buscar:hover:not(:disabled) {
-  background: #1565c0;
-  transform: translateY(-1px);
-}
-
-.btn-buscar:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-/* LOADING */
-.loading-estado {
-  text-align: center;
-  padding: 40px;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #1976d2;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* RESULTADOS */
-.resultados-container {
-  margin-top: 32px;
-}
-
-.resultados-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.resultados-header h4 {
-  margin: 0;
-  font-size: 1.3rem;
-  font-weight: 600;
-}
-
-.btn-exportar {
-  background: #28a745;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s;
-}
-
-.btn-exportar:hover {
-  background: #218838;
-}
-
-/* TABLA DE CLIENTES */
-.tabla-scroll {
-  overflow-x: auto;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-}
-
-.tabla-clientes {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 1200px;
-}
-
-.tabla-clientes thead tr {
-  background: #1976d2;
-}
-
-.tabla-clientes th {
-  padding: 14px 12px;
-  text-align: left;
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: white !important;
-  border-bottom: 2px solid #1565c0;
-}
-
-.tabla-clientes tbody tr {
-  border-bottom: 1px solid #e0e0e0;
-  transition: all 0.2s;
-}
-
-.tabla-clientes tbody tr:hover {
-  background: #f5f5f5;
-}
-
-.tabla-clientes td {
-  padding: 12px;
-  font-size: 0.9rem;
-}
-
-.badge-interacciones {
-  background: #1976d2;
-  color: white;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.badge-nivel1 {
-  background: #28a745;
-  color: white;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 0.85rem;
-  display: inline-block;
-}
-
-.badge-duracion {
-  background: #ffc107;
-  color: #000;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.observaciones-cell {
-  max-width: 200px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.btn-detalle {
-  background: #1976d2;
-  color: white;
-  border: none;
-  padding: 6px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s;
-}
-
-.btn-detalle:hover {
-  background: #1565c0;
-}
-
-/* SIN RESULTADOS */
-.sin-resultados {
-  text-align: center;
-  padding: 60px 20px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  margin-top: 32px;
-}
-
-.icono-sin-resultados {
-  font-size: 4rem;
-  color: #ccc;
-  display: block;
-  margin-bottom: 16px;
-}
-
-.sin-resultados p {
-  font-size: 1.1rem;
-  margin: 0;
-}
-
-/* PAGINACIÓN */
-.paginacion {
-  text-align: center;
-  margin: 24px 0;
-}
-
-.btn-cargar-mas {
-  background: #1976d2;
-  color: white;
-  border: none;
-  padding: 12px 32px;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.2s;
-  font-size: 1rem;
-}
-
-.btn-cargar-mas:hover {
-  background: #1565c0;
-  transform: translateY(-1px);
-}
-
-.total-info {
-  text-align: center;
-  margin-top: 16px;
-  font-weight: 600;
-  font-size: 0.95rem;
-}
-
-/* MODAL DE DETALLES */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal-detalle {
-  max-width: 900px;
-  max-height: 90vh;
-  overflow-y: auto;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 24px;
-  border-bottom: 2px solid #e0e0e0;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 1.5rem;
-}
-
-.btn-cerrar {
-  background: #dc3545;
-  color: white;
-  border: none;
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  font-size: 1.5rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-}
-
-.btn-cerrar:hover {
-  background: #c82333;
-  transform: rotate(90deg);
-}
-
-.modal-body {
-  padding: 24px;
-}
-
-.seccion-detalle {
-  margin-bottom: 24px;
-  padding: 16px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #1976d2;
-}
-
-.seccion-detalle h5 {
-  margin: 0 0 16px 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-}
-
-.detalle-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.detalle-item {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.detalle-label {
-  font-weight: 600;
-  font-size: 0.85rem;
-}
-
-.detalle-valor {
-  font-size: 0.95rem;
-}
-
-/* INTERACCIONES */
-.interacciones-lista {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.interaccion-item {
-  padding: 12px 16px;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  background: white;
-}
-
-.interaccion-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.badge-estado-interaccion {
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: white;
-}
-
-.badge-estado-interaccion.completada {
-  background: #28a745;
-}
-
-.badge-estado-interaccion.pendiente {
-  background: #ffc107;
-  color: #000;
-}
-
-.badge-estado-interaccion.cancelada {
-  background: #dc3545;
-}
-
-.interaccion-item p {
-  margin: 4px 0;
-  font-size: 0.9rem;
-}
-
-.sin-interacciones {
-  text-align: center;
-  padding: 20px;
-  font-style: italic;
-  color: #999;
-}
-
-/* MODO OSCURO */
-h4.text-dark,
-h5.text-dark,
-h3.text-dark,
-label.text-dark,
-span.text-dark,
-p.text-dark,
-td.text-dark,
-th.text-dark,
-b.text-dark {
-  color: #000000 !important;
-}
-</style> 
+</style>
