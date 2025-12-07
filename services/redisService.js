@@ -142,25 +142,52 @@ class RedisService {
       await this.connect();
       
       const key = `tipificacion:pending:${idAgent}`;
-      const tipificacionIds = await this.client.zRange(key, 0, -1);
+      
+      // 🚀 OBTENER TODOS LOS IDs (de mayor a menor prioridad, luego por orden de creación)
+      // REV: true para obtener de mayor a menor score (prioridad)
+      const tipificacionIds = await this.client.zRange(key, 0, -1, { REV: true });
+      
+      console.log(`📋 [Redis] Obteniendo tipificaciones para agente ${idAgent}: ${tipificacionIds.length} IDs encontrados`, tipificacionIds);
       
       if (!tipificacionIds || tipificacionIds.length === 0) {
         return [];
       }
 
       const tipificaciones = [];
+      const errores = [];
+      
       for (const tipificacionId of tipificacionIds) {
-        const tipificacionData = await this.client.hGetAll(`tipificacion:${tipificacionId}`);
-        if (tipificacionData && tipificacionData.data) {
-          tipificaciones.push({
-            id: tipificacionId,
-            ...JSON.parse(tipificacionData.data),
-            createdAt: tipificacionData.createdAt,
-            status: tipificacionData.status
-          });
+        try {
+          const tipificacionData = await this.client.hGetAll(`tipificacion:${tipificacionId}`);
+          
+          if (tipificacionData && tipificacionData.data) {
+            const parsedData = JSON.parse(tipificacionData.data);
+            tipificaciones.push({
+              id: tipificacionId,
+              ...parsedData,
+              createdAt: tipificacionData.createdAt,
+              status: tipificacionData.status
+            });
+          } else {
+            console.warn(`⚠️ [Redis] Tipificación ${tipificacionId} sin datos, limpiando de cola`);
+            // Limpiar de la cola si no tiene datos
+            await this.client.zRem(key, tipificacionId);
+          }
+        } catch (parseError) {
+          console.error(`❌ [Redis] Error parseando tipificación ${tipificacionId}:`, parseError);
+          errores.push(tipificacionId);
         }
       }
-
+      
+      // Limpiar tipificaciones con errores de la cola
+      if (errores.length > 0) {
+        for (const errorId of errores) {
+          await this.client.zRem(key, errorId);
+        }
+      }
+      
+      console.log(`✅ [Redis] Devolviendo ${tipificaciones.length} tipificaciones válidas para agente ${idAgent}`);
+      
       return tipificaciones;
     } catch (error) {
       console.error('❌ Error obteniendo todas las tipificaciones pendientes:', error);

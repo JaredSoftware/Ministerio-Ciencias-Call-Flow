@@ -142,6 +142,16 @@ export default {
           // Cambio a sessionStorage para que cada pestaña sea independiente
           sessionStorage.setItem('user', qs.stringify(getInfoForLogin.user));
           
+          // Establecer usuario en el store PRIMERO (sincrónicamente)
+          this.$store.commit('setUser', getInfoForLogin.user);
+          this.$store.commit('makelogin');
+          this.$store.commit('setToken', token);
+          
+          // Guardar en sessionStorage también
+          sessionStorage.setItem('user', qs.stringify(getInfoForLogin.user));
+          sessionStorage.setItem('token', token);
+          sessionStorage.setItem('isLoggedIn', 'true');
+          
           // SINCRONIZAR SESIÓN EXPRESS ANTES DE REDIRIGIR
           try {
             await sessionSync.syncSession();
@@ -149,9 +159,19 @@ export default {
             console.error('❌ Error sincronizando sesión:', syncError);
           }
 
-          // Redirigir al dashboard
-          this.$store.dispatch("login", { token, user: getInfoForLogin.user });
-          this.$router.push("/dashboard");
+          // Ejecutar acción login para completar el proceso
+          await this.$store.dispatch("login", { token, user: getInfoForLogin.user });
+          
+          // Esperar un momento para asegurar que el store se actualizó completamente
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // Verificar que el usuario esté en el store antes de redirigir (idAgent es opcional)
+          if (this.$store.state.user && this.$store.getters.isLoggedIn) {
+            this.$router.push("/dashboard");
+          } else {
+            console.error('❌ Error: Usuario no se estableció correctamente en el store');
+            this.emailDisabled = true;
+          }
         } else {
           this.passwordDisabled = true;
           this.emailDisabled = false;

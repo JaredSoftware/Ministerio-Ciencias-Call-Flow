@@ -15,11 +15,13 @@ import ActiveUsers from "../views/ActiveUsers.vue";
 // Work.vue ahora muestra un popup con iframe del formulario EJS
 // import Work from "../views/Work.vue"; // Cargado dinámicamente
 import TreeAdmin from "../views/TreeAdmin.vue";
+import DialogosAdmin from "../views/DialogosAdmin.vue";
 
 import store from "../store/index"; // Importa tu store de Vuex
 
 import tokens from "@/router/services/tokens";
 import permissions from "@/router/services/permissions";
+import qs from "qs";
 
 const routes = [
   {
@@ -158,24 +160,28 @@ const routes = [
     name: "Signin",
     component: Signin,
     beforeEnter: async (to, from, next) => {
-      const isLoggedIn = sessionStorage.getItem("isLoggedIn");
+      // Verificar si hay usuario (idAgent es opcional)
+      const hasUserComplete = !!store.state.user && store.getters.isLoggedIn;
       
-      if (store.getters.isLoggedIn || isLoggedIn) {
-        // Si el usuario ya está logueado, verificar si el token es válido
-        const roles = await tokens.sendRole();
-        
-        if (roles.error) {
-          // Token inválido, limpiar y mostrar login
-          localStorage.clear();
-          sessionStorage.clear();
-          next();
-        } else {
-          // Token válido, redirigir al dashboard
-          next("/dashboard");
-        }
-      } else {
-        // Usuario no logueado, mostrar página de login
+      if (!hasUserComplete) {
+        // No hay usuario completo, simplemente mostrar login (sin limpiar para no interrumpir el proceso)
         next();
+        return;
+      }
+      
+      // Si hay usuario completo, verificar token
+      const roles = await tokens.sendRole();
+      
+      if (roles.error) {
+        // Token inválido, limpiar y mostrar login
+        console.log("⚠️ [Router] Token inválido. Limpiando sesión...");
+        store.dispatch("logout");
+        localStorage.clear();
+        sessionStorage.clear();
+        next();
+      } else {
+        // Token válido, redirigir al dashboard
+        next("/dashboard");
       }
     },
   },
@@ -184,15 +190,16 @@ const routes = [
     name: "Signup",
     component: Signup,
   },
-  {
-    path: "/work",
-    name: "Work",
-    component: () => import("../views/Work.vue"),
-    meta: {
-      requiresAuth: true,
-      permissions: [] // Acceso libre para usuarios autenticados
-    },
-  },
+  // Ruta Work eliminada - el sistema funciona automáticamente con notificaciones
+  // {
+  //   path: "/work",
+  //   name: "Work",
+  //   component: () => import("../views/Work.vue"),
+  //   meta: {
+  //     requiresAuth: true,
+  //     permissions: []
+  //   },
+  // },
   {
     path: "/reportes",
     name: "Reportes",
@@ -206,6 +213,15 @@ const routes = [
         path: "/tree-admin",
         name: "TreeAdmin",
         component: TreeAdmin,
+        meta: {
+          requiresAuth: true,
+          permissions: [{ module: 'admin', permission: 'manageTree' }]
+        },
+      },
+      {
+        path: "/dialogos-admin",
+        name: "DialogosAdmin",
+        component: DialogosAdmin,
         meta: {
           requiresAuth: true,
           permissions: [{ module: 'admin', permission: 'manageTree' }]
@@ -241,19 +257,45 @@ const rutasEspeciales = ["/signin", "/signout"];
 
 router.beforeEach(async (to, from, next) => {
   
-  // Rutas especiales que no requieren verificación
+  // Rutas especiales que no requieren verificación - SALIR INMEDIATAMENTE
   if (rutasEspeciales.includes(to.path)) {
     next();
     return;
   }
   
   // Verificar si la ruta requiere autenticación
-    if (to.matched.some((record) => record.meta.requiresAuth)) {
+  if (to.matched.some((record) => record.meta.requiresAuth)) {
     
-    // Verificar si el usuario está logueado
-        const isLoggedInNow = sessionStorage.getItem("isLoggedIn");
-        
-    if (!store.getters.isLoggedIn && !isLoggedInNow) {
+    // 🚨 VERIFICACIÓN SIMPLE: Solo permitir acceso si hay usuario completo en el store
+    // También verificar sessionStorage por si el store aún no se actualizó
+    const userInStore = store.state.user;
+    const userInSession = sessionStorage.getItem('user');
+    let user = userInStore;
+    
+    // Si no hay usuario en store pero sí en sessionStorage, intentar parsearlo
+    if (!user && userInSession) {
+      try {
+        user = qs.parse(userInSession);
+        // Actualizar el store con el usuario de sessionStorage
+        store.commit('setUser', user);
+        if (!store.getters.isLoggedIn) {
+          store.commit('makelogin');
+        }
+      } catch (e) {
+        // Error parseando, continuar sin usuario
+      }
+    }
+    
+    // Verificar si hay usuario: debe tener user Y estar logueado
+    // idAgent es opcional (algunos usuarios como admin pueden no tenerlo)
+    const hasUserComplete = !!user && store.getters.isLoggedIn;
+    
+    // Si NO hay usuario completo, redirigir a signin
+    if (!hasUserComplete) {
+      // NO hacer log si ya estamos yendo a signin (evitar spam en consola)
+      if (to.path !== '/signin' && from.path !== '/signin') {
+        console.log("🚨 [Router] No hay usuario completo. Redirigiendo a /signin");
+      }
       next("/signin");
       return;
     }

@@ -3,6 +3,8 @@
 <head>
   <%- include("partials/head.html") %>
   <title>Formulario de Tipificación - <%= agent.name %></title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
   <style>
     * {
       margin: 0;
@@ -11,17 +13,304 @@
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: #f8f9fa;
-      color: #333;
+      font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #111921;
+      color: #fff;
+      min-height: 100vh;
+    }
+    
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
     }
 
     .work-container {
       display: flex;
-      flex-direction: row;
-      gap: 24px;
-      padding: 24px;
+      flex-direction: column;
       min-height: 100vh;
+      background: #111921;
+      padding: 0;
+      gap: 0;
+    }
+    
+    /* Layout Principal */
+    .main-layout {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      background: #111921;
+    }
+    
+    /* Header Sticky */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(17, 25, 33, 0.8);
+      padding: 16px;
+      padding-bottom: 8px;
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(52, 77, 101, 0.5);
+    }
+    
+    .app-header h1 {
+      flex: 1;
+      text-align: center;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      margin: 0;
+    }
+    
+    .app-header button {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      transition: background 0.2s ease;
+    }
+    
+    .app-header button:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    
+    /* Utilidades Flex */
+    .flex {
+      display: flex;
+    }
+    
+    .items-center {
+      align-items: center;
+    }
+    
+    .justify-center {
+      justify-content: center;
+    }
+    
+    .justify-between {
+      justify-content: space-between;
+    }
+    
+    .flex-col {
+      flex-direction: column;
+    }
+    
+    .flex-1 {
+      flex: 1;
+    }
+    
+    .gap-1 { gap: 4px; }
+    .gap-2 { gap: 8px; }
+    .gap-4 { gap: 16px; }
+    
+    .size-14 {
+      width: 56px;
+      height: 56px;
+    }
+    
+    .size-10 {
+      width: 40px;
+      height: 40px;
+    }
+    
+    .rounded-full {
+      border-radius: 9999px;
+    }
+    
+    .rounded-lg {
+      border-radius: 8px;
+    }
+    
+    .text-white {
+      color: #fff;
+    }
+    
+    .text-xl {
+      font-size: 20px;
+    }
+    
+    .text-sm {
+      font-size: 14px;
+    }
+    
+    .font-bold {
+      font-weight: 700;
+    }
+    
+    .font-medium {
+      font-weight: 500;
+    }
+    
+    .font-normal {
+      font-weight: 400;
+    }
+    
+    .leading-tight {
+      line-height: 1.25;
+    }
+    
+    .leading-normal {
+      line-height: 1.5;
+    }
+    
+    .tracking-\[-0\.015em\] {
+      letter-spacing: -0.015em;
+    }
+    
+    .min-w-\[84px\] {
+      min-width: 84px;
+    }
+    
+    .h-8 {
+      height: 32px;
+    }
+    
+    .px-4 {
+      padding-left: 16px;
+      padding-right: 16px;
+    }
+    
+    .py-1 {
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    
+    .truncate {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    .bg-primary\/20 {
+      background: rgba(23, 120, 211, 0.2);
+    }
+    
+    .text-primary {
+      color: #1778d3;
+    }
+    
+    .bg-\[#344d65\] {
+      background: #344d65;
+    }
+    
+    /* Main Content Area */
+    .main-content {
+      flex: 1;
+      overflow-y: auto;
+      padding-bottom: 80px; /* Espacio para footer */
+    }
+    
+    /* Client Card */
+    .client-card-wrapper {
+      padding: 16px;
+    }
+    
+    .client-card {
+      background: #1a2732;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    
+    .client-card .flex {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    .client-card .flex-col {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+    }
+    
+    .client-card button {
+      min-width: 84px;
+      height: 32px;
+      padding: 0 16px;
+      border-radius: 8px;
+      background: rgba(23, 120, 211, 0.2);
+      color: #1778d3;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    
+    .client-card button:hover {
+      background: rgba(23, 120, 211, 0.3);
+    }
+    
+    /* Main Tabs Container */
+    .main-tabs-container {
+      position: sticky;
+      top: 70px;
+      z-index: 90;
+      background: rgba(17, 25, 33, 0.8);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid rgba(52, 77, 101, 0.5);
+    }
+    
+    .main-tabs {
+      display: flex;
+      padding: 0 16px;
+      justify-content: space-between;
+    }
+    
+    .main-tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      border-bottom: 3px solid transparent;
+      padding: 16px 0 13px 0;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background: transparent;
+      border-top: none;
+      border-left: none;
+      border-right: none;
+    }
+    
+    .main-tab.active {
+      border-bottom-color: #1778d3;
+    }
+    
+    .main-tab p {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.015em;
+      color: #93aec8;
+      margin: 0;
+    }
+    
+    .main-tab.active p {
+      color: #fff;
+    }
+    
+    /* Tab Content */
+    .tab-content-wrapper {
+      display: none;
+      padding: 16px;
+      padding-bottom: 100px; /* Espacio para footer */
+    }
+    
+    .tab-content-wrapper.active {
+      display: block;
     }
 
     /* Modal Styles */
@@ -92,12 +381,14 @@
 
     /* Client Info */
     .client-info {
-      width: 300px;
-      background: #fff;
-      border-radius: 8px;
-      padding: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      width: 100%;
+      max-width: 400px;
+      background: #1a2732;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
       display: none;
+      margin: 16px;
     }
 
     .client-info.show {
@@ -105,8 +396,10 @@
     }
 
     .client-info h5 {
-      margin-bottom: 16px;
-      color: #333;
+      margin-bottom: 20px;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
     }
 
     .client-info-table {
@@ -116,49 +409,68 @@
     }
 
     .client-info-table td {
-      padding: 4px 0;
+      padding: 8px 0;
       vertical-align: top;
+      color: #e0e7ef;
+      font-size: 14px;
+    }
+    
+    .client-info-table td b {
+      color: #93aec8;
     }
 
     .btn-update {
-      background: #ffc107;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 4px;
-      font-weight: bold;
+      background: rgba(23, 120, 211, 0.2);
+      border: 1px solid #1778d3;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
       cursor: pointer;
       width: 100%;
+      color: #1778d3;
+      transition: all 0.2s ease;
+      margin-top: 16px;
+    }
+    
+    .btn-update:hover {
+      background: #1778d3;
+      color: #fff;
     }
 
     /* Main Content */
     .work-main {
       flex: 1;
-      background: #fff;
-      border-radius: 8px;
-      padding: 24px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      background: transparent;
+      padding: 0;
     }
-
+    
     .tipificacion-header {
-      margin-bottom: 16px;
+      display: none; /* Ocultar header antiguo */
     }
 
     .tab-active {
-      background: #1976d2;
-      color: #fff;
-      border: none;
-      padding: 8px 24px;
-      border-radius: 4px 4px 0 0;
-      font-weight: bold;
+      display: none; /* Ocultar botón antiguo */
     }
-
+    
     .tipificacion-form {
-      margin-top: 8px;
+      padding: 0;
+      background: transparent;
     }
 
     .tipificacion-form h4 {
-      margin-bottom: 20px;
-      color: #333;
+      margin-bottom: 16px;
+      color: #fff;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+    }
+    
+    /* Content Cards */
+    .content-card {
+      background: #1a2732;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
     }
 
     .form-row {
@@ -169,18 +481,49 @@
 
     /* Asegurar que todos los selects tengan el mismo estilo */
     .form-select-lg {
-      padding: 0.75rem 1rem;
-      font-size: 1rem;
+      padding: 12px 16px;
+      font-size: 15px;
       line-height: 1.5;
-      min-height: calc(1.5em + 1.5rem + 2px);
+      background: #1a2732;
+      border: 1px solid rgba(52, 77, 101, 0.5);
+      border-radius: 8px;
+      color: #fff;
+      min-height: 48px;
+      transition: all 0.2s ease;
+    }
+    
+    .form-select-lg:focus {
+      border-color: #1778d3;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(23, 120, 211, 0.1);
+    }
+    
+    .form-control {
+      padding: 12px 16px;
+      font-size: 15px;
+      background: #1a2732;
+      border: 1px solid rgba(52, 77, 101, 0.5);
+      border-radius: 8px;
+      color: #fff;
+      transition: all 0.2s ease;
+    }
+    
+    .form-control:focus {
+      border-color: #1778d3;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(23, 120, 211, 0.1);
+    }
+    
+    .form-control::placeholder {
+      color: #93aec8;
     }
 
     /* Asegurar que los labels se vean iguales */
     .form-label {
-      font-weight: 600;
-      margin-bottom: 0.5rem;
-      color: #333;
-      font-size: 0.95rem;
+      font-weight: 500;
+      margin-bottom: 8px;
+      color: #93aec8;
+      font-size: 14px;
     }
 
     .form-actions {
@@ -200,27 +543,39 @@
     }
 
     .btn-save {
-      background: #28a745;
+      background: #1778d3;
       color: white;
+      border-radius: 8px;
+      font-weight: 600;
+      padding: 14px 24px;
+      font-size: 16px;
+      transition: all 0.2s ease;
     }
 
     .btn-save:hover:not(:disabled) {
-      background: #218838;
+      background: #1565c0;
       transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(23, 120, 211, 0.3);
     }
 
     .btn-save:disabled {
-      background: #6c757d;
+      background: rgba(52, 77, 101, 0.5);
       cursor: not-allowed;
+      opacity: 0.6;
     }
 
     .btn-clear {
-      background: #dc3545;
+      background: rgba(52, 77, 101, 0.8);
       color: white;
+      border-radius: 8px;
+      font-weight: 600;
+      padding: 14px 24px;
+      font-size: 16px;
+      transition: all 0.2s ease;
     }
 
     .btn-clear:hover {
-      background: #c82333;
+      background: rgba(52, 77, 101, 1);
       transform: translateY(-1px);
     }
 
@@ -244,21 +599,228 @@
       100% { transform: rotate(360deg); }
     }
 
+    @keyframes slideUp {
+      from {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      to {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+    }
+
     /* History */
     .work-history {
-      width: 350px;
-      background: #fff;
-      border-radius: 8px;
-      padding: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+      width: 100%;
+      background: transparent;
+      padding: 0;
       overflow-y: auto;
-      max-height: 80vh;
     }
 
     .work-history h5 {
       margin-bottom: 16px;
-      color: #333;
-      font-size: 1.1rem;
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    
+    /* Footer Sticky */
+    .app-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(17, 25, 33, 0.8);
+      backdrop-filter: blur(8px);
+      padding: 16px;
+      border-top: 1px solid rgba(52, 77, 101, 0.5);
+    }
+    
+    /* Modal Cliente Edit - Diseño Moderno */
+    .modal-cliente-edit-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      padding-top: 64px;
+    }
+    
+    .modal-cliente-edit-container {
+      width: 100%;
+      max-width: 384px;
+      display: flex;
+      flex-direction: column;
+      border-radius: 12px 12px 0 0;
+      background: #1a2732;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    
+    .modal-cliente-edit-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(52, 77, 101, 0.5);
+      padding: 16px;
+    }
+    
+    .modal-cliente-edit-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      margin: 0;
+    }
+    
+    .modal-cliente-edit-close {
+      display: flex;
+      width: 32px;
+      height: 32px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: transparent;
+      border: none;
+      color: rgba(255, 255, 255, 0.7);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .modal-cliente-edit-close:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+    }
+    
+    .modal-cliente-edit-main {
+      overflow-y: auto;
+      padding: 16px;
+      max-height: calc(100vh - 200px);
+    }
+    
+    .modal-cliente-edit-form {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    
+    .modal-cliente-edit-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+    }
+    
+    .modal-cliente-edit-label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #93aec8;
+    }
+    
+    .modal-cliente-edit-input {
+      width: 100%;
+      border-radius: 8px;
+      border: 2px solid rgba(52, 77, 101, 0.5);
+      background: #111921;
+      padding: 8px 12px;
+      color: #fff;
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+    
+    .modal-cliente-edit-input::placeholder {
+      color: rgba(106, 127, 152, 0.7);
+    }
+    
+    .modal-cliente-edit-input:focus {
+      outline: none;
+      border-color: #1778d3;
+      box-shadow: 0 0 0 2px rgba(23, 120, 211, 0.2);
+    }
+    
+    .modal-cliente-edit-footer {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      border-top: 1px solid rgba(52, 77, 101, 0.5);
+      padding: 16px;
+    }
+    
+    .modal-cliente-edit-btn-cancel,
+    .modal-cliente-edit-btn-save {
+      min-width: 84px;
+      height: 44px;
+      padding: 0 16px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+    }
+    
+    .modal-cliente-edit-btn-cancel {
+      background: transparent;
+      color: rgba(255, 255, 255, 0.9);
+    }
+    
+    .modal-cliente-edit-btn-cancel:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    
+    .modal-cliente-edit-btn-save {
+      background: #1778d3;
+      color: #fff;
+    }
+    
+    .modal-cliente-edit-btn-save:hover {
+      background: #1565c0;
+    }
+    
+    .modal-cliente-edit-btn-save:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .footer-buttons {
+      display: flex;
+      gap: 16px;
+    }
+    
+    .footer-btn {
+      flex: 1;
+      min-width: 84px;
+      height: 48px;
+      padding: 0 16px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+    }
+    
+    .footer-btn-secondary {
+      background: rgba(52, 77, 101, 0.8);
+      color: #fff;
+    }
+    
+    .footer-btn-secondary:hover {
+      background: rgba(52, 77, 101, 1);
+    }
+    
+    .footer-btn-primary {
+      background: #1778d3;
+      color: #fff;
+    }
+    
+    .footer-btn-primary:hover {
+      background: #1565c0;
     }
 
     .history-list {
@@ -267,19 +829,21 @@
 
     .no-history {
       text-align: center;
-      color: #6c757d;
+      color: #93aec8;
       font-style: italic;
       padding: 20px;
-      background: #f8f9fa;
+      background: rgba(26, 39, 50, 0.6);
+      border-radius: 8px;
       border-radius: 6px;
     }
 
     .history-item {
-      background: #f8f9fa;
-      border: 1px solid #e3e3e3;
+      background: rgba(26, 39, 50, 0.6);
+      border: 1px solid rgba(52, 77, 101, 0.3);
       border-radius: 8px;
       margin-bottom: 12px;
-      padding: 12px 16px;
+      padding: 16px;
+      color: #c3d8ee;
     }
 
     .history-header {
@@ -288,18 +852,18 @@
       align-items: center;
       margin-bottom: 8px;
       padding-bottom: 8px;
-      border-bottom: 1px solid #dee2e6;
+      border-bottom: 1px solid rgba(52, 77, 101, 0.3);
     }
 
     .history-number {
-      font-weight: bold;
-      color: #1976d2;
+      font-weight: 600;
+      color: #4a9eff;
       margin-right: 8px;
     }
 
     .history-id {
       font-weight: 600;
-      color: #333;
+      color: #fff;
       flex: 1;
     }
 
@@ -317,13 +881,13 @@
     }
 
     .history-details p {
-      margin: 4px 0;
-      font-size: 0.9rem;
-      color: #555;
+      margin: 6px 0;
+      font-size: 14px;
+      color: #93aec8;
     }
 
     .history-details strong {
-      color: #333;
+      color: #e0e7ef;
     }
 
     .status-badge {
@@ -347,27 +911,36 @@
 
     /* Queue List */
     .queue-list {
-      margin-top: 20px;
+      margin-top: 0;
+      padding: 0;
+    }
+    
+    .queue-list h5 {
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
     }
 
     .queue-item {
-      background: #f8f9fa;
-      border: 1px solid #e3e3e3;
+      background: #1a2732;
+      border: 1px solid rgba(52, 77, 101, 0.5);
       border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.2s ease;
     }
 
     .queue-item:hover {
-      background: #e9ecef;
+      background: rgba(23, 120, 211, 0.1);
+      border-color: rgba(23, 120, 211, 0.5);
       transform: translateX(4px);
     }
 
     .queue-item.active {
-      border-left: 4px solid #1976d2;
-      background: #e3f2fd;
+      border-left: 4px solid #1778d3;
+      background: rgba(23, 120, 211, 0.15);
     }
 
     .queue-header {
@@ -378,13 +951,15 @@
     }
 
     .queue-id {
-      font-weight: bold;
-      color: #1976d2;
+      font-weight: 600;
+      color: #4a9eff;
+      font-size: 15px;
     }
 
     .queue-cedula {
-      color: #28a745;
+      color: #5cb85c;
       font-weight: 600;
+      font-size: 14px;
     }
 
     /* Modal de edición de cliente */
@@ -412,10 +987,622 @@
       line-height: 1.5;
       min-height: calc(1.5em + 1.5rem + 2px);
     }
+
+    /* Diálogos - Sub-tabs dentro de la tab Diálogos */
+    .dialogos-container {
+      margin-bottom: 0;
+    }
+    
+    .dialogos-container:empty {
+      display: none !important;
+    }
+    
+    /* Sub-tabs para diálogos */
+    .dialogos-sub-tabs {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid rgba(52, 77, 101, 0.5);
+      overflow-x: auto;
+      padding-bottom: 0;
+      margin-bottom: 16px;
+      padding: 0;
+    }
+    
+    .dialogo-sub-tab {
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      background: transparent;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #93aec8;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border-radius: 8px 8px 0 0;
+      border: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .dialogo-sub-tab:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .dialogo-sub-tab.active {
+      color: #fff;
+      border-bottom-color: #1778d3;
+      background: #1a2732;
+      font-weight: 600;
+    }
+    
+    .nav-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      padding: 0;
+      margin: 0;
+      list-style: none;
+      border-bottom: 1px solid rgba(52, 77, 101, 0.5);
+      background: transparent;
+    }
+    
+    .nav-tabs .nav-item {
+      margin-bottom: -1px;
+    }
+    
+    .nav-tabs .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      color: #93aec8;
+      text-decoration: none;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 8px 8px 0 0;
+    }
+    
+    .nav-tabs .nav-link:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.05);
+    }
+    
+    .nav-tabs .nav-link.active {
+      color: #fff;
+      border-bottom-color: #1778d3;
+      background: #1a2732;
+      font-weight: 600;
+    }
+    
+    /* Estilos duplicados removidos - usar solo .nav-item de Bootstrap */
+    
+    /* Estilos duplicados removidos - usar solo .nav-link de Bootstrap */
+    
+    .tab-content.dialogos-panels {
+      background: #1a2732;
+      padding: 16px;
+      border-radius: 12px;
+      margin-top: 0;
+    }
+    
+    .dialogo-content-panel {
+      padding: 0;
+      background: transparent;
+      max-height: 60vh;
+      overflow-y: auto;
+      animation: fadeIn 0.3s ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .tab-pane {
+      display: none;
+    }
+    
+    .tab-pane.active {
+      display: block;
+    }
+    
+    .tab-pane.fade {
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    
+    .tab-pane.fade.show {
+      opacity: 1;
+    }
+    
+    .dialogo-close-tab {
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #93aec8;
+      font-size: 14px;
+      transition: all 0.2s ease;
+      margin-left: 8px;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .dialogo-close-tab:hover {
+      background: rgba(220, 53, 69, 0.2);
+      color: #dc3545;
+    }
+
+    /* Estilos antiguos removidos - ahora usamos tabs de Bootstrap */
+
+    .dialogo-mensaje {
+      font-size: 15px;
+      line-height: 1.7;
+      white-space: pre-line;
+      color: #e0e7ef;
+    }
+    
+    .dialogo-mensaje h3,
+    .dialogo-mensaje h4,
+    .dialogo-mensaje p,
+    .dialogo-mensaje ul,
+    .dialogo-mensaje ol,
+    .dialogo-mensaje li,
+    .dialogo-mensaje strong {
+      display: block;
+      margin: 4px 0;
+    }
+    
+    .dialogo-mensaje ul,
+    .dialogo-mensaje ol {
+      margin-left: 20px;
+    }
+
+    .dialogo-mensaje h3,
+    .dialogo-mensaje h4 {
+      font-weight: 600;
+      margin-top: 12px;
+      margin-bottom: 8px;
+      color: inherit;
+    }
+
+    .dialogo-mensaje h3 {
+      font-size: 1rem;
+      text-transform: uppercase;
+    }
+
+    .dialogo-mensaje h4 {
+      font-size: 0.95rem;
+    }
+
+    .dialogo-mensaje ul,
+    .dialogo-mensaje ol {
+      margin: 8px 0;
+      padding-left: 24px;
+    }
+
+    .dialogo-mensaje li {
+      margin: 4px 0;
+    }
+
+    .dialogo-mensaje strong {
+      font-weight: 600;
+    }
+
+    .dialogo-mensaje p {
+      margin: 6px 0;
+    }
+
+    .dialogo-expandible {
+      max-height: 300px;
+      overflow-y: auto;
+      transition: max-height 0.3s ease;
+    }
+
+    .dialogo-expandible.expandido {
+      max-height: 800px;
+    }
+
+    .dialogo-toggle {
+      background: rgba(0,0,0,0.05);
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      margin-top: 8px;
+      color: inherit;
+      opacity: 0.8;
+    }
+
+    .dialogo-toggle:hover {
+      opacity: 1;
+    }
+
+    .dialogo-close {
+      background: none;
+      border: none;
+      font-size: 1.2rem;
+      cursor: pointer;
+      color: inherit;
+      opacity: 0.6;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .dialogo-close:hover {
+      opacity: 1;
+    }
+
+    .dialogos-container:empty {
+      display: none;
+    }
   </style>
 </head>
 <body>
-  <div class="work-container">
+  <div class="main-layout">
+    <!-- Header Sticky -->
+    <header class="app-header">
+      <button class="flex size-10 shrink-0 items-center justify-center rounded-full text-white" onclick="window.close()">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+      <h1>Formulario de Tipificación</h1>
+      <button class="text-primary text-base font-bold leading-normal tracking-[0.015em] shrink-0 px-2" style="color: #1778d3;">Cerrar</button>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Client Card -->
+      <div class="client-card-wrapper" id="clientCardWrapper" style="display: none;">
+        <div class="client-card">
+          <div class="flex items-center gap-4">
+            <div class="size-14 rounded-full bg-[#344d65] flex items-center justify-center">
+              <span class="material-symbols-outlined text-white">person</span>
+            </div>
+            <div class="flex flex-col gap-1 flex-1">
+              <p class="text-white text-xl font-bold leading-tight tracking-[-0.015em]" id="clientName">-</p>
+              <p class="text-[#93aec8] text-sm font-normal leading-normal" id="clientId">ID: -</p>
+            </div>
+            <button class="flex min-w-[84px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-8 px-4 bg-primary/20 text-primary text-sm font-medium leading-normal" onclick="editarCliente()">
+              <span class="truncate">Editar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Tabs -->
+      <div class="main-tabs-container">
+        <div class="main-tabs">
+          <div class="main-tab active" onclick="cambiarTab('dialogos')">
+            <p>Diálogos</p>
+          </div>
+          <div class="main-tab" onclick="cambiarTab('tipificaciones')">
+            <p>Tipificaciones</p>
+          </div>
+          <div class="main-tab" onclick="cambiarTab('historial')">
+            <p>Historial</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Diálogos -->
+      <div class="tab-content-wrapper active" id="tab-dialogos">
+        <!-- Diálogos de agentes (Tabs de Bootstrap) -->
+        <div class="dialogos-container" id="dialogosContainer">
+          <% if (typeof dialogos !== 'undefined' && dialogos && Array.isArray(dialogos) && dialogos.length > 0) { %>
+            <!-- Sub-tabs para diálogos -->
+            <div class="dialogos-sub-tabs">
+              <% dialogos.forEach((dialogo, index) => { %>
+                <% 
+                  const dialogoId = dialogo._id ? dialogo._id.toString() : ('dialogo-' + index);
+                  const dialogoTitulo = dialogo.titulo || 'Sin título';
+                  const isActive = index === 0;
+                %>
+                <button class="dialogo-sub-tab <%= isActive ? 'active' : '' %>" 
+                        onclick="mostrarDialogo('<%= dialogoId %>', event); return false;"
+                        id="sub-tab-<%= dialogoId %>">
+                  <%= dialogoTitulo %>
+                  <button class="dialogo-close-tab" onclick="cerrarDialogo('<%= dialogoId %>', event); event.stopPropagation(); return false;" title="Cerrar">×</button>
+                </button>
+              <% }); %>
+            </div>
+            
+            <div class="tab-content dialogos-panels">
+              <% dialogos.forEach((dialogo, index) => { %>
+                <% 
+                  const esGuion = dialogo.tipo === 'guion';
+                  const mensajeLargo = dialogo.mensaje && dialogo.mensaje.length > 500;
+                  const necesitaExpandir = esGuion || mensajeLargo;
+                  const dialogoId = dialogo._id ? dialogo._id.toString() : ('dialogo-' + index);
+                  const dialogoTitulo = dialogo.titulo || 'Sin título';
+                  const isActive = index === 0;
+                  let dialogoMensaje = '';
+                  if (dialogo.mensajeFormateado && dialogo.mensajeFormateado.trim()) {
+                    dialogoMensaje = dialogo.mensajeFormateado;
+                  } else if (dialogo.mensaje) {
+                    dialogoMensaje = dialogo.mensaje
+                      .replace(/&/g, '&amp;')
+                      .replace(/</g, '&lt;')
+                      .replace(/>/g, '&gt;')
+                      .replace(/"/g, '&quot;')
+                      .replace(/'/g, '&#39;')
+                      .replace(/\n/g, '<br>');
+                  } else {
+                    dialogoMensaje = '<em>Sin mensaje</em>';
+                  }
+                %>
+                <div class="tab-pane fade dialogo-content-panel <%= isActive ? 'show active' : '' %>" 
+                     id="panel-<%= dialogoId %>"
+                     role="tabpanel"
+                     data-dialogo-id="<%= dialogoId %>"
+                     data-tipo="<%= dialogo.tipo || 'info' %>">
+                  
+                  <% if (dialogoTitulo && dialogoTitulo !== 'Sin título') { %>
+                    <div class="dialogo-titulo">
+                      <div style="display: flex; align-items: center; gap: 10px;">
+                        <span class="dialogo-badge"><%= dialogo.tipo || 'Info' %></span>
+                        <span><%= dialogoTitulo %></span>
+                      </div>
+                      <button class="flex items-center gap-2 rounded-lg bg-primary/20 px-3 py-1.5 text-xs font-medium text-primary" onclick="navigator.clipboard.writeText(document.getElementById('mensaje-<%= dialogoId %>').textContent)">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">content_copy</span>
+                        <span>Copiar</span>
+                      </button>
+                    </div>
+                  <% } %>
+
+                  <div class="dialogo-mensaje <%= necesitaExpandir ? 'dialogo-expandible' : '' %>" 
+                       id="mensaje-<%= dialogoId %>">
+                    <%- dialogoMensaje %>
+                  </div>
+                  <% if (necesitaExpandir) { %>
+                    <button class="dialogo-toggle" onclick="toggleDialogo('<%= dialogoId %>')" id="toggle-<%= dialogoId %>">
+                      Ver más
+                    </button>
+                  <% } %>
+                </div>
+              <% }); %>
+            </div>
+          <% } else { %>
+            <div class="content-card">
+              <p class="text-[#93aec8]">No hay diálogos disponibles</p>
+            </div>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Tab Content: Tipificaciones -->
+      <div class="tab-content-wrapper" id="tab-tipificaciones">
+        <div class="work-main">
+          <!-- Cola de Tipificaciones Pendientes -->
+          <% if (hasTipificaciones && tipificaciones.length > 0) { %>
+            <div class="queue-list">
+              <h5>📋 Cola de Tipificaciones (<span id="queueCount"><%= tipificaciones.length %></span>)</h5>
+              <% tipificaciones.forEach((tip, index) => { %>
+                <div class="queue-item <%= index === 0 ? 'active' : '' %>" data-id="<%= tip.idLlamada || tip.id %>" onclick="cargarTipificacion('<%= tip.idLlamada || tip.id %>')">
+                  <div class="queue-header">
+                    <span class="queue-id">ID: <%= tip.idLlamada || tip.id %></span>
+                    <span class="queue-cedula"><%= tip.cedula || 'N/A' %></span>
+                  </div>
+                  <div><%= tip.nombres || '' %> <%= tip.apellidos || '' %></div>
+                </div>
+              <% }); %>
+            </div>
+          <% } %>
+
+          <!-- Formulario de Tipificación -->
+          <div id="tipificacionForm" class="tipificacion-form" style="<%= hasTipificaciones && tipificaciones.length > 0 ? '' : 'display: none;' %>">
+            <h4>📞 Formulario de Tipificación</h4>
+            
+            <div class="form-row mb-3">
+              <label for="nivel1" class="form-label fw-semibold">Nivel 1</label>
+              <select id="nivel1" class="form-select form-select-lg" onchange="actualizarNivel2()">
+                <option value="">Selecciona una opción...</option>
+              </select>
+            </div>
+
+            <div class="form-row mb-3" id="nivel2Row" style="display: none;">
+              <label for="nivel2" class="form-label fw-semibold">Nivel 2</label>
+              <select id="nivel2" class="form-select form-select-lg" onchange="actualizarNivel3()">
+              </select>
+            </div>
+
+            <div class="form-row mb-3" id="nivel3Row" style="display: none;">
+              <label for="nivel3" class="form-label fw-semibold">Nivel 3</label>
+              <select id="nivel3" class="form-select form-select-lg" onchange="actualizarNivel4()">
+              </select>
+            </div>
+
+            <div class="form-row mb-3" id="nivel4Row" style="display: none;">
+              <label for="nivel4" class="form-label fw-semibold">Nivel 4</label>
+              <select id="nivel4" class="form-select form-select-lg" onchange="actualizarNivel5()">
+              </select>
+            </div>
+
+            <div class="form-row mb-3" id="nivel5Row" style="display: none;">
+              <label for="nivel5" class="form-label fw-semibold">Nivel 5</label>
+              <select id="nivel5" class="form-select form-select-lg">
+              </select>
+            </div>
+
+            <div class="form-row mb-3">
+              <label for="observaciones" class="form-label fw-semibold">Observaciones</label>
+              <textarea id="observaciones" class="form-control" rows="4" placeholder="Escribe tus observaciones aquí..."></textarea>
+            </div>
+          </div>
+
+          <!-- Mensaje cuando no hay formulario activo -->
+          <div id="noActiveForm" class="no-active-form" style="<%= hasTipificaciones && tipificaciones.length > 0 ? 'display: none;' : '' %>">
+            <h4>📋 Esperando Nueva Tipificación</h4>
+            <p>El sistema asignará automáticamente la siguiente llamada...</p>
+            <div style="margin-top: 20px;">
+              <div class="loading-spinner"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Historial -->
+      <div class="tab-content-wrapper" id="tab-historial">
+        <div class="work-history">
+          <h5>📋 Historial Completado</h5>
+          <div class="history-list" id="historyList">
+            <div class="no-history">No hay tipificaciones completadas</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Modal para editar datos del cliente -->
+    <div id="modal-cliente-edit" class="modal-cliente-edit-overlay" style="display: none;">
+      <div class="modal-cliente-edit-container">
+        <header class="modal-cliente-edit-header">
+          <h2 class="modal-cliente-edit-title">Editar Información del Cliente</h2>
+          <button class="modal-cliente-edit-close" onclick="cerrarModalCliente()">
+            <span class="material-symbols-outlined">close</span>
+          </button>
+        </header>
+        <main class="modal-cliente-edit-main">
+          <form id="formClienteEdit" class="modal-cliente-edit-form">
+            <div class="modal-cliente-edit-grid">
+              <div>
+                <label class="modal-cliente-edit-label" for="edit-tipoDocumento">Tipo de Documento</label>
+                <select id="edit-tipoDocumento" class="modal-cliente-edit-input">
+                  <option value="">Seleccione...</option>
+                  <option value="Cédula de ciudadanía">Cédula de ciudadanía</option>
+                  <option value="Cédula de extranjería">Cédula de extranjería</option>
+                  <option value="Tarjeta de identidad">Tarjeta de identidad</option>
+                  <option value="Pasaporte">Pasaporte</option>
+                  <option value="Permiso temporal de permanencia">Permiso temporal de permanencia</option>
+                </select>
+              </div>
+              <div>
+                <label class="modal-cliente-edit-label" for="edit-cedula">Número de Documento</label>
+                <input type="text" id="edit-cedula" class="modal-cliente-edit-input" placeholder="1234567890" />
+              </div>
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-nombres">Nombres</label>
+              <input type="text" id="edit-nombres" class="modal-cliente-edit-input" placeholder="Nombre" />
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-apellidos">Apellidos</label>
+              <input type="text" id="edit-apellidos" class="modal-cliente-edit-input" placeholder="Apellidos" />
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-correo">Correo Electrónico</label>
+              <input type="email" id="edit-correo" class="modal-cliente-edit-input" placeholder="correo@ejemplo.com" />
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-telefono">Teléfono</label>
+              <input type="tel" id="edit-telefono" class="modal-cliente-edit-input" placeholder="(57) 300 123 4567" />
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-fechaNacimiento">Fecha de Nacimiento</label>
+              <input type="date" id="edit-fechaNacimiento" class="modal-cliente-edit-input" />
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-sexo">Sexo</label>
+              <select id="edit-sexo" class="modal-cliente-edit-input">
+                <option value="">Seleccione...</option>
+                <option value="Hombre">Hombre</option>
+                <option value="Mujer">Mujer</option>
+                <option value="Intersexual">Intersexual</option>
+              </select>
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-pais">País</label>
+              <input type="text" id="edit-pais" class="modal-cliente-edit-input" placeholder="Colombia" />
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-departamento">Departamento</label>
+              <input type="text" id="edit-departamento" class="modal-cliente-edit-input" placeholder="Cundinamarca" />
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-ciudad">Ciudad</label>
+              <input type="text" id="edit-ciudad" class="modal-cliente-edit-input" placeholder="Bogotá" />
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-direccion">Dirección</label>
+              <input type="text" id="edit-direccion" class="modal-cliente-edit-input" placeholder="Calle 123 #45-67" />
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-nivelEscolaridad">Nivel de Escolaridad</label>
+              <select id="edit-nivelEscolaridad" class="modal-cliente-edit-input">
+                <option value="">Seleccione...</option>
+                <option value="Prescolar">Prescolar</option>
+                <option value="Básica primaria (1 a 5)">Básica primaria (1 a 5)</option>
+                <option value="Básica Secundaria (6 a 9)">Básica Secundaria (6 a 9)</option>
+                <option value="Media (10-11)">Media (10-11)</option>
+                <option value="Técnico">Técnico</option>
+                <option value="Tecnólogo">Tecnólogo</option>
+                <option value="Universitario (pregrado)">Universitario (pregrado)</option>
+                <option value="Postgrado (Especialización)">Postgrado (Especialización)</option>
+                <option value="Postgrado (Maestría)">Postgrado (Maestría)</option>
+                <option value="Postgrado (Doctorado)">Postgrado (Doctorado)</option>
+                <option value="Postgrado (post Doctorado)">Postgrado (post Doctorado)</option>
+              </select>
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-grupoEtnico">Grupo Étnico</label>
+              <select id="edit-grupoEtnico" class="modal-cliente-edit-input">
+                <option value="">Seleccione...</option>
+                <option value="Indígena">Indígena</option>
+                <option value="Raizal">Raizal</option>
+                <option value="Palenquero/a">Palenquero/a</option>
+                <option value="Gitano/a ROM">Gitano/a ROM</option>
+                <option value="Negro/a, Mulato/a, Afrodescendiente">Negro/a, Mulato/a, Afrodescendiente</option>
+                <option value="Ningún grupo étnico">Ningún grupo étnico</option>
+              </select>
+            </div>
+            <div>
+              <label class="modal-cliente-edit-label" for="edit-discapacidad">Discapacidad</label>
+              <select id="edit-discapacidad" class="modal-cliente-edit-input">
+                <option value="">Seleccione...</option>
+                <option value="Ninguna">Ninguna</option>
+                <option value="Física">Física</option>
+                <option value="Visual">Visual</option>
+                <option value="Auditiva">Auditiva</option>
+                <option value="Múltiple">Múltiple</option>
+                <option value="Intelectual - Cognitiva">Intelectual - Cognitiva</option>
+                <option value="Psicosocial">Psicosocial</option>
+                <option value="Sordoceguera">Sordoceguera</option>
+              </select>
+            </div>
+          </form>
+        </main>
+        <footer class="modal-cliente-edit-footer">
+          <button class="modal-cliente-edit-btn-cancel" onclick="cerrarModalCliente()">Cancelar</button>
+          <button class="modal-cliente-edit-btn-save" onclick="guardarClienteEdit()">Guardar Cambios</button>
+        </footer>
+      </div>
+    </div>
+
+    <!-- Footer Sticky -->
+    <footer class="app-footer">
+      <div class="footer-buttons">
+        <button class="footer-btn footer-btn-secondary" onclick="limpiarFormulario()">Limpiar</button>
+        <button class="footer-btn footer-btn-primary" id="btnGuardar" onclick="guardarTipificacion()">Guardar Tipificación</button>
+      </div>
+    </footer>
+  </div>
+
+  <div class="work-container" style="display: none;">
     <!-- Modal para nueva tipificación -->
     <div id="modalOverlay" class="modal-overlay">
       <div class="modal-content">
@@ -580,6 +1767,84 @@
 
     <!-- Formulario Principal -->
     <div class="work-main">
+      <!-- Diálogos de agentes (Tabs de Bootstrap) -->
+      <div class="dialogos-container" id="dialogosContainer" style="display: block !important;">
+        <% if (typeof dialogos !== 'undefined' && dialogos && Array.isArray(dialogos) && dialogos.length > 0) { %>
+          <ul class="nav nav-tabs" role="tablist">
+            <% dialogos.forEach((dialogo, index) => { %>
+              <% 
+                const dialogoId = dialogo._id ? dialogo._id.toString() : ('dialogo-' + index);
+                const dialogoTitulo = dialogo.titulo || 'Sin título';
+                const isActive = index === 0;
+              %>
+              <li class="nav-item" role="presentation">
+                <a class="nav-link <%= isActive ? 'active' : '' %>" 
+                   <%= isActive ? 'aria-current="page"' : '' %>
+                   id="tab-<%= dialogoId %>"
+                   href="#panel-<%= dialogoId %>" 
+                   role="tab"
+                   aria-controls="panel-<%= dialogoId %>"
+                   aria-selected="<%= isActive ? 'true' : 'false' %>"
+                   onclick="mostrarDialogo('<%= dialogoId %>', event); return false;">
+                  <%= dialogoTitulo %>
+                  <button class="dialogo-close-tab" onclick="cerrarDialogo('<%= dialogoId %>', event); event.stopPropagation(); return false;" title="Cerrar">×</button>
+                </a>
+              </li>
+            <% }); %>
+          </ul>
+          
+          <div class="tab-content dialogos-panels">
+            <% dialogos.forEach((dialogo, index) => { %>
+              <% 
+                const esGuion = dialogo.tipo === 'guion';
+                const mensajeLargo = dialogo.mensaje && dialogo.mensaje.length > 500;
+                const necesitaExpandir = esGuion || mensajeLargo;
+                const dialogoId = dialogo._id ? dialogo._id.toString() : ('dialogo-' + index);
+                const dialogoTitulo = dialogo.titulo || 'Sin título';
+                const isActive = index === 0;
+                let dialogoMensaje = '';
+                if (dialogo.mensajeFormateado && dialogo.mensajeFormateado.trim()) {
+                  dialogoMensaje = dialogo.mensajeFormateado;
+                } else if (dialogo.mensaje) {
+                  dialogoMensaje = dialogo.mensaje
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;')
+                    .replace(/\n/g, '<br>');
+                } else {
+                  dialogoMensaje = '<em>Sin mensaje</em>';
+                }
+              %>
+              <div class="tab-pane fade dialogo-content-panel <%= isActive ? 'show active' : '' %>" 
+                   id="panel-<%= dialogoId %>"
+                   role="tabpanel"
+                   aria-labelledby="tab-<%= dialogoId %>"
+                   data-dialogo-id="<%= dialogoId %>"
+                   data-tipo="<%= dialogo.tipo || 'info' %>">
+                
+                <% if (dialogoTitulo && dialogoTitulo !== 'Sin título') { %>
+                  <div class="dialogo-titulo">
+                    <span class="dialogo-badge"><%= dialogo.tipo || 'Info' %></span>
+                    <%= dialogoTitulo %>
+                  </div>
+                <% } %>
+
+                <div class="dialogo-mensaje <%= necesitaExpandir ? 'dialogo-expandible' : '' %>" 
+                     id="mensaje-<%= dialogoId %>">
+                  <%- dialogoMensaje %>
+                </div>
+                <% if (necesitaExpandir) { %>
+                  <button class="dialogo-toggle" onclick="toggleDialogo('<%= dialogoId %>')" id="toggle-<%= dialogoId %>">
+                    Ver más
+                  </button>
+                <% } %>
+              </div>
+            <% }); %>
+          </div>
+        <% } %>
+      </div>
       <div class="tipificacion-header">
         <button class="tab-active">TIPIFICACIONES</button>
       </div>
@@ -670,6 +1935,8 @@
   </div>
 
   <%- include("partials/scripts.html") %>
+  <!-- Socket.IO Client -->
+  <script src="/socket.io/socket.io.js"></script>
   <script>
     // Datos globales
     const config = {
@@ -680,13 +1947,197 @@
 
     const arbol = <%- JSON.stringify(arbol) %>;
     const tipificaciones = <%- JSON.stringify(tipificaciones || []) %>;
+    const dialogos = <%- JSON.stringify(dialogos || []) %>;
     
-    // 🚀 LOG INICIAL PARA DEBUG
-    console.log('🌳 Árbol recibido del servidor:', arbol);
-    console.log('📋 Tipificaciones recibidas:', tipificaciones.length);
+    // DEBUG: Verificar diálogos
+    console.log('📋 [DEBUG] Diálogos desde EJS:', dialogos);
+    console.log('📋 [DEBUG] Tipo de dialogos:', typeof dialogos);
+    console.log('📋 [DEBUG] Es array:', Array.isArray(dialogos));
+    console.log('📋 [DEBUG] Longitud:', dialogos ? dialogos.length : 'undefined');
+    if (dialogos && dialogos.length > 0) {
+      console.log('📋 [DEBUG] Primer diálogo:', dialogos[0]);
+    }
+    
+    // Función para cambiar tab principal
+    function cambiarTab(tabName) {
+      // Ocultar todos los contenidos
+      document.querySelectorAll('.tab-content-wrapper').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      
+      // Desactivar todas las tabs principales
+      document.querySelectorAll('.main-tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      
+      // Activar tab seleccionada
+      const tabContent = document.getElementById(`tab-${tabName}`);
+      const tabButton = event?.currentTarget || document.querySelector(`[onclick*="${tabName}"]`);
+      
+      if (tabContent) {
+        tabContent.classList.add('active');
+      }
+      if (tabButton) {
+        tabButton.classList.add('active');
+      }
+      
+      // Si se cambia a historial y hay tipificación activa, cargar historial
+      if (tabName === 'historial' && tipificacionActual && tipificacionActual.cedula) {
+        cargarHistorialCliente(tipificacionActual.cedula);
+      }
+    }
+    
+    // Función para mostrar diálogo (cambiar sub-tab activa)
+    function mostrarDialogo(dialogoId, event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
+      // Ocultar todos los paneles
+      document.querySelectorAll('.dialogo-content-panel').forEach(panel => {
+        panel.classList.remove('active', 'show');
+      });
+      
+      // Desactivar todas las sub-tabs
+      document.querySelectorAll('.dialogo-sub-tab').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      
+      // Mostrar panel seleccionado
+      const panel = document.getElementById(`panel-${dialogoId}`);
+      const subTab = document.getElementById(`sub-tab-${dialogoId}`);
+      
+      if (panel) {
+        panel.classList.add('active', 'show');
+      }
+      if (subTab) {
+        subTab.classList.add('active');
+      }
+    }
+    
+    // Función para cerrar diálogo
+    function cerrarDialogo(dialogoId, event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
+        const tabItem = document.querySelector(`#sub-tab-${dialogoId}`);
+      const panel = document.getElementById(`panel-${dialogoId}`);
+      
+      if (tabItem) {
+        tabItem.remove();
+      }
+      if (panel) {
+        panel.remove();
+      }
+      
+      // Guardar en localStorage que este diálogo fue cerrado
+      const cerrados = JSON.parse(localStorage.getItem('dialogosCerrados') || '[]');
+      if (!cerrados.includes(dialogoId)) {
+        cerrados.push(dialogoId);
+        localStorage.setItem('dialogosCerrados', JSON.stringify(cerrados));
+      }
+      
+      // Si no quedan más diálogos, ocultar contenedor
+      const container = document.getElementById('dialogosContainer');
+        const tabsRestantes = container?.querySelectorAll('.dialogo-sub-tab');
+      if (!tabsRestantes || tabsRestantes.length === 0) {
+        if (container) {
+          container.style.display = 'none';
+        }
+        const workContainer = document.querySelector('.work-container');
+        if (workContainer) {
+          workContainer.style.marginTop = '0';
+        }
+      } else {
+        // Activar el primer tab restante
+        const primeraTab = container.querySelector('.dialogo-sub-tab');
+        if (primeraTab) {
+          const primerId = primeraTab.id.replace('tab-', '');
+          mostrarDialogo(primerId);
+        }
+      }
+    }
+
+    // Función para expandir/colapsar diálogo largo
+    function toggleDialogo(dialogoId) {
+      const mensajeEl = document.getElementById(`mensaje-${dialogoId}`);
+      const toggleEl = document.getElementById(`toggle-${dialogoId}`);
+      
+      if (mensajeEl && toggleEl) {
+        if (mensajeEl.classList.contains('expandido')) {
+          mensajeEl.classList.remove('expandido');
+          toggleEl.textContent = 'Ver más';
+          mensajeEl.scrollTop = 0;
+        } else {
+          mensajeEl.classList.add('expandido');
+          toggleEl.textContent = 'Ver menos';
+        }
+      }
+    }
+
+    // Ocultar diálogos que ya fueron cerrados anteriormente
+    document.addEventListener('DOMContentLoaded', function() {
+      const container = document.getElementById('dialogosContainer');
+      if (!container) {
+        console.warn('⚠️ [Diálogos] Contenedor no encontrado');
+        return;
+      }
+      
+      // Verificar si hay diálogos renderizados (sub-tabs)
+      const dialogosRenderizados = container.querySelectorAll('.dialogo-sub-tab');
+      console.log('📋 [Diálogos] Diálogos renderizados en DOM:', dialogosRenderizados.length);
+      console.log('📋 [Diálogos] Diálogos desde JS:', dialogos ? dialogos.length : 0);
+      
+      if (dialogosRenderizados.length === 0) {
+        console.warn('⚠️ [Diálogos] No hay diálogos en el DOM');
+        // No ocultar el contenedor todavía, puede que se estén cargando
+        return;
+      }
+      
+      // Ocultar diálogos cerrados previamente
+      const cerrados = JSON.parse(localStorage.getItem('dialogosCerrados') || '[]');
+      console.log('📋 [Diálogos] IDs cerrados en localStorage:', cerrados);
+      
+      cerrados.forEach(id => {
+        const tabItem = document.querySelector(`#sub-tab-${id}`);
+        const panel = document.getElementById(`panel-${id}`);
+        if (tabItem) {
+          tabItem.remove();
+        }
+        if (panel) {
+          panel.remove();
+        }
+      });
+      
+      // Ajustar margen del contenedor después de ocultar cerrados
+      setTimeout(() => {
+        const dialogosVisibles = container.querySelectorAll('.dialogo-sub-tab');
+        console.log('📋 [Diálogos] Diálogos visibles después de filtrar:', dialogosVisibles.length);
+        
+        if (dialogosVisibles.length === 0) {
+          container.style.display = 'none';
+          const workContainer = document.querySelector('.work-container');
+          if (workContainer) {
+            workContainer.style.marginTop = '0';
+          }
+        } else {
+          // Asegurar que el contenedor sea visible
+          container.style.display = 'block';
+          const workContainer = document.querySelector('.work-container');
+          if (workContainer) {
+            workContainer.style.marginTop = '220px';
+          }
+        }
+      }, 100);
+    });
     
     let tipificacionActual = null;
     let eventSource = null;
+    let pollingInterval = null; // 🚀 Intervalo de polling como respaldo
+    let lastTipificacionIds = []; // 🚀 IDs de la última actualización para detectar cambios
 
     // 🚀 VUE.JS 2 - Instancia para edición de cliente
     // Esperar a que Vue.js esté cargado
@@ -694,7 +2145,6 @@
     
     function inicializarVue() {
       if (typeof Vue === 'undefined') {
-        console.error('❌ Vue.js no está cargado');
         setTimeout(inicializarVue, 100);
         return;
       }
@@ -832,7 +2282,6 @@
             
             this.cerrarModal();
           } catch (error) {
-            console.error('Error guardando cliente:', error);
             Swal.fire({
               icon: 'error',
               title: 'Error',
@@ -845,8 +2294,6 @@
         }
       }
       });
-      
-      console.log('✅ Vue.js inicializado para edición de cliente');
     }
     
     // Inicializar Vue.js cuando el DOM esté listo
@@ -870,42 +2317,165 @@
 
     // Función global para abrir modal de edición (llamada desde botón)
     function editarCliente() {
-      if (!appClienteEdit) {
+      if (!tipificacionActual) {
         Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'Vue.js no está inicializado. Por favor, recarga la página.',
+          icon: 'warning',
+          title: 'Sin tipificación activa',
+          text: 'No hay una tipificación seleccionada para editar',
           confirmButtonText: 'Entendido'
         });
         return;
       }
-      appClienteEdit.abrirModal();
+      
+      // Cargar datos actuales del cliente en el formulario
+      document.getElementById('edit-tipoDocumento').value = tipificacionActual.tipoDocumento || '';
+      document.getElementById('edit-cedula').value = tipificacionActual.cedula || '';
+      document.getElementById('edit-nombres').value = tipificacionActual.nombres || '';
+      document.getElementById('edit-apellidos').value = tipificacionActual.apellidos || '';
+      document.getElementById('edit-correo').value = tipificacionActual.correo || '';
+      document.getElementById('edit-telefono').value = tipificacionActual.telefono || '';
+      
+      if (tipificacionActual.fechaNacimiento) {
+        const fecha = tipificacionActual.fechaNacimiento instanceof Date 
+          ? tipificacionActual.fechaNacimiento.toISOString().split('T')[0]
+          : tipificacionActual.fechaNacimiento.split('T')[0];
+        document.getElementById('edit-fechaNacimiento').value = fecha;
+      } else {
+        document.getElementById('edit-fechaNacimiento').value = '';
+      }
+      
+      document.getElementById('edit-sexo').value = tipificacionActual.sexo || '';
+      document.getElementById('edit-pais').value = tipificacionActual.pais || 'Colombia';
+      document.getElementById('edit-departamento').value = tipificacionActual.departamento || '';
+      document.getElementById('edit-ciudad').value = tipificacionActual.ciudad || '';
+      document.getElementById('edit-direccion').value = tipificacionActual.direccion || '';
+      document.getElementById('edit-nivelEscolaridad').value = tipificacionActual.nivelEscolaridad || '';
+      document.getElementById('edit-grupoEtnico').value = tipificacionActual.grupoEtnico || '';
+      document.getElementById('edit-discapacidad').value = tipificacionActual.discapacidad || '';
+      
+      // Mostrar modal
+      document.getElementById('modal-cliente-edit').style.display = 'flex';
     }
+    
+    function cerrarModalCliente() {
+      document.getElementById('modal-cliente-edit').style.display = 'none';
+    }
+    
+    async function guardarClienteEdit() {
+      if (!tipificacionActual) return;
+      
+      const btnSave = document.querySelector('.modal-cliente-edit-btn-save');
+      btnSave.disabled = true;
+      btnSave.textContent = 'Guardando...';
+      
+      try {
+        const clienteData = {
+          cedula: document.getElementById('edit-cedula').value || tipificacionActual.cedula,
+          tipoDocumento: document.getElementById('edit-tipoDocumento').value || '',
+          nombres: document.getElementById('edit-nombres').value || '',
+          apellidos: document.getElementById('edit-apellidos').value || '',
+          fechaNacimiento: document.getElementById('edit-fechaNacimiento').value || '',
+          sexo: document.getElementById('edit-sexo').value || '',
+          pais: document.getElementById('edit-pais').value || 'Colombia',
+          departamento: document.getElementById('edit-departamento').value || '',
+          ciudad: document.getElementById('edit-ciudad').value || '',
+          direccion: document.getElementById('edit-direccion').value || '',
+          telefono: document.getElementById('edit-telefono').value || '',
+          correo: document.getElementById('edit-correo').value || '',
+          nivelEscolaridad: document.getElementById('edit-nivelEscolaridad').value || '',
+          grupoEtnico: document.getElementById('edit-grupoEtnico').value || '',
+          discapacidad: document.getElementById('edit-discapacidad').value || ''
+        };
+        
+        const response = await fetch('/api/crm/cliente/actualizar', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(clienteData)
+        });
+        
+        const data = await response.json();
+        
+        if (!data.success) {
+          throw new Error(data.message || 'Error actualizando cliente en el CRM');
+        }
+        
+        // Recargar tipificación con datos actualizados
+        const currentIdLlamada = tipificacionActual.idLlamada || tipificacionActual.id;
+        if (currentIdLlamada) {
+          await recargarTipificaciones();
+          const tipActualizada = tipificaciones.find(t => 
+            (t.idLlamada || t.id) === currentIdLlamada
+          );
+          
+          if (tipActualizada) {
+            tipificacionActual = tipActualizada;
+            cargarTipificacion(currentIdLlamada);
+          }
+        }
+        
+        await Swal.fire({
+          icon: 'success',
+          title: '¡Datos actualizados!',
+          text: 'Los datos del cliente se han actualizado correctamente',
+          timer: 2000,
+          showConfirmButton: false
+        });
+        
+        cerrarModalCliente();
+      } catch (error) {
+        console.error('Error guardando cliente:', error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: error.message || 'Error al guardar los cambios',
+          confirmButtonText: 'Entendido'
+        });
+      } finally {
+        btnSave.disabled = false;
+        btnSave.textContent = 'Guardar Cambios';
+      }
+    }
+    
+    // Cerrar modal al hacer clic fuera
+    document.addEventListener('click', function(e) {
+      const modal = document.getElementById('modal-cliente-edit');
+      if (modal && e.target === modal) {
+        cerrarModalCliente();
+      }
+    });
 
     // Inicializar
     document.addEventListener('DOMContentLoaded', function() {
-      console.log('🚀 Inicializando formulario de tipificación');
-      console.log('🌳 Estado del árbol:', {
-        existe: !!arbol,
-        esArray: Array.isArray(arbol),
-        longitud: arbol ? arbol.length : 0,
-        primerNodo: arbol && arbol.length > 0 ? arbol[0] : null
-      });
       
       // Cargar primera tipificación si existe
       if (tipificaciones.length > 0) {
         cargarTipificacion(tipificaciones[0].idLlamada || tipificaciones[0].id);
       }
 
-      // Inicializar árbol
-      inicializarArbol();
+      // Inicializar árbol (con delay para asegurar que el DOM esté listo)
+      setTimeout(() => {
+        inicializarArbol();
+      }, 200);
 
+      // Inicializar IDs para comparación
+      lastTipificacionIds = tipificaciones.map(t => t.id || t.idLlamada).filter(Boolean);
+      
       // Conectar a SSE para actualizaciones en tiempo real
       conectarSSE();
       
+      // 🚀 Conectar también a Socket.IO para eventos inmediatos
+      conectarSocketIO();
+      
+      // 🚀 INICIAR POLLING PERIÓDICO COMO RESPALDO (más confiable)
+      iniciarPolling();
+      
       // 🚀 Cargar historial del cliente si hay tipificación activa
       if (tipificaciones.length > 0 && tipificaciones[0].cedula) {
-        cargarHistorialCliente(tipificaciones[0].cedula);
+        setTimeout(() => {
+          cargarHistorialCliente(tipificaciones[0].cedula);
+        }, 300);
       }
     });
 
@@ -975,42 +2545,67 @@
       actualizarNivel(nivelNumero + 1);
     }
 
+    // Variable para rastrear si el árbol ya fue inicializado
+    let arbolInicializado = false;
+    
     // Inicializar árbol de tipificaciones
     function inicializarArbol() {
-      const nivel1Select = document.getElementById('nivel1');
-      if (!nivel1Select) {
-        console.error('❌ Select de nivel1 no encontrado');
-        return;
-      }
-      
-      nivel1Select.innerHTML = '<option value="">Selecciona una opción...</option>';
-      
-      if (!arbol || !Array.isArray(arbol) || arbol.length === 0) {
-        console.warn('⚠️ Árbol vacío o inválido:', arbol);
-        return;
-      }
-      
-      console.log('🌳 Inicializando árbol con', arbol.length, 'nodos raíz');
-      
-      arbol.forEach(node => {
-        if (node && node.value && node.label) {
-          const option = document.createElement('option');
-          option.value = node.value;
-          option.textContent = node.label;
-          nivel1Select.appendChild(option);
+      // Esperar a que el DOM esté listo y el select exista
+      const initArbol = () => {
+        const nivel1Select = document.getElementById('nivel1');
+        if (!nivel1Select) {
+          // Si no existe, intentar de nuevo después de un delay (máximo 5 segundos)
+          if (!arbolInicializado) {
+            setTimeout(initArbol, 100);
+          }
+          return;
         }
-      });
-      
-      // 🚀 AGREGAR LISTENER DE EVENTO ROBUSTO
-      nivel1Select.addEventListener('change', function() {
-        actualizarNivel(2);
-      });
-      
-      // Si hay un valor pre-seleccionado, actualizar niveles
-      if (nivel1Select.value && nivel1Select.value !== '') {
-        setTimeout(() => {
+        
+        // Evitar inicializar múltiples veces si ya tiene opciones
+        if (arbolInicializado && nivel1Select.options.length > 1) {
+          return;
+        }
+        
+        nivel1Select.innerHTML = '<option value="">Selecciona una opción...</option>';
+        
+        if (!arbol || !Array.isArray(arbol) || arbol.length === 0) {
+          console.warn('⚠️ [Árbol] No hay árbol disponible');
+          return;
+        }
+        
+        arbol.forEach(node => {
+          if (node && node.value && node.label) {
+            const option = document.createElement('option');
+            option.value = node.value;
+            option.textContent = node.label;
+            nivel1Select.appendChild(option);
+          }
+        });
+        
+        // 🚀 AGREGAR LISTENER DE EVENTO ROBUSTO (evitar duplicados)
+        const handleChange = function() {
           actualizarNivel(2);
-        }, 100);
+        };
+        
+        // Remover listener anterior si existe
+        nivel1Select.removeEventListener('change', handleChange);
+        nivel1Select.addEventListener('change', handleChange);
+        
+        arbolInicializado = true;
+        
+        // Si hay un valor pre-seleccionado, actualizar niveles
+        if (nivel1Select.value && nivel1Select.value !== '') {
+          setTimeout(() => {
+            actualizarNivel(2);
+          }, 100);
+        }
+      };
+      
+      // Intentar inicializar inmediatamente o después de un delay
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initArbol);
+      } else {
+        setTimeout(initArbol, 100);
       }
     }
 
@@ -1044,19 +2639,40 @@
 
       tipificacionActual = tip;
 
-      // Actualizar UI
-      document.getElementById('infoIdLlamada').textContent = tip.idLlamada || '-';
-      document.getElementById('infoTipoDocumento').textContent = tip.tipoDocumento || '-';
-      document.getElementById('infoCedula').textContent = tip.cedula || '-';
-      document.getElementById('infoNombres').textContent = tip.nombres || '-';
-      document.getElementById('infoApellidos').textContent = tip.apellidos || '-';
-      document.getElementById('infoTelefono').textContent = tip.telefono || '-';
-      document.getElementById('infoCorreo').textContent = tip.correo || '-';
+      // Actualizar UI - Card de cliente
+      const clientCardWrapper = document.getElementById('clientCardWrapper');
+      const clientName = document.getElementById('clientName');
+      const clientId = document.getElementById('clientId');
+      
+      if (clientCardWrapper && clientName && clientId) {
+        const nombreCompleto = `${tip.nombres || ''} ${tip.apellidos || ''}`.trim() || 'Cliente';
+        clientName.textContent = nombreCompleto;
+        clientId.textContent = `ID: ${tip.idLlamada || tip.id || '-'}`;
+        clientCardWrapper.style.display = 'block';
+      }
 
       // Mostrar formulario
-      document.getElementById('clientInfo').classList.add('show');
       document.getElementById('tipificacionForm').style.display = 'block';
       document.getElementById('noActiveForm').style.display = 'none';
+      
+      // Asegurar que el árbol esté inicializado
+      setTimeout(() => {
+        if (!arbolInicializado) {
+          inicializarArbol();
+        }
+      }, 200);
+      
+      // Cargar historial del cliente
+      if (tip.cedula && tip.cedula !== '-') {
+        setTimeout(() => {
+          cargarHistorialCliente(tip.cedula);
+        }, 300);
+      } else {
+        mostrarHistorial([]);
+      }
+      
+      // Cambiar a tab de tipificaciones
+      cambiarTab('tipificaciones');
 
       // Marcar como activa en la cola
       document.querySelectorAll('.queue-item').forEach(item => {
@@ -1126,13 +2742,22 @@
         }
       }
 
-      // 🚀 Cargar historial del cliente (por cédula)
-      if (tip.cedula) {
-        cargarHistorialCliente(tip.cedula);
+      // 🚀 Cargar historial del cliente (por cédula) - con delay para asegurar que la tab esté lista
+      if (tip.cedula && tip.cedula !== '-') {
+        setTimeout(() => {
+          cargarHistorialCliente(tip.cedula);
+        }, 300);
       } else {
         // Si no hay cédula, limpiar historial
         mostrarHistorial([]);
       }
+      
+      // Asegurar que el árbol esté inicializado cuando se carga una tipificación
+      setTimeout(() => {
+        if (!arbolInicializado) {
+          inicializarArbol();
+        }
+      }, 200);
 
       // 🚀 Sincronizar datos del cliente con Vue.js para edición
       if (appClienteEdit && appClienteEdit.clienteEditado) {
@@ -1242,31 +2867,34 @@
         const data = await response.json();
         
         if (data.success) {
-          await Swal.fire({
-            icon: 'success',
-            title: '¡Guardado exitoso!',
-            text: 'La tipificación se ha guardado correctamente',
-            timer: 2000,
-            showConfirmButton: false
-          });
+          // CERRAR LA VENTANA INMEDIATAMENTE - MÚLTIPLES MÉTODOS AGRESIVOS
+          const cerrar = () => {
+            try {
+              window.close();
+            } catch(e) {}
+            try {
+              self.close();
+            } catch(e) {}
+            try {
+              if (window.opener) {
+                window.opener.postMessage({ type: 'cerrarPopup' }, '*');
+              }
+            } catch(e) {}
+            try {
+              window.location.replace('about:blank');
+            } catch(e) {}
+            try {
+              window.location.href = 'about:blank';
+            } catch(e) {}
+          };
           
-          // Limpiar formulario
-          limpiarFormulario();
-          tipificacionActual = null;
-          
-          // 🚀 RECARGAR TIPIFICACIONES INMEDIATAMENTE desde el servidor
-          await recargarTipificaciones();
-          
-          // Cargar siguiente si existe
-          if (tipificaciones.length > 0) {
-            cargarTipificacion(tipificaciones[0].idLlamada || tipificaciones[0].id);
-          } else {
-            document.getElementById('tipificacionForm').style.display = 'none';
-            document.getElementById('noActiveForm').style.display = 'block';
-            document.getElementById('clientInfo').classList.remove('show');
-            // Limpiar historial si no hay más tipificaciones
-            mostrarHistorial([]);
-          }
+          // NO MOSTRAR SWAL - CERRAR INMEDIATAMENTE
+          cerrar();
+          setTimeout(cerrar, 10);
+          setTimeout(cerrar, 50);
+          setTimeout(cerrar, 100);
+          setTimeout(cerrar, 200);
+          setTimeout(cerrar, 500);
         } else {
           Swal.fire({
             icon: 'error',
@@ -1276,7 +2904,6 @@
           });
         }
       } catch (error) {
-        console.error('Error guardando tipificación:', error);
         Swal.fire({
           icon: 'error',
           title: 'Error',
@@ -1319,26 +2946,90 @@
     // Función editarCliente() ahora está definida arriba junto con Vue.js
 
     // 🚀 Recargar tipificaciones desde el servidor (actualización inmediata)
-    async function recargarTipificaciones() {
+    async function recargarTipificaciones(forceUpdate = false) {
       try {
         // Hacer petición directa al endpoint que obtiene las tipificaciones
-        const response = await fetch(`/api/tipificacion/pendientes/${config.idAgent}`);
+        const response = await fetch(`/api/tipificacion/pendientes/${config.idAgent}?_t=${Date.now()}`);
         if (response.ok) {
           const data = await response.json();
+          
           if (data.success && data.tipificaciones) {
+            const currentIds = data.tipificaciones.map(t => t.id || t.idLlamada).filter(Boolean);
+            
+            // 🚀 SIEMPRE ACTUALIZAR LA COLA (no importa si hay cambios o no)
+            const currentActiveId = tipificacionActual ? 
+              (tipificacionActual.idLlamada || tipificacionActual.id) : null;
+            
+            // Actualizar array de tipificaciones SIEMPRE
             tipificaciones.length = 0;
             tipificaciones.push(...data.tipificaciones);
+            lastTipificacionIds = currentIds;
+            
+            // 🚀 ACTUALIZAR COLA SIEMPRE (muestra TODAS las tipificaciones)
             actualizarCola();
-            console.log('✅ Tipificaciones recargadas:', tipificaciones.length);
+            
+            // Si había una tipificación activa, verificar si aún existe
+            if (currentActiveId) {
+              const stillExists = tipificaciones.find(t => 
+                (t.idLlamada || t.id) === currentActiveId
+              );
+              if (stillExists) {
+                // Actualizar datos de la tipificación activa SIN cambiar cuál está activa
+                const updatedTip = tipificaciones.find(t => 
+                  (t.idLlamada || t.id) === currentActiveId
+                );
+                if (updatedTip) {
+                  tipificacionActual = updatedTip;
+                  actualizarUI();
+                }
+              } else {
+                // La tipificación activa fue completada, cargar la siguiente
+                tipificacionActual = null;
+                if (tipificaciones.length > 0) {
+                  cargarTipificacion(tipificaciones[0].idLlamada || tipificaciones[0].id);
+                } else {
+                  document.getElementById('tipificacionForm').style.display = 'none';
+                  document.getElementById('noActiveForm').style.display = 'block';
+                  document.getElementById('clientInfo').classList.remove('show');
+                  mostrarHistorial([]);
+                }
+              }
+            }
           }
-        } else {
-          console.error('Error en respuesta:', response.status);
         }
       } catch (error) {
-        console.error('Error recargando tipificaciones:', error);
-        // Si falla, el SSE se encargará de actualizar
+        // Error recargando tipificaciones
       }
     }
+    
+    // 🚀 Iniciar polling periódico como respaldo (cada 3 segundos)
+    function iniciarPolling() {
+      // Limpiar intervalo anterior si existe
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+      
+      // Polling cada 3 segundos - SIEMPRE actualizar
+      pollingInterval = setInterval(() => {
+        // Solo hacer polling si la página está visible
+        if (!document.hidden) {
+          // 🚀 FORZAR actualización siempre (no importa si hay cambios)
+          recargarTipificaciones(true);
+        }
+      }, 3000);
+    }
+    
+    // 🚀 Detectar cuando la página vuelve a estar visible
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden) {
+        recargarTipificaciones(true);
+      }
+    });
+    
+    // 🚀 Detectar cuando la ventana recupera el foco
+    window.addEventListener('focus', function() {
+      recargarTipificaciones(true);
+    });
 
     // Conectar a SSE para actualizaciones en tiempo real
     function conectarSSE() {
@@ -1350,15 +3041,18 @@
           const data = JSON.parse(event.data);
           
           if (data.type === 'update') {
-            console.log('📡 Nueva actualización recibida:', data);
-            
             // Actualizar cola
             if (data.tipificaciones) {
               const currentActiveId = tipificacionActual ? 
                 (tipificacionActual.idLlamada || tipificacionActual.id) : null;
               
+              // 🚀 ACTUALIZAR SIEMPRE TODAS LAS TIPIFICACIONES
+              const currentIds = data.tipificaciones.map(t => t.id || t.idLlamada).filter(Boolean);
               tipificaciones.length = 0;
               tipificaciones.push(...data.tipificaciones);
+              lastTipificacionIds = currentIds;
+              
+              // 🚀 ACTUALIZAR COLA SIEMPRE (muestra TODAS)
               actualizarCola();
               
               // Si había una tipificación activa, mantenerla activa si aún existe
@@ -1367,8 +3061,14 @@
                   (t.idLlamada || t.id) === currentActiveId
                 );
                 if (stillExists) {
-                  // Mantener la misma tipificación activa
-                  cargarTipificacion(currentActiveId);
+                  // Mantener la misma tipificación activa (solo actualizar datos si cambiaron)
+                  const updatedTip = tipificaciones.find(t => 
+                    (t.idLlamada || t.id) === currentActiveId
+                  );
+                  if (updatedTip) {
+                    tipificacionActual = updatedTip;
+                    actualizarUI();
+                  }
                 } else {
                   // La tipificación activa fue completada, cargar la siguiente
                   tipificacionActual = null;
@@ -1378,6 +3078,7 @@
                     document.getElementById('tipificacionForm').style.display = 'none';
                     document.getElementById('noActiveForm').style.display = 'block';
                     document.getElementById('clientInfo').classList.remove('show');
+                    mostrarHistorial([]);
                   }
                 }
               } else if (tipificaciones.length > 0) {
@@ -1385,54 +3086,162 @@
                 cargarTipificacion(tipificaciones[0].idLlamada || tipificaciones[0].id);
               }
             }
-          } else if (data.type === 'heartbeat') {
-            // Heartbeat silencioso (no hacer nada)
           }
         } catch (error) {
-          console.error('Error procesando SSE:', error);
+          // Error procesando SSE
         }
       };
 
       eventSource.onerror = function(error) {
-        console.error('Error en SSE:', error);
         // Reconectar después de 3 segundos
         setTimeout(() => {
           if (eventSource && eventSource.readyState === EventSource.CLOSED) {
-            console.log('🔄 Reconectando SSE...');
             conectarSSE();
           }
         }, 3000);
       };
     }
+    
+    // 🚀 Conectar también a Socket.IO para eventos inmediatos
+    let socket = null;
+    function conectarSocketIO() {
+      // Verificar si Socket.IO está disponible
+      if (typeof io === 'undefined') {
+        // Intentar cargar Socket.IO desde CDN como fallback
+        const script = document.createElement('script');
+        script.src = 'https://cdn.socket.io/4.5.4/socket.io.min.js';
+        script.onload = function() {
+          inicializarSocket();
+        };
+        script.onerror = function() {
+          // Error al cargar Socket.IO
+        };
+        document.head.appendChild(script);
+      } else {
+        inicializarSocket();
+      }
+    }
+    
+    function inicializarSocket() {
+      try {
+        socket = io({
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+          reconnectionDelay: 1000,
+          reconnectionAttempts: 5
+        });
+        
+        socket.on('connect', function() {
+          // Socket.IO conectado
+        });
+        
+        socket.on('disconnect', function() {
+          // Socket.IO desconectado
+        });
+        
+        socket.on('tipificacion_removida', function(data) {
+          
+          // 🚀 ACTUALIZAR SIEMPRE TODAS LAS TIPIFICACIONES
+          if (data.tipificaciones) {
+            const currentIds = data.tipificaciones.map(t => t.id || t.idLlamada).filter(Boolean);
+            tipificaciones.length = 0;
+            tipificaciones.push(...data.tipificaciones);
+            lastTipificacionIds = currentIds; // Actualizar IDs para comparación
+            
+            // 🚀 ACTUALIZAR COLA SIEMPRE (muestra TODAS)
+            actualizarCola();
+            
+            // Si la tipificación removida era la activa, cargar la siguiente
+            if (tipificacionActual && 
+                (tipificacionActual.idLlamada || tipificacionActual.id) === data.tipificacionId) {
+              tipificacionActual = null;
+              if (tipificaciones.length > 0) {
+                cargarTipificacion(tipificaciones[0].idLlamada || tipificaciones[0].id);
+              } else {
+                document.getElementById('tipificacionForm').style.display = 'none';
+                document.getElementById('noActiveForm').style.display = 'block';
+                document.getElementById('clientInfo').classList.remove('show');
+                mostrarHistorial([]);
+              }
+            }
+          } else {
+            // Si no vienen datos, recargar desde el servidor
+            recargarTipificaciones();
+          }
+        });
+        
+        socket.on('nueva_tipificacion', function(data) {
+          
+          // 🚀 ACTUALIZAR SIEMPRE TODAS LAS TIPIFICACIONES
+          if (data.tipificaciones) {
+            const currentIds = data.tipificaciones.map(t => t.id || t.idLlamada).filter(Boolean);
+            tipificaciones.length = 0;
+            tipificaciones.push(...data.tipificaciones);
+            lastTipificacionIds = currentIds; // Actualizar IDs para comparación
+            
+            // 🚀 ACTUALIZAR COLA SIEMPRE (muestra TODAS)
+            actualizarCola();
+            
+            // Solo cargar automáticamente si NO hay una activa
+            if (!tipificacionActual && tipificaciones.length > 0) {
+              cargarTipificacion(tipificaciones[0].idLlamada || tipificaciones[0].id);
+            }
+          } else {
+            // Si no vienen datos, recargar desde el servidor
+            recargarTipificaciones(true);
+          }
+        });
+      } catch (error) {
+        // Error inicializando Socket.IO
+      }
+    }
 
     function actualizarCola() {
       const queueList = document.querySelector('.queue-list');
-      if (!queueList) return;
-
-      const count = tipificaciones.length;
-      document.getElementById('queueCount').textContent = count;
-
-      if (count === 0) {
-        queueList.innerHTML = '<p>No hay tipificaciones pendientes</p>';
+      if (!queueList) {
         return;
       }
 
+      const count = tipificaciones.length;
+      const queueCountEl = document.getElementById('queueCount');
+      if (queueCountEl) {
+        queueCountEl.textContent = count;
+      }
+
+      if (count === 0) {
+        queueList.innerHTML = '<h5>📋 Cola de Tipificaciones (0)</h5><p style="padding: 20px; text-align: center; color: #6c757d;">No hay tipificaciones pendientes</p>';
+        return;
+      }
+
+      const currentActiveId = tipificacionActual ? 
+        (tipificacionActual.idLlamada || tipificacionActual.id) : null;
+
+      // 🚀 SIEMPRE MOSTRAR TODAS LAS TIPIFICACIONES
       let html = `<h5>📋 Cola de Tipificaciones (${count})</h5>`;
+      
       tipificaciones.forEach((tip, index) => {
-        const isActive = tipificacionActual && 
-          (tipificacionActual.idLlamada || tipificacionActual.id) === (tip.idLlamada || tip.id);
+        const tipId = tip.idLlamada || tip.id;
+        if (!tipId) return; // Saltar si no tiene ID
+        
+        const isActive = currentActiveId && currentActiveId === tipId;
+        
         html += `
           <div class="queue-item ${isActive ? 'active' : ''}" 
-               data-id="${tip.idLlamada || tip.id}" 
-               onclick="cargarTipificacion('${tip.idLlamada || tip.id}')">
+               data-id="${tipId}" 
+               onclick="cargarTipificacion('${tipId}')"
+               title="${isActive ? '🟢 Tipificación activa' : 'Click para cargar'}">
             <div class="queue-header">
-              <span class="queue-id">ID: ${tip.idLlamada || tip.id}</span>
+              <span class="queue-id">${isActive ? '🟢 ' : ''}ID: ${tipId}</span>
               <span class="queue-cedula">${tip.cedula || 'N/A'}</span>
             </div>
-            <div>${tip.nombres || ''} ${tip.apellidos || ''}</div>
+            <div style="font-size: 0.9rem; color: #555;">
+              ${tip.nombres || ''} ${tip.apellidos || ''}
+              ${isActive ? '<span style="color: #28a745; font-weight: bold; margin-left: 8px;">[ACTIVA]</span>' : ''}
+            </div>
           </div>
         `;
       });
+      
       queueList.innerHTML = html;
     }
 
@@ -1449,14 +3258,11 @@
           const data = await response.json();
           if (data.success && data.historial) {
             mostrarHistorial(data.historial);
-            console.log('✅ Historial del cliente cargado:', data.historial.length, 'tipificaciones para cédula', cedula);
           }
         } else {
-          console.error('Error cargando historial del cliente:', response.status);
           mostrarHistorial([]);
         }
       } catch (error) {
-        console.error('Error cargando historial del cliente:', error);
         mostrarHistorial([]);
       }
     }
@@ -1513,6 +3319,12 @@
     window.addEventListener('beforeunload', function() {
       if (eventSource) {
         eventSource.close();
+      }
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+      if (socket) {
+        socket.disconnect();
       }
     });
   </script>

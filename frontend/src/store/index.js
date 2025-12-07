@@ -18,11 +18,11 @@ export default createStore({
     showMain: true,
     layout: "default",
     //login
-    isLoggedIn: sessionStorage.getItem('isLoggedIn') === 'true' || false,
+    isLoggedIn: false, // 🚨 SIEMPRE false al iniciar - NO usar sessionStorage
     user: null, // Usuario actual
     //remember me
     rememberMe: false,
-    token: sessionStorage.getItem('token') || '', // Solo sessionStorage - cada pestaña es independiente
+    token: '', // 🚨 SIEMPRE vacío al iniciar - NO usar sessionStorage
     // User status
     userStatus: {
       status: null, // Se cargará dinámicamente desde el backend
@@ -32,6 +32,38 @@ export default createStore({
     // Tipificación pendiente (se guarda temporalmente cuando llega antes de que Work se monte)
     pendingTipificacion: null,
   },
+  
+  // Plugin para LIMPIAR TODO al inicializar el store (solo si NO estamos en signin)
+  plugins: [
+    (store) => {
+      // Solo limpiar si NO estamos en la página de signin
+      if (window.location.pathname !== '/signin') {
+        // 🚨 LIMPIAR TODO AL CARGAR LA PÁGINA - NO MANTENER SESIÓN
+        console.log("🚨 [Store] LIMPIANDO TODA LA SESIÓN AL CARGAR...");
+        
+        // Limpiar store
+        store.commit('logout');
+        store.commit('setUser', null);
+        store.commit('clearToken');
+        store.commit('clearRole');
+        
+        // Limpiar storage COMPLETAMENTE
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // Limpiar cookies COMPLETAMENTE
+        const cookies = document.cookie.split(";");
+        for (let cookie of cookies) {
+          const eqPos = cookie.indexOf("=");
+          const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+          document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+        }
+        
+        console.log("✅ [Store] Sesión completamente limpiada. El usuario DEBE hacer login.");
+      }
+    }
+  ],
   mutations: {
     toggleConfigurator(state) {
       state.showConfig = !state.showConfig;
@@ -129,6 +161,7 @@ export default createStore({
         commit('setToken', token);
         if (user) {
           commit('setUser', user);
+          // Guardar también en sessionStorage para persistencia (ya se guarda en Signin.vue)
         }
         if (state.rememberMe) {
           // Establecer una cookie para recordar la sesión

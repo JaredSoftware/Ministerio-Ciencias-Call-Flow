@@ -639,41 +639,45 @@ export default {
     
     formatHora(f) {
       if (!f) return '-';
+      
+      // Las fechas están guardadas usando getFechaColombia() que crea fechas UTC
+      // que representan directamente la hora de Colombia
+      // Por lo tanto, debemos usar getUTCHours() directamente sin conversión
       const d = new Date(f);
-      // Formato hora en UTC-5 (Colombia)
-      return d.toLocaleTimeString('es-CO', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        timeZone: 'America/Bogota'
-      });
+      
+      // Obtener hora UTC directamente (ya representa hora de Colombia)
+      const horasUTC = d.getUTCHours();
+      const minutosUTC = d.getUTCMinutes();
+      const segundosUTC = d.getUTCSeconds();
+      
+      // Formatear con AM/PM en formato colombiano
+      const ampm = horasUTC >= 12 ? 'p. m.' : 'a. m.';
+      const hora12 = horasUTC === 0 ? 12 : horasUTC > 12 ? horasUTC - 12 : horasUTC;
+      
+      return `${String(hora12).padStart(2, '0')}:${String(minutosUTC).padStart(2, '0')}:${String(segundosUTC).padStart(2, '0')} ${ampm}`;
     },
     
     formatFecha(f) {
       if (!f) return '-';
       const d = new Date(f);
-      // Formato fecha en UTC-5 (Colombia)
-      return d.toLocaleDateString('es-CO', { 
-        year: 'numeric', 
-        month: '2-digit', 
-        day: '2-digit',
-        timeZone: 'America/Bogota'
-      });
+      // Usar getUTCDate() porque la fecha UTC ya representa fecha de Colombia
+      const año = d.getUTCFullYear();
+      const mes = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dia = String(d.getUTCDate()).padStart(2, '0');
+      return `${dia}/${mes}/${año}`;
     },
     
     formatFechaHora(f) {
       if (!f) return '-';
       const d = new Date(f);
-      // Formato fecha y hora completa en UTC-5 (Colombia)
-      return d.toLocaleString('es-CO', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        timeZone: 'America/Bogota'
-      });
+      // Usar métodos UTC porque la fecha UTC ya representa fecha/hora de Colombia
+      const año = d.getUTCFullYear();
+      const mes = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const dia = String(d.getUTCDate()).padStart(2, '0');
+      const horas = String(d.getUTCHours()).padStart(2, '0');
+      const minutos = String(d.getUTCMinutes()).padStart(2, '0');
+      const segundos = String(d.getUTCSeconds()).padStart(2, '0');
+      return `${dia}/${mes}/${año} ${horas}:${minutos}:${segundos}`;
     }
   }
 };

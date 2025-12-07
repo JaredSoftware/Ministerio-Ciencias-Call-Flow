@@ -453,13 +453,52 @@ router.get('/api/tipificacion/formulario', async (req, res) => {
       // 3. 🚀 EMITIR EVENTO POR SOCKET.IO PARA ACTUALIZACIÓN EN TIEMPO REAL
       const io = req.app.get('io');
       if (io) {
-        // Emitir a la sala del agente específico por idAgent
+        // Obtener todas las tipificaciones actualizadas después de agregar
+        const tipificacionesActualizadas = await redisService.getAllTipificacionesPendientes(idAgentReal);
+        
+        // 🚀 ENRIQUECER CON DATOS DEL CRM
+        const Cliente = require('../models/cliente');
+        const tipificacionesEnriquecidas = await Promise.all(
+          tipificacionesActualizadas.map(async (tip) => {
+            if (tip.cedula) {
+              try {
+                const cliente = await Cliente.buscarPorCedula(tip.cedula);
+                if (cliente) {
+                  return {
+                    ...tip,
+                    tipoDocumento: cliente.tipoDocumento || tip.tipoDocumento || '',
+                    nombres: cliente.nombres || tip.nombres || '',
+                    apellidos: cliente.apellidos || tip.apellidos || '',
+                    fechaNacimiento: cliente.fechaNacimiento || tip.fechaNacimiento || '',
+                    sexo: cliente.sexo || tip.sexo || '',
+                    pais: cliente.pais || tip.pais || 'Colombia',
+                    departamento: cliente.departamento || tip.departamento || '',
+                    ciudad: cliente.ciudad || tip.ciudad || '',
+                    direccion: cliente.direccion || tip.direccion || '',
+                    telefono: cliente.telefono || tip.telefono || '',
+                    correo: cliente.correo || tip.correo || '',
+                    nivelEscolaridad: cliente.nivelEscolaridad || tip.nivelEscolaridad || '',
+                    grupoEtnico: cliente.grupoEtnico || tip.grupoEtnico || '',
+                    discapacidad: cliente.discapacidad || tip.discapacidad || ''
+                  };
+                }
+              } catch (error) {
+                console.error(`❌ Error enriqueciendo tipificación ${tip.idLlamada}:`, error);
+              }
+            }
+            return tip;
+          })
+        );
+        
+        // Emitir a la sala del agente específico por idAgent con todas las tipificaciones
         io.to(`agent_${idAgentReal}`).emit('nueva_tipificacion', {
           idAgent: idAgentReal,
           tipificacion: tipificacionData,
+          tipificaciones: tipificacionesEnriquecidas,
+          count: tipificacionesEnriquecidas.length,
           timestamp: new Date().toISOString()
         });
-        console.log(`📡 Evento Socket.IO emitido para agente ${idAgentReal}`);
+        console.log(`📡 Evento Socket.IO emitido para agente ${idAgentReal} con ${tipificacionesEnriquecidas.length} tipificaciones`);
       }
       
       res.json({ 
@@ -555,6 +594,14 @@ router.get('/api/tipificacion/formulario/:idAgente', async (req, res) => {
     const arbolDocument = await Tree.getTipificacionesTree();
     const arbol = arbolDocument ? arbolDocument.root : [];
     
+    // 🚀 Obtener diálogos activos para agentes (solo activo: true)
+    const DialogoAgente = require('../models/dialogoAgente');
+    const dialogosActivos = await DialogoAgente.find({
+      activo: true
+    })
+    .sort({ prioridad: 1, createdAt: -1 })
+    .lean();
+    
     // Obtener WebSocket URL para el frontend
     const wsUrl = process.env.WEBSOCKET_URL || `http://${req.get('host')}`;
     
@@ -570,6 +617,7 @@ router.get('/api/tipificacion/formulario/:idAgente', async (req, res) => {
       arbol: arbol,
       hasTipificaciones: tipificacionesEnriquecidas.length > 0,
       websocketUrl: wsUrl,
+      dialogos: dialogosActivos, // 🚀 Diálogos para mostrar
       // Datos para JavaScript del frontend
       config: {
         idAgent: idAgente,
@@ -599,14 +647,21 @@ router.get('/api/tipificacion/stream/:idAgente', async (req, res) => {
     
     const redisService = require('../services/redisService');
     let lastCount = 0;
+    let lastTipificacionIds = []; // 🚀 Guardar IDs de la última actualización
     
     // Función para enviar actualización
     const sendUpdate = async () => {
       try {
-        const count = await redisService.countTipificacionesPendientes(idAgente);
+        const tipificacionesPendientes = await redisService.getAllTipificacionesPendientes(idAgente);
+        const currentIds = tipificacionesPendientes.map(t => t.id || t.idLlamada).filter(Boolean);
+        const count = tipificacionesPendientes.length;
         
-        if (count !== lastCount) {
-          const tipificacionesPendientes = await redisService.getAllTipificacionesPendientes(idAgente);
+        // 🚀 DETECTAR CAMBIOS: Comparar IDs actuales con los anteriores
+        const idsChanged = JSON.stringify(currentIds.sort()) !== JSON.stringify(lastTipificacionIds.sort());
+        const countChanged = count !== lastCount;
+        
+        if (idsChanged || countChanged) {
+          console.log(`📡 [SSE] Cambio detectado para agente ${idAgente}: count=${count} (antes: ${lastCount}), IDs cambiaron: ${idsChanged}`);
           
           // 🚀 ENRIQUECER TIPIFICACIONES CON DATOS ACTUALIZADOS DEL CRM (por cédula)
           const Cliente = require('../models/cliente');
@@ -651,7 +706,9 @@ router.get('/api/tipificacion/stream/:idAgente', async (req, res) => {
             tipificaciones: tipificacionesEnriquecidas,
             timestamp: new Date().toISOString()
           })}\n\n`);
+          
           lastCount = count;
+          lastTipificacionIds = currentIds;
         } else {
           // Heartbeat para mantener conexión viva
           res.write(`data: ${JSON.stringify({
@@ -698,8 +755,12 @@ router.get('/api/tipificacion/pendientes/:idAgente', async (req, res) => {
     const { idAgente } = req.params;
     const redisService = require('../services/redisService');
     
+    console.log(`📡 [API] Obteniendo tipificaciones pendientes para agente ${idAgente}`);
+    
     // Obtener tipificaciones desde Redis
     const tipificacionesPendientes = await redisService.getAllTipificacionesPendientes(idAgente);
+    
+    console.log(`📡 [API] Redis devolvió ${tipificacionesPendientes.length} tipificaciones`);
     
     // 🚀 ENRIQUECER TIPIFICACIONES CON DATOS ACTUALIZADOS DEL CRM (por cédula)
     const Cliente = require('../models/cliente');
@@ -737,6 +798,9 @@ router.get('/api/tipificacion/pendientes/:idAgente', async (req, res) => {
         return tip;
       })
     );
+    
+    console.log(`✅ [API] Devolviendo ${tipificacionesEnriquecidas.length} tipificaciones enriquecidas para agente ${idAgente}`);
+    console.log(`📋 [API] IDs de tipificaciones:`, tipificacionesEnriquecidas.map(t => t.idLlamada || t.id));
     
     res.json({
       success: true,
@@ -1054,6 +1118,58 @@ router.post('/api/tipificacion/actualizar', async (req, res) => {
       const tipificacionId = tipificacionData.id || tipificacionData.idLlamada || idLlamada;
       await redisService.marcarTipificacionAtendida(user.idAgent, tipificacionId);
       console.log(`✅ Tipificación ${idLlamada} removida de Redis y guardada en MongoDB`);
+      
+      // 🚀 EMITIR EVENTO SSE INMEDIATAMENTE para actualizar la cola
+      const io = req.app.get('io');
+      if (io) {
+        // Obtener tipificaciones actualizadas después de remover
+        const tipificacionesActualizadas = await redisService.getAllTipificacionesPendientes(user.idAgent);
+        
+        // 🚀 ENRIQUECER CON DATOS DEL CRM
+        const Cliente = require('../models/cliente');
+        const tipificacionesEnriquecidas = await Promise.all(
+          tipificacionesActualizadas.map(async (tip) => {
+            if (tip.cedula) {
+              try {
+                const cliente = await Cliente.buscarPorCedula(tip.cedula);
+                if (cliente) {
+                  return {
+                    ...tip,
+                    tipoDocumento: cliente.tipoDocumento || tip.tipoDocumento || '',
+                    nombres: cliente.nombres || tip.nombres || '',
+                    apellidos: cliente.apellidos || tip.apellidos || '',
+                    fechaNacimiento: cliente.fechaNacimiento || tip.fechaNacimiento || '',
+                    sexo: cliente.sexo || tip.sexo || '',
+                    pais: cliente.pais || tip.pais || 'Colombia',
+                    departamento: cliente.departamento || tip.departamento || '',
+                    ciudad: cliente.ciudad || tip.ciudad || '',
+                    direccion: cliente.direccion || tip.direccion || '',
+                    telefono: cliente.telefono || tip.telefono || '',
+                    correo: cliente.correo || tip.correo || '',
+                    nivelEscolaridad: cliente.nivelEscolaridad || tip.nivelEscolaridad || '',
+                    grupoEtnico: cliente.grupoEtnico || tip.grupoEtnico || '',
+                    discapacidad: cliente.discapacidad || tip.discapacidad || ''
+                  };
+                }
+              } catch (error) {
+                console.error(`❌ Error enriqueciendo tipificación ${tip.idLlamada}:`, error);
+              }
+            }
+            return tip;
+          })
+        );
+        
+        // Emitir a la sala del agente específico
+        io.to(`agent_${user.idAgent}`).emit('tipificacion_removida', {
+          idAgent: user.idAgent,
+          tipificacionId: tipificacionId,
+          tipificaciones: tipificacionesEnriquecidas,
+          count: tipificacionesEnriquecidas.length,
+          timestamp: new Date().toISOString()
+        });
+        
+        console.log(`📡 Evento Socket.IO emitido para agente ${user.idAgent} después de remover tipificación`);
+      }
     } catch (redisError) {
       console.error('❌ Error removiendo de Redis:', redisError);
       // Continuar aunque falle Redis
@@ -2389,6 +2505,176 @@ router.post('/api/tree/initialize', requireAdmin, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Error interno del servidor',
+      error: error.message
+    });
+  }
+});
+
+// 🚀 RUTAS PARA GESTIÓN DE DIÁLOGOS DE AGENTES
+
+// GET /api/dialogos-agente - Obtener todos los diálogos
+router.get('/api/dialogos-agente', async (req, res) => {
+  try {
+    const DialogoAgente = require('../models/dialogoAgente');
+    const dialogos = await DialogoAgente.find()
+      .sort({ prioridad: 1, createdAt: -1 })
+      .populate('creadoPor', 'name correo')
+      .populate('actualizadoPor', 'name correo')
+      .lean();
+    
+    res.json({
+      success: true,
+      dialogos: dialogos
+    });
+  } catch (error) {
+    console.error('❌ Error obteniendo diálogos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error obteniendo diálogos',
+      error: error.message
+    });
+  }
+});
+
+// GET /api/dialogos-agente/activos - Obtener solo diálogos activos
+router.get('/api/dialogos-agente/activos', async (req, res) => {
+  try {
+    const DialogoAgente = require('../models/dialogoAgente');
+    const ahora = new Date();
+    
+    const dialogos = await DialogoAgente.find({
+      activo: true,
+      $or: [
+        { fechaFin: null },
+        { fechaFin: { $gt: ahora } }
+      ]
+    })
+      .sort({ prioridad: 1, createdAt: -1 })
+      .lean();
+    
+    res.json({
+      success: true,
+      dialogos: dialogos
+    });
+  } catch (error) {
+    console.error('❌ Error obteniendo diálogos activos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error obteniendo diálogos activos',
+      error: error.message
+    });
+  }
+});
+
+// POST /api/dialogos-agente - Crear nuevo diálogo
+router.post('/api/dialogos-agente', async (req, res) => {
+  try {
+    const DialogoAgente = require('../models/dialogoAgente');
+    const { titulo, mensaje, mensajeFormateado, tipo, categoria, activo, prioridad, fechaFin } = req.body;
+    
+    // Validar campos requeridos
+    if (!titulo || !mensaje) {
+      return res.status(400).json({
+        success: false,
+        message: 'Título y mensaje son requeridos'
+      });
+    }
+    
+    const dialogo = new DialogoAgente({
+      titulo,
+      mensaje,
+      mensajeFormateado: mensajeFormateado || null,
+      tipo: tipo || 'info',
+      categoria: categoria || 'general',
+      activo: activo !== undefined ? activo : true,
+      prioridad: prioridad || 1,
+      fechaFin: fechaFin || null,
+      creadoPor: req.user?._id || null
+    });
+    
+    await dialogo.save();
+    
+    res.json({
+      success: true,
+      message: 'Diálogo creado correctamente',
+      dialogo: dialogo
+    });
+  } catch (error) {
+    console.error('❌ Error creando diálogo:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error creando diálogo',
+      error: error.message
+    });
+  }
+});
+
+// PUT /api/dialogos-agente/:id - Actualizar diálogo
+router.put('/api/dialogos-agente/:id', async (req, res) => {
+  try {
+    const DialogoAgente = require('../models/dialogoAgente');
+    const { id } = req.params;
+    const { titulo, mensaje, mensajeFormateado, tipo, categoria, activo, prioridad, fechaFin } = req.body;
+    
+    const dialogo = await DialogoAgente.findById(id);
+    if (!dialogo) {
+      return res.status(404).json({
+        success: false,
+        message: 'Diálogo no encontrado'
+      });
+    }
+    
+    // Actualizar campos
+    if (titulo !== undefined) dialogo.titulo = titulo;
+    if (mensaje !== undefined) dialogo.mensaje = mensaje;
+    if (mensajeFormateado !== undefined) dialogo.mensajeFormateado = mensajeFormateado;
+    if (tipo !== undefined) dialogo.tipo = tipo;
+    if (categoria !== undefined) dialogo.categoria = categoria;
+    if (activo !== undefined) dialogo.activo = activo;
+    if (prioridad !== undefined) dialogo.prioridad = prioridad;
+    if (fechaFin !== undefined) dialogo.fechaFin = fechaFin;
+    dialogo.actualizadoPor = req.user?._id || null;
+    
+    await dialogo.save();
+    
+    res.json({
+      success: true,
+      message: 'Diálogo actualizado correctamente',
+      dialogo: dialogo
+    });
+  } catch (error) {
+    console.error('❌ Error actualizando diálogo:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error actualizando diálogo',
+      error: error.message
+    });
+  }
+});
+
+// DELETE /api/dialogos-agente/:id - Eliminar diálogo
+router.delete('/api/dialogos-agente/:id', async (req, res) => {
+  try {
+    const DialogoAgente = require('../models/dialogoAgente');
+    const { id } = req.params;
+    
+    const dialogo = await DialogoAgente.findByIdAndDelete(id);
+    if (!dialogo) {
+      return res.status(404).json({
+        success: false,
+        message: 'Diálogo no encontrado'
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: 'Diálogo eliminado correctamente'
+    });
+  } catch (error) {
+    console.error('❌ Error eliminando diálogo:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error eliminando diálogo',
       error: error.message
     });
   }

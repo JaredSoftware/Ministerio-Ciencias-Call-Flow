@@ -42,19 +42,6 @@
         </sidenav-item>
       </li>
       
-      <!-- Opción WORK: solo si el estado actual es de categoría 'work' -->
-      <li v-if="showWorkFunction" class="nav-item">
-        <sidenav-item
-          url="/work"
-          :class="getRoute() === 'work' ? 'active' : ''"
-          :navText="this.$store.state.isRTL ? 'عمل' : 'Work'"
-        >
-          <template v-slot:icon>
-            <i class="ni ni-briefcase-24 text-warning text-sm opacity-10"></i>
-          </template>
-        </sidenav-item>
-      </li>
-
       <!-- Opción de Reportes: solo para administradores o con permiso 'viewReports' -->
       <li v-if="canViewReports" class="nav-item">
         <sidenav-item
@@ -77,6 +64,19 @@
         >
           <template v-slot:icon>
             <i class="ni ni-settings-gear-65 text-warning text-sm opacity-10"></i>
+          </template>
+        </sidenav-item>
+      </li>
+
+      <!-- Opción de Administración de Diálogos: solo para administradores -->
+      <li v-if="canManageTree || userRole === 'admin' || userRole === 'administrador'" class="nav-item">
+        <sidenav-item
+          url="/dialogos-admin"
+          :class="getRoute() === 'dialogos-admin' ? 'active' : ''"
+          :navText="this.$store.state.isRTL ? 'إدارة الحوارات' : 'Diálogos para Agentes'"
+        >
+          <template v-slot:icon>
+            <i class="ni ni-chat-round text-info text-sm opacity-10"></i>
           </template>
         </sidenav-item>
       </li>
@@ -216,7 +216,6 @@
 <script>
 import SidenavItem from "./SidenavItem.vue";
 import permissions from '@/router/services/permissions';
-import statusTypes from '@/router/services/statusTypes';
 //import SidenavCard from "./SidenavCard.vue";
 
 export default {
@@ -243,16 +242,6 @@ export default {
   },
   computed: {
     // Los permisos ya están cargados en las propiedades data
-    showWorkFunction() {
-      // Obtener el estado actual del usuario desde el store
-      const userStatus = this.$store.state.userStatus || {};
-      if (!userStatus.status) return false;
-      // Buscar la categoría del estado actual
-      const statusObj = statusTypes.getStatusByValue
-        ? statusTypes.getStatusByValue(userStatus.status)
-        : null;
-      return statusObj && statusObj.category === 'work';
-    },
     userRole() {
       // Obtener el rol del usuario desde el store o localStorage
       return this.$store.state.user?.role || 
