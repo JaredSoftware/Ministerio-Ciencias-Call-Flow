@@ -977,12 +977,25 @@ mqttService.connect('mqtt://localhost:1884')
               status: { $in: workStatusValues }
             });
             
-            // Agentes ayer (para comparación)
-            const ayer = new Date();
-            ayer.setDate(ayer.getDate() - 1);
-            ayer.setHours(0, 0, 0, 0);
-            const ayerFin = new Date(ayer);
-            ayerFin.setHours(23, 59, 59, 999);
+            // Fecha de hoy en hora local del servidor (Colombia UTC-5)
+            // El servidor ya está en hora Colombia, así que usamos la fecha local directamente
+            const ahora = new Date();
+            const año = ahora.getFullYear();
+            const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+            const dia = String(ahora.getDate()).padStart(2, '0');
+            const fechaHoyStr = `${año}-${mes}-${dia}`;
+            
+            // Agentes ayer (para comparación) - Los timestamps se guardan en UTC real
+            const fechaAyer = new Date();
+            fechaAyer.setDate(fechaAyer.getDate() - 1);
+            const añoAyer = fechaAyer.getFullYear();
+            const mesAyer = String(fechaAyer.getMonth() + 1).padStart(2, '0');
+            const diaAyer = String(fechaAyer.getDate()).padStart(2, '0');
+            const fechaAyerStr = `${añoAyer}-${mesAyer}-${diaAyer}`;
+            // 00:00 Colombia ayer = 05:00 UTC de ayer
+            const ayer = new Date(fechaAyerStr + 'T05:00:00.000Z');
+            // 23:59 Colombia ayer = 04:59 UTC de hoy
+            const ayerFin = new Date(fechaHoyStr + 'T04:59:59.999Z');
             
             // Simplificado: asumir mismo número o calcular de logs si existe
             const agentesAyer = agentesConectados; // Simplificado
@@ -998,20 +1011,51 @@ mqttService.connect('mqtt://localhost:1884')
               fechaCreacion: { $lt: semanaAnterior }
             });
             
-            // 3. Tipificaciones Hoy
-            const hoy = new Date();
-            hoy.setHours(0, 0, 0, 0);
-            const hoyFin = new Date();
-            hoyFin.setHours(23, 59, 59, 999);
+            // 3. Tipificaciones Hoy - Los timestamps se guardan en UTC real
+            // Si quiero buscar desde 00:00 Colombia hasta 23:59 Colombia,
+            // necesito buscar desde 05:00 UTC hasta 04:59 UTC del día siguiente
+            // 00:00 Colombia = 05:00 UTC del mismo día
+            const hoy = new Date(fechaHoyStr + 'T05:00:00.000Z');
+            // 23:59 Colombia = 04:59 UTC del día siguiente
+            const fechaManana = new Date(fechaHoyStr);
+            fechaManana.setDate(fechaManana.getDate() + 1);
+            const fechaMananaStr = fechaManana.toISOString().split('T')[0];
+            const hoyFin = new Date(fechaMananaStr + 'T04:59:59.999Z');
+            
+            console.log('🔍 Buscando tipificaciones de HOY:');
+            console.log('   Fecha servidor (local):', fechaHoyStr);
+            console.log('   Hora servidor (local):', ahora.toLocaleString('es-CO', { timeZone: 'America/Bogota' }));
+            console.log('   Desde (UTC):', hoy.toISOString(), '= 00:00 Colombia del', fechaHoyStr);
+            console.log('   Hasta (UTC):', hoyFin.toISOString(), '= 23:59 Colombia del', fechaHoyStr);
+            
+            // Verificar si hay alguna tipificación en ese rango (sin filtrar por status)
+            const totalEnRango = await Tipificacion.countDocuments({
+              timestamp: { $gte: hoy, $lte: hoyFin }
+            });
+            console.log('   Total en rango (sin filtrar status):', totalEnRango);
+            
+            // Verificar documentos recientes para debug
+            const docsRecientes = await Tipificacion.find({
+              timestamp: { $gte: new Date(fechaHoyStr + 'T00:00:00.000Z') }
+            })
+            .sort({ timestamp: -1 })
+            .limit(5)
+            .select('timestamp status')
+            .lean();
+            console.log('   Últimos 5 documentos desde', fechaHoyStr + 'T00:00:00.000Z:');
+            docsRecientes.forEach((doc, i) => {
+              console.log(`      ${i+1}. timestamp: ${doc.timestamp?.toISOString()}, status: ${doc.status}`);
+            });
             
             const tipificacionesHoy = await Tipificacion.countDocuments({
-              createdAt: { $gte: hoy, $lte: hoyFin },
+              timestamp: { $gte: hoy, $lte: hoyFin },
               status: 'success'
             });
+            console.log('   Tipificaciones con status=success:', tipificacionesHoy);
             
             // Tipificaciones ayer
             const tipificacionesAyer = await Tipificacion.countDocuments({
-              createdAt: { $gte: ayer, $lte: ayerFin },
+              timestamp: { $gte: ayer, $lte: ayerFin },
               status: 'success'
             });
             
@@ -1025,7 +1069,7 @@ mqttService.connect('mqtt://localhost:1884')
             const topAgentesData = await Tipificacion.aggregate([
               {
                 $match: {
-                  createdAt: { $gte: hoy, $lte: hoyFin },
+                  timestamp: { $gte: hoy, $lte: hoyFin },
                   assignedTo: { $exists: true, $ne: null }
                 }
               },
@@ -1097,30 +1141,72 @@ mqttService.connect('mqtt://localhost:1884')
                 : 0
             })).sort((a, b) => b.count - a.count);
             
-            // 7. Tipificaciones por Hora del Día
+            // 7. Tipificaciones por Hora del Día - Los timestamps se guardan en UTC
+            // Necesito extraer la hora Colombia directamente del timestamp UTC
+            // Si timestamp es 08:54 UTC, eso es 03:54 AM Colombia (08:54 - 5 = 03:54)
+            // Usar aggregation para convertir UTC a hora Colombia y agrupar
+            const tipificacionesPorHoraData = await Tipificacion.aggregate([
+              {
+                $match: {
+                  timestamp: { $gte: hoy, $lte: hoyFin },
+                  status: 'success'
+                }
+              },
+              {
+                $project: {
+                  // Extraer la hora UTC del timestamp
+                  // Los timestamps se guardan como hora Colombia directamente en UTC
+                  // Ejemplo: 08:54 UTC = 08:54 AM Colombia (no necesita conversión)
+                  horaUTC: { $hour: '$timestamp' },
+                  timestamp: 1,
+                  // La hora UTC ES la hora Colombia directamente
+                  horaColombia: { $hour: '$timestamp' }
+                }
+              },
+              {
+                $group: {
+                  _id: '$horaColombia',
+                  count: { $sum: 1 },
+                  ejemplos: { $push: { timestamp: '$timestamp', horaUTC: '$horaUTC' } }
+                }
+              },
+              {
+                $sort: { _id: 1 }
+              }
+            ]);
+            
+            // Crear array completo de 24 horas (0-23) con los datos
             const tipificacionesPorHora = [];
+            const horaMap = {};
+            tipificacionesPorHoraData.forEach(item => {
+              horaMap[item._id] = item.count;
+            });
+            
             for (let hora = 0; hora < 24; hora++) {
-              const horaInicio = new Date(hoy);
-              horaInicio.setHours(hora, 0, 0, 0);
-              const horaFin = new Date(hoy);
-              horaFin.setHours(hora, 59, 59, 999);
-              
-              const count = await Tipificacion.countDocuments({
-                createdAt: { $gte: horaInicio, $lte: horaFin },
-                status: 'success'
-              });
-              
               tipificacionesPorHora.push({
                 hora: hora,
-                count: count
+                count: horaMap[hora] || 0
               });
             }
+            
+            console.log('🔍 Tipificaciones por hora (Colombia):');
+            tipificacionesPorHoraData.forEach(item => {
+              if (item.count > 0) {
+                console.log(`   Hora ${item._id}:00 Colombia: ${item.count} tipificaciones`);
+                // Mostrar ejemplos de timestamps para esta hora
+                const ejemplos = item.ejemplos.slice(0, 2);
+                ejemplos.forEach(ej => {
+                  const fechaEj = new Date(ej.timestamp);
+                  console.log(`      Ejemplo: ${fechaEj.toISOString()} (${ej.horaUTC}:XX UTC) -> Hora ${item._id} Colombia`);
+                });
+              }
+            });
             
             // 8. Distribución por Nivel 1 (Top 8 categorías)
             const distribucionNivel1Data = await Tipificacion.aggregate([
               {
                 $match: {
-                  createdAt: { $gte: hoy, $lte: hoyFin },
+                  timestamp: { $gte: hoy, $lte: hoyFin },
                   status: 'success'
                 }
               },
