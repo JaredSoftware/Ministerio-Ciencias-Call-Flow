@@ -98,8 +98,8 @@
                 </select>
               </div>
               <div class="col-6 col-md-3 col-lg-3 text-end">
-                <button class="btn btn-success w-100 mb-0 shadow-sm" @click="exportarCSV" :disabled="clientes.length === 0">
-                  <i class="fas fa-file-csv me-2"></i>Exportar
+                <button class="btn btn-success w-100 mb-0 shadow-sm" @click="exportarExcel" :disabled="clientes.length === 0">
+                  <i class="fas fa-file-excel me-2"></i>Exportar Excel
                 </button>
               </div>
             </div>
@@ -251,8 +251,8 @@
               <h5 class="mb-0 font-weight-bold">Historial de Tipificaciones</h5>
               <p class="text-sm text-muted mb-0">Registros del {{ formatFecha(fechaInicioTipif) }} al {{ formatFecha(fechaFinTipif) }}</p>
             </div>
-            <button class="btn btn-outline-success btn-sm mb-0" @click="exportarTipificacionesCSV" :disabled="tipificaciones.length === 0">
-              <i class="fas fa-download me-1"></i> CSV
+            <button class="btn btn-outline-success btn-sm mb-0" @click="exportarTipificacionesExcel" :disabled="tipificaciones.length === 0">
+              <i class="fas fa-file-excel me-1"></i> Excel
             </button>
           </div>
           
@@ -321,8 +321,10 @@
 
 <script>
 import axios from 'axios';
+import Swal from 'sweetalert2';
 import ClienteCRM from '@/components/ClienteCRM.vue';
 import { mqttService } from '@/router/services/mqttService';
+import * as XLSX from 'xlsx';
 
 export default {
   name: 'Reportes',
@@ -471,83 +473,133 @@ export default {
     getNombreCompleto(c) { return c ? `${c.nombres || ''} ${c.apellidos || ''}`.trim() || 'Sin nombre' : '-'; },
     formatFecha(f) { if(!f) return '-'; const d = new Date(f); return `${String(d.getUTCDate()).padStart(2,'0')}/${String(d.getUTCMonth()+1).padStart(2,'0')}/${d.getUTCFullYear()}`; },
     formatHora(f) { if(!f) return '-'; const d = new Date(f); return d.toLocaleTimeString('es-CO', {hour: '2-digit', minute:'2-digit'}); },
-    exportarCSV() {
-      if (this.clientes.length === 0) return;
+    async exportarExcel() {
+      if (this.clientes.length === 0) {
+        this.showNotification('No hay clientes para exportar', 'warning');
+        return;
+      }
       
-      const headers = [
-        'Cédula', 'Tipo Documento', 'Nombres', 'Apellidos', 'Teléfono',
-        'Correo', 'Ciudad', 'Departamento', 'Total Interacciones',
-        'Última Interacción'
-      ];
-      
-      const rows = this.clientes.map(c => [
-        c.cedula || '',
-        c.tipoDocumento || '',
-        c.nombres || '',
-        c.apellidos || '',
-        c.telefono || '',
-        c.correo || '',
-        c.ciudad || '',
-        c.departamento || '',
-        c.totalInteracciones || 0,
-        this.formatFecha(c.fechaUltimaInteraccion) + ' ' + this.formatHora(c.fechaUltimaInteraccion)
-      ]);
-      
-      const csvContent = [
-        headers.join(','),
-        ...rows.map(row => row.map(field => `"${String(field)}"`).join(','))
-      ].join('\n');
-      
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      const fecha = new Date().toISOString().slice(0, 10);
-      
-      link.setAttribute('href', url);
-      link.setAttribute('download', `clientes_crm_${fecha}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      try {
+        const headers = [
+          'Cédula', 'Tipo Documento', 'Nombres', 'Apellidos', 'Teléfono',
+          'Correo', 'Ciudad', 'Departamento', 'Total Interacciones',
+          'Última Interacción'
+        ];
+        
+        const rows = this.clientes.map(c => [
+          c.cedula || '',
+          c.tipoDocumento || '',
+          c.nombres || '',
+          c.apellidos || '',
+          c.telefono || '',
+          c.correo || '',
+          c.ciudad || '',
+          c.departamento || '',
+          c.totalInteracciones || 0,
+          c.fechaUltimaInteraccion ? (this.formatFecha(c.fechaUltimaInteraccion) + ' ' + this.formatHora(c.fechaUltimaInteraccion)) : ''
+        ]);
+        
+        // Crear workbook y worksheet usando la librería importada
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        
+        // Ajustar ancho de columnas
+        const colWidths = [
+          { wch: 12 }, // Cédula
+          { wch: 15 }, // Tipo Documento
+          { wch: 20 }, // Nombres
+          { wch: 20 }, // Apellidos
+          { wch: 15 }, // Teléfono
+          { wch: 30 }, // Correo
+          { wch: 20 }, // Ciudad
+          { wch: 20 }, // Departamento
+          { wch: 18 }, // Total Interacciones
+          { wch: 20 }  // Última Interacción
+        ];
+        ws['!cols'] = colWidths;
+        
+        // Agregar worksheet al workbook
+        XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
+        
+        // Generar archivo Excel
+        const fecha = new Date().toISOString().slice(0, 10);
+        XLSX.writeFile(wb, `clientes_crm_${fecha}.xlsx`);
+        
+        this.showNotification('Archivo Excel generado correctamente', 'success');
+      } catch (error) {
+        console.error('Error generando archivo Excel:', error);
+        this.showNotification('Error al generar el archivo Excel: ' + error.message, 'error');
+      }
     },
 
-    exportarTipificacionesCSV() {
-      if (this.tipificaciones.length === 0) return;
+    async exportarTipificacionesExcel() {
+      if (this.tipificaciones.length === 0) {
+        this.showNotification('No hay tipificaciones para exportar', 'warning');
+        return;
+      }
       
-      const headers = [
-        'Fecha', 'Hora', 'Agente', 'Cédula Cliente', 'Nombre Cliente',
-        'Teléfono', 'Nivel 1', 'Nivel 2', 'Nivel 3', 'Duración (min)'
-      ];
-      
-      const rows = this.tipificaciones.map(t => [
-        this.formatFecha(t.fecha),
-        this.formatHora(t.fecha),
-        t.agente?.nombre || '',
-        t.cliente?.cedula || '',
-        this.getNombreCompleto(t.cliente),
-        t.cliente?.telefono || '',
-        t.nivel1 || '',
-        t.nivel2 || '',
-        t.nivel3 || '',
-        t.duracionMinutos || 0
-      ]);
-      
-      const csvContent = [
-        headers.join(','),
-        ...rows.map(row => row.map(field => `"${String(field)}"`).join(','))
-      ].join('\n');
-      
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      const fecha = new Date().toISOString().slice(0, 10);
-      
-      link.setAttribute('href', url);
-      link.setAttribute('download', `tipificaciones_${this.fechaInicioTipif}_${this.fechaFinTipif}_${fecha}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      try {
+        const headers = [
+          'Fecha', 'Hora', 'Agente', 'Cédula Cliente', 'Nombre Cliente',
+          'Teléfono', 'Nivel 1', 'Nivel 2', 'Nivel 3', 'Duración (min)'
+        ];
+        
+        const rows = this.tipificaciones.map(t => [
+          this.formatFecha(t.fecha),
+          this.formatHora(t.fecha),
+          t.agente?.nombre || '',
+          t.cliente?.cedula || '',
+          this.getNombreCompleto(t.cliente),
+          t.cliente?.telefono || '',
+          t.nivel1 || '',
+          t.nivel2 || '',
+          t.nivel3 || '',
+          t.duracionMinutos || 0
+        ]);
+        
+        // Crear workbook y worksheet usando la librería importada
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        
+        // Ajustar ancho de columnas
+        const colWidths = [
+          { wch: 12 }, // Fecha
+          { wch: 10 }, // Hora
+          { wch: 20 }, // Agente
+          { wch: 12 }, // Cédula Cliente
+          { wch: 25 }, // Nombre Cliente
+          { wch: 15 }, // Teléfono
+          { wch: 25 }, // Nivel 1
+          { wch: 25 }, // Nivel 2
+          { wch: 25 }, // Nivel 3
+          { wch: 15 }  // Duración
+        ];
+        ws['!cols'] = colWidths;
+        
+        // Agregar worksheet al workbook
+        XLSX.utils.book_append_sheet(wb, ws, 'Tipificaciones');
+        
+        // Generar archivo Excel
+        const fecha = new Date().toISOString().slice(0, 10);
+        const nombreArchivo = `tipificaciones_${this.fechaInicioTipif}_${this.fechaFinTipif}_${fecha}.xlsx`;
+        XLSX.writeFile(wb, nombreArchivo);
+        
+        this.showNotification('Archivo Excel generado correctamente', 'success');
+      } catch (error) {
+        console.error('Error generando archivo Excel:', error);
+        this.showNotification('Error al generar el archivo Excel: ' + error.message, 'error');
+      }
+    },
+
+    showNotification(message, type = 'info') {
+      Swal.fire({
+        icon: type,
+        title: message,
+        timer: 3000,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+      });
     }
   }
 };
