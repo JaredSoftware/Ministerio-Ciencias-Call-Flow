@@ -217,6 +217,73 @@ pm2 start index.js --name callflow
 
 ---
 
+## 🔐 Acceso al Repositorio
+
+Este repositorio es **privado**. Para que el cliente pueda acceder y descargar el código, hay dos opciones:
+
+### Opción 1: Agregar como Colaborador (Recomendado)
+
+1. **El propietario del repositorio debe agregar al cliente como colaborador:**
+   - Ir a: `https://github.com/JaredSoftware/Ministerio-Ciencias-Call-Flow/settings/access`
+   - Clic en "Add people" o "Invite a collaborator"
+   - Ingresar el usuario de GitHub del cliente o su email
+   - Seleccionar el nivel de acceso: **Read** (solo lectura) o **Write** (lectura y escritura)
+   - El cliente recibirá una invitación por email
+
+2. **El cliente debe aceptar la invitación:**
+   - Revisar el email de invitación de GitHub
+   - Clic en "Accept invitation"
+   - Iniciar sesión en GitHub si es necesario
+
+3. **Una vez aceptada la invitación, el cliente puede clonar el repositorio:**
+```bash
+git clone https://github.com/JaredSoftware/Ministerio-Ciencias-Call-Flow.git
+cd Ministerio-Ciencias-Call-Flow
+```
+
+### Opción 2: Token de Acceso Personal
+
+Si el cliente no tiene cuenta de GitHub o prefieres usar un token:
+
+1. **Crear un token de acceso personal:**
+   - El propietario del repositorio debe ir a: `https://github.com/settings/tokens`
+   - Clic en "Generate new token" → "Generate new token (classic)"
+   - Nombre: "Cliente - Ministerio Ciencias"
+   - Expiración: Configurar según necesidad
+   - Permisos: Marcar `repo` (acceso completo a repositorios privados)
+   - Generar y copiar el token (solo se muestra una vez)
+
+2. **Compartir el token de forma segura** con el cliente (usar canal seguro, no email sin cifrar)
+
+3. **El cliente puede clonar usando el token:**
+```bash
+git clone https://[TOKEN]@github.com/JaredSoftware/Ministerio-Ciencias-Call-Flow.git
+cd Ministerio-Ciencias-Call-Flow
+```
+
+**Ejemplo:**
+```bash
+git clone https://ghp_xxxxxxxxxxxxxxxxxxxx@github.com/JaredSoftware/Ministerio-Ciencias-Call-Flow.git
+```
+
+### Descargar como ZIP (Sin Git)
+
+Si el cliente solo necesita descargar el código una vez sin usar Git:
+
+1. **Acceder al repositorio** (con invitación aceptada o token)
+2. **Clic en el botón verde "Code"**
+3. **Seleccionar "Download ZIP"**
+4. **Extraer el archivo ZIP** en su máquina local
+
+### Notas de Seguridad
+
+- ⚠️ **Nunca compartir tokens en repositorios públicos o código**
+- ⚠️ **Los tokens deben tener fecha de expiración**
+- ⚠️ **Revocar tokens si se comprometen o ya no se necesitan**
+- ✅ **Recomendado**: Usar la opción de colaborador para mejor control de acceso
+
+---
+
 ## ⚙️ Configuración
 
 ### Variables de Entorno
