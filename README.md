@@ -510,6 +510,141 @@ El sistema usa MQTT para comunicación asíncrona. Topics principales:
 
 ---
 
+## 👥 Roles y Permisos del Sistema
+
+El sistema cuenta con un sistema de roles y permisos granular. A continuación se detallan los roles disponibles y sus permisos:
+
+### Rol: **asesor**
+
+```json
+{
+  "nombre": "asesor",
+  "descripcion": "",
+  "isActive": true,
+  "permissions": {
+    "users": {
+      "view": false,
+      "create": false,
+      "edit": false,
+      "delete": false
+    },
+    "monitoring": {
+      "viewActiveUsers": false,
+      "viewUserStates": false,
+      "viewReports": false,
+      "exportData": false
+    },
+    "finance": {
+      "viewAbonos": false,
+      "createAbonos": false,
+      "viewSaldos": false,
+      "viewBilling": false
+    },
+    "system": {
+      "manageRoles": false,
+      "systemConfig": false,
+      "viewLogs": false
+    },
+    "operations": {
+      "viewTables": false,
+      "viewViajes": false,
+      "viewKardex": false,
+      "exportReports": false
+    }
+  }
+}
+```
+
+**Descripción**: Rol básico para asesores del call center. Sin permisos administrativos.
+
+---
+
+### Rol: **administrador**
+
+```json
+{
+  "nombre": "administrador",
+  "descripcion": "",
+  "isActive": true,
+  "permissions": {
+    "users": {
+      "view": true,
+      "create": true,
+      "edit": true,
+      "delete": true
+    },
+    "monitoring": {
+      "viewActiveUsers": true,
+      "viewUserStates": true,
+      "viewReports": true,
+      "exportData": true
+    },
+    "finance": {
+      "viewAbonos": true,
+      "createAbonos": true,
+      "viewSaldos": true,
+      "viewBilling": true
+    },
+    "system": {
+      "manageRoles": true,
+      "systemConfig": true,
+      "viewLogs": true
+    },
+    "operations": {
+      "viewTables": true,
+      "viewViajes": true,
+      "viewKardex": true,
+      "exportReports": true
+    },
+    "admin": {
+      "manageTree": true,
+      "systemConfig": true
+    }
+  }
+}
+```
+
+**Descripción**: Rol con acceso completo al sistema. Incluye todos los permisos de gestión, monitoreo, finanzas, sistema y operaciones, además de permisos especiales de administración como gestión del árbol de tipificación.
+
+---
+
+### Categorías de Permisos
+
+#### 👤 **users** - Gestión de Usuarios
+- `view`: Ver lista de usuarios
+- `create`: Crear nuevos usuarios
+- `edit`: Editar usuarios existentes
+- `delete`: Eliminar usuarios
+
+#### 📊 **monitoring** - Monitoreo y Reportes
+- `viewActiveUsers`: Ver usuarios activos en tiempo real
+- `viewUserStates`: Ver estados de usuarios
+- `viewReports`: Ver reportes del sistema
+- `exportData`: Exportar datos
+
+#### 💰 **finance** - Módulo Financiero
+- `viewAbonos`: Ver abonos
+- `createAbonos`: Crear abonos
+- `viewSaldos`: Ver saldos
+- `viewBilling`: Ver facturación
+
+#### ⚙️ **system** - Configuración del Sistema
+- `manageRoles`: Gestionar roles y permisos
+- `systemConfig`: Configurar sistema
+- `viewLogs`: Ver logs del sistema
+
+#### 📋 **operations** - Operaciones
+- `viewTables`: Ver tablas de datos
+- `viewViajes`: Ver viajes
+- `viewKardex`: Ver kardex
+- `exportReports`: Exportar reportes
+
+#### 🔐 **admin** - Administración Avanzada
+- `manageTree`: Gestionar árbol de tipificación
+- `systemConfig`: Configuración avanzada del sistema
+
+---
+
 ## 📚 Documentación Adicional
 
 La documentación detallada se encuentra en la carpeta `docs/`:
